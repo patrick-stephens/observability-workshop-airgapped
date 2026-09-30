@@ -205,7 +205,7 @@ start_vm() {
         -m "${VM_MEMORY_MIB}M" \
         -drive "file=${VM_DISK},if=virtio,format=qcow2" \
         -drive "file=${SEED_IMAGE},media=cdrom,format=raw,readonly=on" \
-        -netdev "user,id=net0,net=10.44.0.0/24,host=10.44.0.2,hostfwd=tcp:127.0.0.1:${SSH_FORWARD_PORT}-:22" \
+        -netdev "user,id=net0,net=10.44.0.0/24,host=10.44.0.2,restrict=on,hostfwd=tcp:127.0.0.1:${SSH_FORWARD_PORT}-:22" \
         -device virtio-net-pci,netdev=net0 \
         -serial "file:${SERIAL_LOG}" \
         -monitor none \
