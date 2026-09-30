@@ -1,0 +1,20 @@
+{
+  "dependencies": {
+    "@fontsource/inter": "^5.2.5",
+    "@fontsource/jetbrains-mono": "^5.2.5",
+    "@slidev/cli": "^0.50.0",
+    "@slidev/theme-default": "^0.25.0"
+  },
+  "devDependencies": {
+    "playwright-chromium": "^1.63.0",
+    "vite-plugin-singlefile": "^2.3.3"
+  },
+  "name": "observability-workshop-slides",
+  "private": true,
+  "scripts": {
+    "build": "slidev build --base ./",
+    "dev": "slidev",
+    "export": "slidev export --output export.pdf"
+  },
+  "type": "module"
+}

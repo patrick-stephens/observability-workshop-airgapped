@@ -1,0 +1,196 @@
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';
+
+:root {
+  --slidev-theme-primary: #ffb454;
+  --slidev-theme-background: #0b0d10;
+  --slidev-theme-foreground: #d4d7dc;
+  --deck-muted: #7d838c;
+  --deck-code-background: #12161b;
+  --deck-rule: #343a42;
+}
+
+html,
+body,
+#app {
+  background: #0b0d10;
+  color: #d4d7dc;
+  font-family: 'Inter', sans-serif;
+}
+
+.slidev-layout {
+  background: #0b0d10;
+  color: #d4d7dc;
+  font-family: 'Inter', sans-serif;
+}
+
+.slidev-layout h1,
+.slidev-layout h2,
+.slidev-layout h3 {
+  color: #d4d7dc;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+}
+
+.slidev-layout code,
+.slidev-layout pre,
+.slidev-layout kbd {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.slidev-layout table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 0;
+  font-size: 1.05rem;
+}
+
+.slidev-layout th {
+  padding: 0.7rem 1rem 0.8rem 0;
+  border: 0;
+  border-bottom: 1px solid #ffb454;
+  color: #ffb454;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.slidev-layout td {
+  padding: 0.8rem 1rem 0.8rem 0;
+  border: 0;
+  color: #b8bdc5;
+  vertical-align: top;
+}
+
+.slidev-layout td:first-child {
+  color: #d4d7dc;
+}
+
+.slidev-layout pre {
+  border: 1px solid #343a42;
+  border-radius: 0;
+  background: #12161b !important;
+  box-shadow: none;
+}
+
+.slidev-layout pre code {
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.slidev-layout code:not(pre code) {
+  color: #ffb454;
+}
+
+.statement-layout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.statement-layout h1 {
+  max-width: 1120px;
+  margin: 0 auto 1.5rem;
+  font-size: 3.2rem;
+  line-height: 1.2;
+}
+
+.statement-layout p {
+  max-width: 980px;
+  margin: 0 auto;
+  color: #7d838c;
+  font-size: 1.35rem;
+  line-height: 1.5;
+}
+
+.slidev-layout.cover h1,
+.slidev-layout.section h1 {
+  color: #d4d7dc;
+}
+
+.track-line {
+  color: #7d838c;
+  font-size: 0.95rem;
+}
+
+.signal-table td:first-child,
+.criterion-table td:first-child {
+  color: #ffb454;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.signal-table td {
+  padding-top: 1.05rem;
+  padding-bottom: 1.05rem;
+}
+
+.position-list {
+  display: grid;
+  gap: 1.2rem;
+  margin-top: 1.5rem;
+}
+
+.position-item {
+  display: grid;
+  grid-template-columns: 2.5rem 1fr;
+  align-items: start;
+  column-gap: 0.65rem;
+}
+
+.position-number {
+  color: #ffb454;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.2rem;
+}
+
+.position-lead {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-weight: 600;
+}
+
+.position-detail,
+.backup-note {
+  color: #7d838c;
+}
+
+.demo-layout {
+  position: relative;
+  min-height: 100%;
+  padding: 4rem 4.5rem;
+}
+
+.demo-title h1 {
+  margin: 0;
+  font-size: 3.6rem;
+  line-height: 1.1;
+}
+
+.demo-footer {
+  position: absolute;
+  right: 4.5rem;
+  bottom: 2.5rem;
+  left: 4.5rem;
+}
+
+.compact-code pre {
+  margin-top: 0.75rem;
+}
+
+.backup-links p {
+  margin: 0.8rem 0;
+  color: #d4d7dc;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1rem;
+}
+
+.backup-links a {
+  color: inherit;
+  text-decoration: none;
+}
