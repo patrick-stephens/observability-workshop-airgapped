@@ -141,6 +141,7 @@ install_chart() {
     local chart_name="$2"
     local chart_version="$3"
     local values_file="$4"
+    local wait_for_ready="${5:-true}"
     local chart_archive="${CHARTS_DIR}/${chart_name}-${chart_version}.tgz"
     local state
 
@@ -168,12 +169,14 @@ install_chart() {
     esac
 
     log "Installing ${chart_name}-${chart_version} as release '$release_name'"
-    helm install "$release_name" "$chart_archive" \
+    local -a helm_args=(install "$release_name" "$chart_archive" \
         --namespace "$NAMESPACE" \
         --kubeconfig "$KUBECONFIG_PATH" \
-        --values "$values_file" \
-        --wait \
-        --timeout 10m
+        --values "$values_file")
+    if [[ "$wait_for_ready" == true ]]; then
+        helm_args+=(--wait --timeout 10m)
+    fi
+    helm "${helm_args[@]}"
 }
 
 main() {
@@ -207,7 +210,7 @@ main() {
 
     import_images_if_needed
     install_chart cilium cilium "$cilium_chart_version" "${VALUES_DIR}/cilium.yaml"
-    install_chart tetragon tetragon "$tetragon_chart_version" "${VALUES_DIR}/tetragon.yaml"
+    install_chart tetragon tetragon "$tetragon_chart_version" "${VALUES_DIR}/tetragon.yaml" false
 
     # k8sServiceHost/k8sServicePort are mandatory because Cilium cannot reach the API server before kube-proxy exists without them.
     /usr/local/bin/cilium status --kubeconfig "$KUBECONFIG_PATH" --wait --wait-duration 5m

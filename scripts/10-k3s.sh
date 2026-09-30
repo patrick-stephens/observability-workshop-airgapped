@@ -88,7 +88,7 @@ install_k3s_airgap_images() {
 
 write_k3s_service() {
     local temporary_file node_ipv4
-    node_ipv4="$(ip -4 -o addr show scope global | awk '$2 !~ /^cilium/ { sub(/\/.*$/, "", $4); print $4; exit }')"
+    node_ipv4="${K3S_NODE_IP:-$(ip -4 -o addr show scope global | awk '$2 !~ /^cilium/ { sub(/\/.*$/, "", $4); print $4; exit }')}"
     if [[ -z "$node_ipv4" ]]; then
         error "could not determine a non-Cilium IPv4 address for K3S"
         return 1

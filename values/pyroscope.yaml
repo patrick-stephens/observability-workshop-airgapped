@@ -1,0 +1,14 @@
+---
+alloy:
+  enabled: false
+agent:
+  enabled: false
+minio:
+  enabled: false
+pyroscope:
+  replicaCount: 1
+  image:
+    registry: docker.io
+    repository: grafana/pyroscope
+    tag: 2.3.1
+    pullPolicy: Never

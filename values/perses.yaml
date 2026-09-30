@@ -1,0 +1,70 @@
+---
+image:
+  registry: docker.io
+  name: persesdev/perses
+  version: v0.54.0
+  pullPolicy: Never
+replicas: 1
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+config:
+  security:
+    enable_auth: false
+    readonly: false
+  database:
+    file:
+      folder: /perses
+      extension: json
+  plugin:
+    path: /etc/perses/plugins
+    archive_paths:
+      - /etc/perses/plugin-archives
+    enabled:
+      - Prometheus
+      - Loki
+      - Tempo
+volumes:
+  - name: perses-plugin-archives
+    hostPath:
+      path: /home/ubuntu/demo/bundle/perses-plugins
+      type: Directory
+volumeMounts:
+  - name: perses-plugin-archives
+    mountPath: /etc/perses/plugin-archives
+    readOnly: true
+datasources:
+  - kind: GlobalDatasource
+    metadata:
+      name: prometheus
+    spec:
+      default: true
+      plugin:
+        kind: PrometheusDatasource
+        spec:
+          directUrl: http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090
+  - kind: GlobalDatasource
+    metadata:
+      name: loki
+    spec:
+      plugin:
+        kind: LokiDatasource
+        spec:
+          directUrl: http://loki-gateway.observability.svc.cluster.local
+  - kind: GlobalDatasource
+    metadata:
+      name: tempo
+    spec:
+      plugin:
+        kind: TempoDatasource
+        spec:
+          directUrl: http://tempo.observability.svc.cluster.local:3200
+sidecar:
+  enabled: false
+testFramework:
+  enabled: false
+ingress:
+  enabled: false
+gateway:
+  enabled: false

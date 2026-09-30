@@ -132,9 +132,12 @@ The host prerequisite script uses APT and downloads pinned Helm and kubectl bina
 If a different machine performs capture, transfer the repository and `bundle/` to the target node using removable media or an approved file-transfer path, and ensure its host prerequisites are already installed before disconnecting it.
 The current bundle contains K3S, charts, container images, and cluster CLIs, but not Ubuntu `.deb` packages for host setup.
 After capture and host preparation, disconnect the target node from external networks before deploying the cluster.
+If the node has multiple IPv4 interfaces, set `K3S_NODE_IP` to the address that should serve the cluster before running `sudo scripts/10-k3s.sh`.
+The installer automatically selects the first non-Cilium global IPv4 address when `K3S_NODE_IP` is unset.
 
 From the repository root on the target node, run `sudo scripts/00-prereqs.sh`, `sudo scripts/10-k3s.sh`, and `sudo scripts/30-stack.sh` in that order.
 This installs K3S directly on the target node and imports the captured cluster images and vendored charts without contacting an external registry.
+No network connection is required for K3S to start after the locked binary and airgap image bundle have been staged; outbound access is only needed during connected capture and host prerequisite installation.
 Use `sudo scripts/90-teardown-cluster.sh` to remove the observability, Cilium, and Tetragon Helm releases while leaving K3S installed.
 
 The cluster bundle does not contain Ubuntu APT packages or the host Helm/kubectl downloads.

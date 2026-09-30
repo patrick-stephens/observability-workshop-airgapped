@@ -1,0 +1,39 @@
+---
+tempo:
+  repository: grafana/tempo
+  tag: 2.9.0
+  pullPolicy: Never
+  reportingEnabled: false
+  metricsGenerator:
+    enabled: false
+  receivers:
+    jaeger:
+      protocols:
+        thrift_compact:
+          endpoint: ""
+        thrift_binary:
+          endpoint: ""
+        thrift_http:
+          endpoint: ""
+        grpc:
+          endpoint: ""
+    opencensus: null
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+  storage:
+    trace:
+      backend: local
+      local:
+        path: /var/tempo/traces
+      wal:
+        path: /var/tempo/wal
+tempoQuery:
+  enabled: false
+persistence:
+  enabled: true
+  storageClassName: local-path
+  size: 8Gi

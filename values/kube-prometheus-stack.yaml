@@ -1,0 +1,100 @@
+---
+defaultRules:
+  create: false
+kubeStateMetrics:
+  enabled: false
+nodeExporter:
+  enabled: false
+prometheus-windows-exporter:
+  enabled: false
+prometheusOperator:
+  admissionWebhooks:
+    enabled: false
+  tls:
+    enabled: false
+  image:
+    registry: quay.io
+    repository: prometheus-operator/prometheus-operator
+    tag: v0.94.1
+    pullPolicy: Never
+    sha: ""
+  prometheusConfigReloader:
+    image:
+      registry: quay.io
+      repository: prometheus-operator/prometheus-config-reloader
+      tag: v0.94.1
+      pullPolicy: Never
+      sha: ""
+prometheus:
+  additionalServiceMonitors:
+    - name: cilium-hubble
+      namespaceSelector:
+        matchNames:
+          - kube-system
+      selector:
+        matchLabels:
+          k8s-app: hubble
+      endpoints:
+        - port: hubble-metrics
+          path: /metrics
+          interval: 30s
+          metricRelabelings:
+            - sourceLabels:
+                - __name__
+              regex: hubble_.*
+              action: keep
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    serviceMonitorNamespaceSelector: {}
+    retention: 24h
+    image:
+      registry: quay.io
+      repository: prometheus/prometheus
+      tag: v3.15.0-distroless
+      pullPolicy: Never
+      sha: ""
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 8Gi
+alertmanager:
+  alertmanagerSpec:
+    image:
+      registry: quay.io
+      repository: prometheus/alertmanager
+      tag: v0.34.1
+      pullPolicy: Never
+      sha: ""
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
+grafana:
+  defaultDashboardsEnabled: false
+  testFramework:
+    enabled: false
+  plugins: []
+  image:
+    registry: docker.io
+    repository: grafana/grafana
+    tag: 13.2.3-distroless
+    pullPolicy: Never
+    sha: ""
+  sidecar:
+    dashboards:
+      enabled: false
+    datasources:
+      enabled: false
+  operator:
+    dashboardsConfigMapRefEnabled: false

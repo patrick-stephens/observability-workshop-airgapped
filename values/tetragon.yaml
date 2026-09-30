@@ -6,7 +6,7 @@ tetragon:
   image:
     repository: quay.io/cilium/tetragon
     tag: v1.4.0
-    override: quay.io/cilium/tetragon:v1.4.0@sha256:35b5a399fe3a031ff07c1075c1ac79a2f93162b3ed57252e8f10890599aeb556
+    override: quay.io/cilium/tetragon:v1.4.0
 
 tetragonOperator:
   enabled: false
