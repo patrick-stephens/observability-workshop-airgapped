@@ -267,7 +267,7 @@ scripts/break.sh
 
 scripts/preflight.sh
   Add assertions:
-  - Perses responds at http://localhost:8080/api/health
+  - Perses responds at http://localhost:8080/api/v1/health
   - All three port-forward PIDs exist and their processes are alive
   - The loadgen Job is present and its pod is Running
   - Prometheus returns a non-zero value for torpedoes_detected_total:

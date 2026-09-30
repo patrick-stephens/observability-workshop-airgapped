@@ -7,6 +7,10 @@ minio:
   enabled: false
 pyroscope:
   replicaCount: 1
+  persistence:
+    enabled: true
+    storageClassName: local-path
+    size: 8Gi
   image:
     registry: docker.io
     repository: grafana/pyroscope
