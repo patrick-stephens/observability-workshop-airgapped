@@ -46,9 +46,7 @@ Also open `export.pdf` and confirm that every slide renders.
 
 ## Presenter Follow-ups
 
-- Replace the author placeholder in `slides.md`.
-- Replace component version and licence placeholders using the parent repo's `versions.lock` and component metadata; the current lockfile does not contain these component versions or licences.
 - Confirm the `http_server_requests_total` metric name, `service` and `status` labels, 5% threshold, and two-minute `for` duration against the running demo. The `DemoHighErrorRate` rule is illustrative because no matching alert rule exists in the repository yet.
 - Confirm the `demo` namespace and `app: api` selector against the deployed workload. The `api-deny-dns` policy is illustrative because no Cilium policy exists in the repository yet.
 - Confirm each optional workshop URL remains current before presenting.
-- The requested slide list totals 15 slides, although the acceptance criteria request a 16-page PDF. The export will follow the explicit list unless a sixteenth slide is specified.
+- The deck contains 16 pages, including the offline acceptance checklist required for the workshop handoff.

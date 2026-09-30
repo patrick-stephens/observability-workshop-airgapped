@@ -2,7 +2,7 @@
 theme: default
 layout: cover
 title: Introduction to Observability
-author: AUTHOR NAME - REPLACE BEFORE PRESENTING
+author: Patrick Stephens
 highlighter: shiki
 lineNumbers: false
 colorSchema: dark
@@ -141,7 +141,7 @@ layout: end
 <!-- We have reached the end of the core session. I will take questions before we open the optional tracks. -->
 
 <!-- Backup B1 -->
-<!-- Presenter: replace the placeholders below using the parent repository's versions.lock before presenting. -->
+<!-- Presenter note: versions and licences are pinned in versions.lock and the corresponding component metadata. -->
 ---
 layout: default
 ---
@@ -150,14 +150,14 @@ layout: default
 
 | Component | Version | Licence | Role |
 |:--|:--|:--|:--|
-| Kubernetes / K3S | `<version>` | `<licence>` | Cluster runtime |
-| Cilium | `<version>` | `<licence>` | CNI, policy, and flow visibility |
-| OpenTelemetry Collector | `<version>` | `<licence>` | Telemetry pipeline |
-| Prometheus | `<version>` | `<licence>` | Metrics storage and alerting |
-| Fluent Bit | `<version>` | `<licence>` | Log collection and routing |
-| Perses | `<version>` | `<licence>` | Dashboards |
+| Kubernetes / K3S | v1.32.10+k3s1 | Apache-2.0 | Cluster runtime |
+| Cilium | 1.17.6 | Apache-2.0 | CNI, policy, and flow visibility |
+| OpenTelemetry Collector | 0.174.0 | Apache-2.0 | Telemetry pipeline |
+| Prometheus | v3.15.0 | Apache-2.0 | Metrics storage and alerting |
+| Fluent Bit | 5.1.2 | Apache-2.0 | Log collection and routing |
+| Perses | v0.54.0 | Apache-2.0 | Dashboards |
 
-<!-- Presenter note: before the session, replace every version and licence placeholder using the parent repository's versions.lock and the corresponding component metadata. -->
+<!-- Presenter note: versions and licences are pinned in versions.lock and the corresponding component metadata. -->
 
 <!-- Backup B2 -->
 ---
@@ -255,3 +255,18 @@ layout: default
 | Replay node | Runs the workshop demo inside the boundary |
 
 <!-- The build node captures and stages dependencies while it is connected. We carry those artefacts to the replay node, where K3S, Cilium with kube-proxy replaced, and Helm run the demo without outbound access. -->
+
+<!-- Backup B6 -->
+---
+layout: default
+---
+
+# Offline acceptance checklist
+
+<div class="position-list">
+  <div class="position-item"><span class="position-number">1.</span><div><strong class="position-lead">Capture.</strong><span class="position-detail">Charts, plugins, and tag-plus-digest images are verified before transfer.</span></div></div>
+  <div class="position-item"><span class="position-number">2.</span><div><strong class="position-lead">Deploy.</strong><span class="position-detail">K3S, Cilium, Tetragon, and the observability stack install from local artefacts.</span></div></div>
+  <div class="position-item"><span class="position-number">3.</span><div><strong class="position-lead">Verify.</strong><span class="position-detail">Metrics, logs, traces, profiles, Hubble flows, and dashboard datasources remain inside the boundary.</span></div></div>
+</div>
+
+<!-- This is the handoff: the build node is connected only during capture, and the replay node is accepted only after the complete verification scripts pass. -->

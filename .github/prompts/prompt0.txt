@@ -1,0 +1,68 @@
+Context
+-------
+This workspace holds the source for a live observability demo used in an
+airgapped workshop. The audience is defence-domain engineers; the demo is
+presented on a single Ubuntu VM running K3S, then replayed on an offline
+node.
+
+You are setting up the conventions that every later task in this repo must
+follow. Read this prompt in full before starting.
+
+Objective
+---------
+Create the repo skeleton and the persistent instruction file that later
+agent sessions will read.
+
+Deliverables
+------------
+- .github/copilot-instructions.md
+- README.md
+- versions.lock
+- .gitignore
+- Directory skeleton:
+    charts/           vendored Helm .tgz, never fetched at install time
+    values/           one values file per chart
+    manifests/        Kubernetes objects applied directly
+    scripts/          numbered, idempotent bootstrap and demo scripts
+    app/              demo application source
+    bundle/           offline capture output (gitignored)
+    docs/             speaker notes, runbooks
+
+.github/copilot-instructions.md must state, as rules:
+
+1. Every container image is pinned by tag AND digest. No :latest anywhere,
+   ever. New dependencies must be added to versions.lock with the reason,
+   and versions.lock is never edited without an explicit instruction.
+
+2. Every shell script uses `set -euo pipefail`, is safe to re-run, and
+   logs with a consistent prefix. Never `curl | sh`.
+
+3. Nothing is applied by hand. If a step exists, it exists as a script or
+   a committed manifest. If you do something manually to debug, commit it
+   as a script afterwards.
+
+4. Every `kubectl apply` or `helm install` has a matching, documented
+   teardown in the README.
+
+5. The repo must build and deploy with no outbound network access, other
+   than the initial capture step on the build node. Any network access at
+   runtime is a bug.
+
+6. Prefer explicit over clever. Long, obvious scripts beat short, clever
+   ones. This repo will be read under pressure.
+
+7. Do not add features, dependencies, or abstractions that are not
+   requested. When in doubt, do less and ask.
+
+README.md must contain:
+- What this repo is, one paragraph
+- The demo premise: one incident, four layers, three deliberate breaks
+- The build node / replay node distinction
+- A directory map
+- The current state (which scripts exist and work)
+
+Acceptance
+----------
+The directory skeleton exists with .gitkeep files where empty.
+.github/copilot-instructions.md contains all seven rules verbatim.
+No application code, charts, or manifests yet.

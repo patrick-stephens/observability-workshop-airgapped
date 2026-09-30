@@ -1,5 +1,5 @@
 ---
-imagePullPolicy: IfNotPresent
+imagePullPolicy: Never
 
 tetragon:
   enabled: true

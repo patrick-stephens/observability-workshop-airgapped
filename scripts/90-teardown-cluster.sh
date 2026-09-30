@@ -2,7 +2,6 @@
 set -euo pipefail
 
 LOG_PREFIX="[90-teardown-cluster]"
-NAMESPACE="kube-system"
 KUBECONFIG_PATH="${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}"
 
 log() {
@@ -15,16 +14,18 @@ error() {
 
 release_exists() {
     local release_name="$1"
-    helm list --namespace "$NAMESPACE" --output json --kubeconfig "$KUBECONFIG_PATH" |
+    local namespace="$2"
+    helm list --namespace "$namespace" --output json --kubeconfig "$KUBECONFIG_PATH" |
         jq -e --arg name "$release_name" 'any(.[]; .name == $name)' >/dev/null
 }
 
 uninstall_release() {
     local release_name="$1"
-    if release_exists "$release_name"; then
-        log "Uninstalling Helm release '$release_name' from namespace '$NAMESPACE'"
+    local namespace="$2"
+    if release_exists "$release_name" "$namespace"; then
+        log "Uninstalling Helm release '$release_name' from namespace '$namespace'"
         helm uninstall "$release_name" \
-            --namespace "$NAMESPACE" \
+            --namespace "$namespace" \
             --kubeconfig "$KUBECONFIG_PATH" \
             --no-hooks \
             --wait \
@@ -48,9 +49,13 @@ main() {
         exit 1
     fi
 
-    uninstall_release tetragon
-    uninstall_release cilium
-    log "Tetragon and Cilium Helm releases are removed; K3S remains installed"
+    for release in perses fluent-bit otel-collector pyroscope tempo loki kube-prometheus-stack; do
+        uninstall_release "$release" observability
+    done
+    for release in tetragon cilium; do
+        uninstall_release "$release" kube-system
+    done
+    log "Observability, Tetragon, and Cilium Helm releases are removed; K3S remains installed"
 }
 
 main "$@"

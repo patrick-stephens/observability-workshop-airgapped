@@ -87,9 +87,14 @@ install_k3s_airgap_images() {
 }
 
 write_k3s_service() {
-    local temporary_file
+    local temporary_file node_ipv4
+    node_ipv4="$(ip -4 -o addr show scope global | awk '$2 !~ /^cilium/ { sub(/\/.*$/, "", $4); print $4; exit }')"
+    if [[ -z "$node_ipv4" ]]; then
+        error "could not determine a non-Cilium IPv4 address for K3S"
+        return 1
+    fi
     temporary_file="$(mktemp "${K3S_SERVICE_PATH}.tmp.XXXXXX")"
-    cat > "$temporary_file" <<'EOF'
+    cat > "$temporary_file" <<EOF
 [Unit]
 Description=Lightweight Kubernetes
 Documentation=https://k3s.io
@@ -111,7 +116,7 @@ TasksMax=infinity
 TimeoutStartSec=0
 Restart=always
 RestartSec=5s
-ExecStart=/usr/local/bin/k3s server --flannel-backend=none --disable-network-policy --disable-kube-proxy --disable=traefik --disable=servicelb --write-kubeconfig-mode=0644
+ExecStart=/usr/local/bin/k3s server --node-ip=${node_ipv4} --advertise-address=${node_ipv4} --cluster-cidr=10.42.0.0/16 --service-cidr=10.43.0.0/16 --flannel-backend=none --disable-network-policy --disable-kube-proxy --disable=traefik --disable=servicelb --write-kubeconfig-mode=0644
 EOF
 
     if [[ -f "$K3S_SERVICE_PATH" ]] && cmp --silent "$temporary_file" "$K3S_SERVICE_PATH"; then

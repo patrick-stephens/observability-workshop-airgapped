@@ -1,0 +1,120 @@
+Context
+-------
+Read .github/copilot-instructions.md first.
+
+Everything in the demo is now built. The presenter needs two documents,
+both generated from the actual repository state so they cannot drift
+from reality:
+
+  docs/demo-runbook.md          the beat-by-beat script
+  slides/speaker-notes.md       the Slidev speaker notes, one section
+                                per slide
+
+These documents are generated LOCALLY, from the repo. Do not invent
+commands, metric names, panel titles, or script behaviour. Read the
+actual files and reflect what is there.
+
+Generation rules
+----------------
+1. Every command in the runbook must be verified against the script it
+   calls. If the runbook says `./break.sh latency`, then break.sh must
+   have a latency case. If not, do not write it — instead add a line to
+   docs/runbook-gaps.md naming the mismatch.
+
+2. Every metric name in the runbook must be checked against:
+   - manifests/alert-rules.yaml
+   - dashboards/*.yaml
+   - the /metrics output of the running app, if reachable
+   If a name in a dashboard does not appear anywhere else, flag it in
+   docs/runbook-gaps.md as "unverified name".
+
+3. Every panel name in the runbook must match a panel in the Perses
+   dashboards.
+
+4. Every "point at the screen" instruction must name which tab and
+   which panel by title.
+
+5. Speaker notes are prose, in the presenter's voice, written to be
+   read aloud. Not fragments. Not bullets. Complete sentences.
+
+6. Do not add personality, humour, or motivational filler. This
+   audience is technical and will notice.
+
+docs/demo-runbook.md structure
+------------------------------
+For each of the nine beats:
+
+  ## Beat N — <name> · <start>–<end>
+  **Screen:** <tab and panel, by title>
+  **Do:**
+    <the exact commands, copied from the actual scripts or manifests>
+  **Say:**
+    <the narration, in prose, using the metric names as they actually
+     exist in this repo>
+  **Point at:**
+    <specific panels, by title>
+  **Contingency:**
+    <what to do if this beat fails. Every beat has one. If you
+     cannot find a sensible contingency, write "no live contingency —
+     on failure, advance to the next beat and narrate">.
+  **Cut table entry:**
+    <duration; whether it can be cut and in what order>
+
+Then, at the end:
+  ## Cut lines
+    A table: beat, nominal duration, cut priority. State explicitly
+    that beat 4 (DNS/policy) is never cut.
+  ## Pre-demo checklist
+    Everything that must be true before doors. Verified against
+    preflight.sh's actual assertions.
+  ## Post-demo reset
+    The exact commands to return to a clean state, sourced from
+    reset.sh and break.sh baseline.
+
+slides/speaker-notes.md structure
+---------------------------------
+One section per slide, in slide order, using the actual slide titles
+from slides/slides.md:
+
+  ## Slide N — <title>
+  <spoken prose, one paragraph per idea, in presenter's voice>
+
+For the three demo interstitial slides, replace the prose with a single
+directive sentence: "Advance to Beat N — see docs/demo-runbook.md."
+
+Also write slides/notes-import.md, containing the exact HTML comment
+blocks to paste into slides/slides.md if the presenter wants the notes
+inline rather than as a separate file. Preserve the existing frontmatter
+comments — do not duplicate notes that are already there.
+
+docs/runbook-gaps.md
+--------------------
+A short, honest list of everything the runbook could not verify:
+  - commands referenced but not present in scripts
+  - metric names that appear in only one place
+  - panels referenced but not found in dashboards
+  - any assertion in the prompt above that could not be satisfied
+
+If the list is empty, the file says "no gaps found" and nothing else.
+Do not pad it. Do not invent gaps. An empty list is a good outcome.
+
+Constraints
+-----------
+- Do not modify any script, manifest, dashboard, or chart.
+- If a mismatch is found, write it to docs/runbook-gaps.md. Do not
+  silently fix it. The presenter will decide.
+- Do not modify slides/slides.md. Only produce the external notes file
+  and the import-paste file.
+- Both documents must be usable offline. All commands must work with
+  the network interface down.
+
+Acceptance
+----------
+1. docs/demo-runbook.md exists and covers all nine beats, with the
+   structure above.
+2. slides/speaker-notes.md exists with one section per slide in
+   slides/slides.md, in the same order.
+3. docs/runbook-gaps.md exists. Its contents are accurate.
+4. For every command in the runbook, the same command exists in the
+   script it names. Verify by grepping.
+5. Report any gaps found. If none, say so explicitly.

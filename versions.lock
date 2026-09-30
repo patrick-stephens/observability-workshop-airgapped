@@ -29,6 +29,16 @@ k3s-binary-amd64 sha256:6f4012de542b9e831c1fcdb030645156aa4ca355202ea20ea5e544ae
 k3s-airgap-images-amd64.tar.zst sha256:4217e7a36bfecc66cd678e854175f740f6b97dda44b094a132bf751c7198bba9 - Preloads K3S control-plane images without runtime registry access.
 chart.cilium 1.17.6 - Provides Cilium networking, Hubble relay/UI, and flow metrics.
 chart.tetragon 1.4.0 - Provides the Tetragon eBPF security agent DaemonSet.
+chart.kube-prometheus-stack 91.8.2 - Provides Prometheus, Alertmanager, Grafana, and Prometheus Operator.
+chart.loki 7.3.0 - Provides Loki single-binary and the Loki gateway.
+chart.tempo 1.24.4 - Provides Tempo single-binary with OTLP ingestion.
+chart.pyroscope 2.3.1 - Provides the Pyroscope single-instance profile backend.
+chart.opentelemetry-collector 0.174.0 - Provides the OTLP traces fan-out Deployment.
+chart.fluent-bit-collector 1.1.2 - Provides the Kubernetes log tailing and Loki forwarding collector DaemonSet.
+chart.perses 0.23.2 - Provides Perses UI and provisioning configuration.
+capture.perses-plugin-prometheus v0.54.0 sha256:4ae6745796d3bf83e205828bf969e881f65c62ce29226b84fe923c399b4fb0cc - Prometheus query and datasource plugin for Perses.
+capture.perses-plugin-loki v0.6.0 sha256:b4908eac7188b51f9ebbab4e0b3fc583af4e7c0b496d9e34aeb8c555e45fb339 - Loki query and datasource plugin for Perses.
+capture.perses-plugin-tempo v0.54.0 sha256:7feb128b9b05d130fa01c4020849e03e7b77595ac15945c288315e3534cc30cf - Tempo query and datasource plugin for Perses.
 cilium-cli v0.20.1 sha256:24e817dcfcc8a12e325ce7547617bcbcf171c5b0b335bb24d2bb1207ba047f61 - Verifies Cilium readiness and kube-proxy replacement.
 hubble-cli v1.17.5 sha256:448f3b50326d1ea05e18a314e5d1f75174073188290a90d9e8f555e35e169ab0 - Verifies Hubble relay gRPC reachability.
 helm-archive v4.3.0 sha256:86584a54def73570558f66f5111cc53dfed56689637ae32c1201205d494f54fb - Supplies the pinned Helm binary to the offline node.
@@ -38,4 +48,17 @@ image.cilium-envoy quay.io/cilium/cilium-envoy:v1.33.4-1752151664-7c2edb0b44cf95
 image.hubble-relay quay.io/cilium/hubble-relay:v1.17.6@sha256:6ff7762e7697f8249c9beb2a9ecb8f3a6bf6ff302acaecc2dbc9c192de2d3b8a - Hubble relay registry manifest.
 image.hubble-ui quay.io/cilium/hubble-ui:v0.13.2@sha256:f6574f768b890cbbe857f35f9083180b1a514b664592e874f7d7bbef2fbd6e3d - Hubble UI frontend registry manifest.
 image.hubble-ui-backend quay.io/cilium/hubble-ui-backend:v0.13.2@sha256:bfe0cb9158fd044ab499706c3e36469739e6b4accda8e79f80367935a17b4ac6 - Hubble UI backend registry manifest.
+image.fluent-bit ghcr.io/fluent/fluent-bit:5.1.2@sha256:71cda445290efc2d45d565c12e0de4b15aa0182510276ad50c317aae1423d7ee - Fluent Bit collector registry manifest.
 image.tetragon quay.io/cilium/tetragon:v1.4.0@sha256:35b5a399fe3a031ff07c1075c1ac79a2f93162b3ed57252e8f10890599aeb556 - Tetragon agent registry manifest.
+image.bats docker.io/bats/bats:1.14.0@sha256:89937522414867f16858f25197f4220b306b81699a82ad5062ccdeb3be214882 - Helm test image.
+image.grafana docker.io/grafana/grafana:13.2.3-distroless@sha256:8c7801a8ed84616d266ce871f3728c2e1054c284ec2eae766e42310361895fd4 - Grafana registry manifest.
+image.loki docker.io/grafana/loki:3.6.12@sha256:b957b4fb9534e979c15b3850fe2cf798d2979a78d6774033080fbaa48ac1495e - Loki registry manifest.
+image.pyroscope docker.io/grafana/pyroscope:2.3.1@sha256:718b585ea168a616ca737018dbd1676992db9e5f1084ec4e9cd18f669326f334 - Pyroscope registry manifest.
+image.tempo docker.io/grafana/tempo:2.9.0@sha256:b025a4a4db0a58cc94e2abfab59751f92d74ab8cc024d2e6025ba7efb87bbaff - Tempo registry manifest.
+image.grafana-sidecar docker.io/kiwigrid/k8s-sidecar:2.5.0@sha256:4f8f7ff326827489dc3742e17cd0e04e2f89deb49f67021d2a5418d8b78e7ddc - Grafana sidecar registry manifest.
+image.loki-gateway docker.io/nginxinc/nginx-unprivileged:1.29-alpine@sha256:8059701048a6cc7d64e8ab2812a44be70161bfa9ecfc01d69e95b8ff2a648705 - Loki gateway registry manifest.
+image.perses docker.io/persesdev/perses:v0.54.0@sha256:6def46a662a22e790b49c01865c80f547d11d16a83213ac102a0e722d27ece13 - Perses registry manifest.
+image.opentelemetry-collector docker.io/otel/opentelemetry-collector-k8s:0.161.0@sha256:6f053bdf677220d726936b20df32d4d1d040bd76cf27f44275cc91f99e1dde23 - OpenTelemetry Collector registry manifest.
+image.prometheus-operator quay.io/prometheus-operator/prometheus-operator:v0.94.1@sha256:ee7157809d227e2f9c112b329a9732bca4eb65d4df157ce83111f4debe4646fd - Prometheus Operator registry manifest.
+image.alertmanager quay.io/prometheus/alertmanager:v0.34.1@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3 - Alertmanager registry manifest.
+image.prometheus quay.io/prometheus/prometheus:v3.15.0-distroless@sha256:3e84c7d7c1b07a779c0d51ab41982dce05147a6bb49a674e8dec794a7ba25447 - Prometheus registry manifest.

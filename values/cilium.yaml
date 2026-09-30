@@ -7,7 +7,8 @@ image:
   repository: quay.io/cilium/cilium
   tag: v1.17.6
   digest: sha256:68148753c375f8ea5e3bc0a9efdce20d83954abf5fa24c69de23a0d2702c65ee
-  useDigest: true
+  pullPolicy: Never
+  useDigest: false
 
 operator:
   replicas: 1
@@ -15,7 +16,8 @@ operator:
     repository: quay.io/cilium/operator
     tag: v1.17.6
     genericDigest: sha256:a47cb0985a8fea9b46af9cffb2d67e48501dc41d7e2070cf0e8da761faed32ba
-    useDigest: true
+    pullPolicy: Never
+    useDigest: false
 
 envoy:
   enabled: true
@@ -23,7 +25,8 @@ envoy:
     repository: quay.io/cilium/cilium-envoy
     tag: v1.33.4-1752151664-7c2edb0b44cf95f326d628b837fcdd845102ba68
     digest: sha256:318eff387835ca2717baab42a84f35a83a5f9e7d519253df87269f80b9ff0171
-    useDigest: true
+    pullPolicy: Never
+    useDigest: false
 
 hubble:
   enabled: true
@@ -33,7 +36,8 @@ hubble:
       repository: quay.io/cilium/hubble-relay
       tag: v1.17.6
       digest: sha256:6ff7762e7697f8249c9beb2a9ecb8f3a6bf6ff302acaecc2dbc9c192de2d3b8a
-      useDigest: true
+      pullPolicy: Never
+      useDigest: false
   ui:
     enabled: true
     frontend:
@@ -41,13 +45,15 @@ hubble:
         repository: quay.io/cilium/hubble-ui
         tag: v0.13.2
         digest: sha256:f6574f768b890cbbe857f35f9083180b1a514b664592e874f7d7bbef2fbd6e3d
-        useDigest: true
+        pullPolicy: Never
+        useDigest: false
     backend:
       image:
         repository: quay.io/cilium/hubble-ui-backend
         tag: v0.13.2
         digest: sha256:bfe0cb9158fd044ab499706c3e36469739e6b4accda8e79f80367935a17b4ac6
-        useDigest: true
+        pullPolicy: Never
+        useDigest: false
   metrics:
     enableOpenMetrics: true
     enabled:

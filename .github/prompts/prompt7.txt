@@ -1,0 +1,323 @@
+Context
+-------
+Read .github/copilot-instructions.md first.
+
+This closes out the demo. It covers six things:
+
+  1. A minimal status UI served by the frontend
+  2. Business metrics emitted via OTLP only (the "small C" demonstration)
+  3. The demo app's Kubernetes manifests, which do not exist yet
+  4. A `hey`-based load generator
+  5. Perses dashboards, running against an external Perses on the host
+  6. The host-side scripts that tie it together
+
+The metrics path is now FIXED and confirmed. Do not change it:
+
+  SCRAPE PATH (primary)
+    The app exposes Prometheus-native metrics at /metrics on :8080.
+    Prometheus scrapes them via ServiceMonitor. Names are hand-picked
+    and stable. This is the path the alert rules and most dashboards
+    depend on.
+
+  OTLP PATH — traces
+    The app exports spans via OTLP to the Collector. Already done in
+    prompt 1. Do not change.
+
+  OTLP PATH — metrics (the "small C" demonstration)
+    The app ALSO emits a small set of business metrics via OTLP, through
+    the Collector, into Prometheus's native OTLP receiver. These are
+    deliberately NOT exposed on /metrics. The point is to demonstrate
+    that Prometheus 3 ingests OTLP natively alongside scrapes.
+
+  KERNEL PATH
+    Cilium and Hubble metrics are Prometheus-native scrapes via
+    ServiceMonitor. Already done in prompt 3. Do not change.
+
+Do NOT route scraped metrics through the Collector. Do NOT add a
+prometheusremotewrite exporter. The OTLP metrics path exists ONLY for
+the business metrics listed in Part 2.
+
+Part 1 — Demo UI
+----------------
+Amend app/cmd/frontend to serve a minimal HTML status page.
+
+Requirements:
+- Serve at GET /index.html. The existing / handler stays as the API
+  path — do not change its behaviour.
+- Single self-contained HTML file, embedded via go:embed. No external
+  assets, no CDN links, no web fonts.
+- Displays, in large type:
+    * the service name (frontend / api / backend)
+    * the current /chaos mode for this service, colour-coded:
+        ok     green   (#4ade80)
+        slow   amber   (#ffb454)
+        error  red     (#f87171)
+        dns    red     (#f87171)
+    * the last 10 requests as a list: timestamp, HTTP status, duration ms
+- Polls GET /status every 2 seconds. Add a /status JSON endpoint that
+  returns the same data, so the UI has something clean to consume.
+- Minimal CSS inline in the HTML. Dark theme matching the slides:
+  background #0b0d10, body text #d4d7dc, accent #ffb454.
+- No JavaScript frameworks. Plain fetch and DOM manipulation.
+
+The purpose of this UI is that the presenter can put it on screen as a
+"what the operator sees" view, next to the observability stack. It is
+not the main demo surface. Keep it small.
+
+Part 2 — Business metrics, OTLP-only
+------------------------------------
+Amend the app to emit the following metrics via the OTel SDK. They are
+NOT exposed on /metrics. They travel OTLP to the Collector, which
+forwards them to Prometheus's native OTLP receiver.
+
+OTel instrument names use dots. Prometheus 3 materializes them with
+underscores and appends _total for counters. This translation is part
+of the demo — the presenter will point at it.
+
+  OTel name                        | Prometheus name                      | Emitted by | Increment
+  ---------------------------------|--------------------------------------|------------|------------------
+  torpedoes.detected               | torpedoes_detected_total             | backend    | every request
+  sonar.contacts.detected          | sonar_contacts_detected_total        | api        | every request
+  surface.ship.contacts.detected   | surface_ship_contacts_detected_total | api        | ~1 in 3 requests
+  submarine.contacts.detected      | submarine_contacts_detected_total    | api        | ~1 in 5 requests
+  countermeasure.launches          | countermeasure_launches_total        | backend    | every request while in error mode
+
+Requirements:
+- One Meter named "demo" in internal/telemetry.
+- All counters share the existing OTLP exporter — the same one used for
+  traces. One exporter, two signals. Do not create a second exporter.
+- The /chaos?mode=error handler must increment countermeasure.launches
+  on each subsequent errored request. This is a deliberate demo beat:
+  the failure has an operational signature, not just a technical one.
+- Surface vs submarine ratio: surface contacts are the more common
+  contact class, roughly 5:3 over submarine contacts at steady load.
+  Implement with a simple modulo or rand.IntN — do not over-engineer.
+- All instruments must have a unit where applicable.
+
+Update values/opentelemetry-collector.yaml to add a metrics pipeline:
+
+  receivers:  otlp (grpc 4317, http 4318)
+  processors: memory_limiter, batch
+  exporters:  otlp/prometheus  (otlphttp exporter)
+  pipeline:   metrics: otlp -> memory_limiter -> batch -> otlp/prometheus
+
+The exact OTLP HTTP endpoint path on Prometheus is version-sensitive
+for the pinned release. Verify it against the documentation for that
+version before finalizing, and record the verified path in a comment.
+If the pinned Prometheus does not support native OTLP ingestion, fall
+back to prometheusremotewrite and document the change in a comment.
+
+Part 3 — Demo app Kubernetes manifests
+--------------------------------------
+The app's Deployment and Service manifests do not exist yet. Create
+them under manifests/app/.
+
+Deliverables:
+- manifests/app/frontend.yaml   Deployment + Service
+- manifests/app/api.yaml        Deployment + Service
+- manifests/app/backend.yaml    Deployment + Service
+- manifests/app/servicemonitor.yaml
+
+Requirements for every Deployment:
+- namespace: demo
+- labels: app: frontend | app: api | app: backend
+  These exact keys are load-bearing — CiliumNetworkPolicy selectors
+  depend on them. Do not rename or add variants.
+- containerPort 8080
+- image pinned by tag AND digest, recorded in versions.lock
+- env:
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.observability.svc.cluster.local:4317
+    OTEL_SERVICE_NAME: <frontend|api|backend>
+- readinessProbe and livenessProbe on /readyz and /healthz
+- resource requests: 50m CPU, 64Mi memory. No limits.
+- annotations:
+    policy.cilium.io/proxy-visibility: "<Ingress/8080/TCP/HTTP>,<Egress/8080/TCP/HTTP>"
+  This is required for Hubble to decode L7 HTTP. Without it, the
+  hubble_http_requests_total metric will not exist and the alert rule
+  will never fire. Comment this in the manifest.
+- annotations (cosmetic, for the Hubble UI and Perses panels):
+    demo/role: "periscope watch"     (frontend)
+    demo/role: "sonar processing"    (api)
+    demo/role: "command & control"   (backend)
+
+Requirements for every Service:
+- namespace: demo
+- selector matching the app label
+- port 8080, targetPort 8080
+
+ServiceMonitor:
+- Selects all three app Deployments on port 8080, path /metrics
+- Label `release: kps` so kube-prometheus-stack picks it up. Verify the
+  exact label against the kube-prometheus-stack values from prompt 3 —
+  if the selector differs, match it and comment why.
+- namespace: demo
+
+Part 4 — Load generator
+-----------------------
+Create manifests/loadgen.yaml — a Kubernetes Job running `hey` against
+frontend at a steady rate for a long duration.
+
+Specification:
+- Image: pinned by tag and digest in versions.lock. Use the official
+  rakyll/hey image if one is published. If not, build a tiny image that
+  installs the hey binary at image build time and is then self-contained.
+- Command:
+    hey -z 4h -q 20 -c 4 -disable-compression \
+        http://frontend.demo.svc.cluster.local/
+- restartPolicy: OnFailure
+- namespace: demo
+- labels: app=pilot, role=loadgen
+- resource requests: 100m CPU, 64Mi memory. No limits — it must not be
+  throttled.
+- The Job must be idempotent to apply: delete-then-create, documented
+  in a comment.
+
+Part 5 — Perses dashboards
+--------------------------
+Perses runs EXTERNALLY, on the host, not in the cluster. Write three
+dashboards as YAML under dashboards/, applied against that external
+Perses.
+
+Datasources to define, all pointing at in-cluster services via
+port-forwards that run on the host:
+
+  prometheus  http://localhost:9090
+  loki        http://localhost:3100
+  tempo       http://localhost:3200
+
+Dashboard 1 — dashboards/overview.yaml — "Demo Overview"
+Panels, in this order:
+  a. Request rate, by service (timeseries)
+  b. Error rate % — same underlying query as the alert rule
+     (5xx / total), timeseries
+  c. p50 / p95 / p99 latency, single service (timeseries)
+  d. Active chaos state (stat panel, from app_chaos_mode{service, mode})
+  e. Business telemetry row:
+       - "Torpedo detections"
+         query: sum(rate(torpedoes_detected_total[1m]))
+         description: "Emitted as torpedoes.detected via OTLP.
+                       Prometheus materialized the name."
+       - "Sonar contacts"
+         query: sum(rate(sonar_contacts_detected_total[1m]))
+       - "Detection mix"
+         query: sum(rate(submarine_contacts_detected_total[1m]))
+                / sum(rate(surface_ship_contacts_detected_total[1m]))
+         description: "Roughly 0.6 at steady load — surface contacts
+                       outnumber submarines."
+       - "Countermeasure launches"
+         query: sum(rate(countermeasure_launches_total[1m]))
+         description: "Moves only in error mode. The operational
+                       response to the failure."
+
+Dashboard 2 — dashboards/network.yaml — "Network"
+Panels:
+  a. hubble_http_requests_total by destination_workload, 5xx filtered
+  b. hubble_http_requests_total by destination_workload, all statuses
+  c. hubble_dns_queries_total by response code
+  d. hubble_drop_total by reason (verify the metric exists under your
+     pinned Cilium version; comment if it does not)
+Titles and descriptions must name Cilium/Hubble as the source. This is
+important — the dashboard should say out loud that the network is the
+data source.
+
+Dashboard 3 — dashboards/signals.yaml — "One incident, four layers"
+Four panels side by side, all filtered to the same 5-minute window:
+  a. Metrics: p99 latency
+  b. Network: hubble_http_requests_total 5xx rate
+  c. Traces: trace count by service (Tempo datasource)
+  d. Logs: log volume by level (Loki datasource)
+Description on each: one sentence naming the question that layer
+answers.
+
+Every dashboard YAML must:
+- Use explicit datasources, by name.
+- Have a stable metadata.name matching the filename.
+- Be idempotent to apply via `persescli apply`.
+- Be free of hardcoded timestamps or absolute time ranges.
+- Use relative time ranges only (last 15m, last 1h) so they work
+  whenever the demo runs.
+
+Part 6 — Host-side scripts
+--------------------------
+scripts/40-perses.sh
+  Starts Perses on the host as a container:
+  - Bind to localhost only, port 8080.
+  - Mount dashboards/ read-only.
+  - Mount the plugins directory from bundle/perses-plugins/.
+  - Apply the three dashboards on start.
+  - Idempotent: kill any existing container, then start fresh.
+  - Print the URL on success: http://localhost:8080
+
+scripts/41-perses-portforwards.sh
+  Runs, in the background:
+    kubectl port-forward svc/prometheus-operated 9090:9090 -n observability
+    kubectl port-forward svc/loki-gateway 3100:3100 -n observability
+    kubectl port-forward svc/tempo 3200:3200 -n observability
+  Writes their PIDs to /tmp/perses-pf/{prometheus,loki,tempo}.pid.
+  Idempotent: kill existing PIDs from those files first.
+
+scripts/loadgen-restart.sh
+  Deletes and re-creates the loadgen Job. Called by break.sh baseline
+  so the demo always starts from a clean state.
+
+Part 7 — Updates to existing scripts
+------------------------------------
+scripts/break.sh
+  Update the `baseline` case to also run loadgen-restart.sh.
+
+scripts/preflight.sh
+  Add assertions:
+  - Perses responds at http://localhost:8080/api/health
+  - All three port-forward PIDs exist and their processes are alive
+  - The loadgen Job is present and its pod is Running
+  - Prometheus returns a non-zero value for torpedoes_detected_total:
+      curl -fsS 'http://localhost:9090/api/v1/query?query=torpedoes_detected_total' \
+        | grep -q '"value"' || {
+          echo "✗ torpedoes_detected_total not in Prometheus — OTLP metrics path broken"
+          exit 1
+        }
+
+Part 8 — Documentation
+----------------------
+docs/metrics-path.md must explain:
+- The scrape path (app request metrics via ServiceMonitor)
+- The OTLP path (traces and the business metrics via Collector)
+- The kernel path (Cilium/Hubble via ServiceMonitor on the agent)
+- Which metric name in the dashboards came from which path
+- The dot-to-underscore and _total translation, with the narration line:
+    "This metric never touched the scrape path. It was emitted as
+     torpedoes.detected, travelled OTLP through the Collector, and
+     Prometheus 3 materialized it as torpedoes_detected_total. The
+     _total suffix is Prometheus's translation of an OTel counter."
+- The countermeasure tie-in: in error mode, the failure has an
+  operational signature, not just a technical one.
+
+Constraints
+-----------
+- Do not change the metrics ingestion architecture.
+- Do not add a prometheusremotewrite exporter unless the pinned
+  Prometheus cannot do native OTLP, and document it if you do.
+- Do not modify the alert rules, the CiliumNetworkPolicy, or the
+  Slidev deck.
+- Every image pinned by tag and digest, recorded in versions.lock.
+- Everything must work with the network interface down, except the
+  initial build.
+
+Acceptance
+----------
+1. curl http://frontend.demo.svc.cluster.local/index.html returns the
+   HTML page. Opened in a browser, it renders and polls /status
+   successfully, showing live data within 4 seconds.
+2. The loadgen Job is Running. `hubble observe --namespace demo --last 10`
+   shows steady HTTP flows at roughly the expected rate.
+3. `curl localhost:9090/api/v1/query?query=torpedoes_detected_total`
+   returns a non-zero value. Paste the raw response into
+   docs/metrics-path.md as a reference.
+4. `curl localhost:9090/api/v1/query?query=app_chaos_mode` returns a
+   value. Paste the raw response into docs/metrics-path.md.
+5. All three Perses dashboards load in the UI with no error banner and
+   no empty panel after 30 seconds.
+6. `preflight.sh` passes clean.
+7. Run `./break.sh errors`, wait 30 seconds, and confirm
+   countermeasure_launches_total is increasing. Then `./break.sh ok`
+   and confirm it stops. Report both observations.

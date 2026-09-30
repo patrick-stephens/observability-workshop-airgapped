@@ -7,7 +7,15 @@ VERSIONS_LOCK="${REPO_ROOT}/versions.lock"
 BUNDLE_DIR="${REPO_ROOT}/bundle"
 TOOLS_DIR="${BUNDLE_DIR}/tools"
 CHARTS_DIR="${REPO_ROOT}/charts"
-HELM_REPOSITORY="https://helm.cilium.io"
+HELM_REPOSITORY="${CHART_REPO_CILIUM:-https://helm.cilium.io}"
+GRAFANA_HELM_REPOSITORY="${CHART_REPO_GRAFANA:-https://grafana.github.io/helm-charts}"
+OPEN_TELEMETRY_HELM_REPOSITORY="${CHART_REPO_OPENTELEMETRY:-https://open-telemetry.github.io/opentelemetry-helm-charts}"
+PERSES_HELM_REPOSITORY="${CHART_REPO_PERSES:-https://perses.github.io/helm-charts}"
+PROMETHEUS_HELM_REPOSITORY="${CHART_REPO_PROMETHEUS:-https://prometheus-community.github.io/helm-charts}"
+FLUENT_HELM_REPOSITORY="${CHART_REPO_FLUENT_BIT:-https://fluent.github.io/helm-charts}"
+GITHUB_RELEASE_BASE_URL="${GITHUB_RELEASE_BASE_URL:-https://github.com}"
+HELM_BINARY_BASE_URL="${HELM_BINARY_BASE_URL:-https://get.helm.sh}"
+K3S_RELEASE_BASE_URL="${K3S_RELEASE_BASE_URL:-https://github.com/k3s-io/k3s/releases/download}"
 CAPTURE_TEMP_MANIFEST=""
 
 log() {
@@ -71,14 +79,14 @@ download_verified() {
 }
 
 ensure_chart() {
-    local chart_name="$1"
+    local chart_name="$1" repository
     local version_key="chart.${chart_name}"
     local version archive installed_version
     version="$(locked_field "$version_key" 2)"
     archive="${CHARTS_DIR}/${chart_name}-${version}.tgz"
 
     if [[ -f "$archive" ]]; then
-        installed_version="$(helm show chart "$archive" | awk '$1 == "version:" { print $2; exit }')"
+        installed_version="$(helm show chart "$archive" | sed -n 's/^version: //p' | head -n 1)"
         if [[ "$installed_version" != "$version" ]]; then
             error "vendored chart $archive has version '$installed_version', expected '$version'"
             return 1
@@ -87,8 +95,17 @@ ensure_chart() {
         return
     fi
 
+    case "$chart_name" in
+        cilium|tetragon) repository="$HELM_REPOSITORY" ;;
+        fluent-bit-collector) repository="$FLUENT_HELM_REPOSITORY" ;;
+        kube-prometheus-stack) repository="$PROMETHEUS_HELM_REPOSITORY" ;;
+        loki|pyroscope|tempo) repository="$GRAFANA_HELM_REPOSITORY" ;;
+        opentelemetry-collector) repository="$OPEN_TELEMETRY_HELM_REPOSITORY" ;;
+        perses) repository="$PERSES_HELM_REPOSITORY" ;;
+        *) error "no Helm repository configured for chart '$chart_name'"; return 1 ;;
+    esac
     log "Capturing $chart_name chart version $version"
-    helm pull --repo "$HELM_REPOSITORY" "$chart_name" --version "$version" --destination "$CHARTS_DIR"
+    helm pull --repo "$repository" "$chart_name" --version "$version" --destination "$CHARTS_DIR"
 }
 
 ensure_helm_binary() {
@@ -96,7 +113,7 @@ ensure_helm_binary() {
     version="$(locked_field helm-archive 2)"
     checksum="$(locked_field helm-archive 3 | sed 's/^sha256://')"
     archive="${TOOLS_DIR}/helm-${version}-linux-amd64.tar.gz"
-    download_verified "$archive" "https://get.helm.sh/helm-${version}-linux-amd64.tar.gz" "$checksum"
+    download_verified "$archive" "${HELM_BINARY_BASE_URL}/helm-${version}-linux-amd64.tar.gz" "$checksum"
     if [[ -x "${TOOLS_DIR}/helm" ]] && "${TOOLS_DIR}/helm" version --short | grep --fixed-strings --quiet "$version"; then
         log "Pinned Helm ${version} is already unpacked"
         return
@@ -116,7 +133,7 @@ ensure_cli_binary() {
     version="$(locked_field "$lock_key" 2)"
     checksum="$(locked_field "$lock_key" 3 | sed 's/^sha256://')"
     archive="${TOOLS_DIR}/${asset_name}"
-    download_verified "$archive" "https://github.com/${repository}/releases/download/${version}/${asset_name}" "$checksum"
+    download_verified "$archive" "${GITHUB_RELEASE_BASE_URL}/${repository}/releases/download/${version}/${asset_name}" "$checksum"
     if [[ -x "${TOOLS_DIR}/${binary_name}" ]]; then
         local installed_version_output
         if [[ "$binary_name" == cilium ]]; then
@@ -170,9 +187,13 @@ capture_images() {
 
     for image_reference in "${image_references[@]}"; do
         log "Pulling pinned image $image_reference"
-        docker pull --platform linux/amd64 "$image_reference"
+        local pull_reference="$image_reference"
+        if [[ -n "${IMAGE_REGISTRY_PREFIX:-}" ]]; then
+            pull_reference="${IMAGE_REGISTRY_PREFIX%/}/${image_reference#*/}"
+        fi
+        docker pull --platform linux/amd64 "$pull_reference"
         tagged_reference="${image_reference%@sha256:*}"
-        docker image tag "$image_reference" "$tagged_reference"
+        docker image tag "$pull_reference" "$tagged_reference"
         tagged_references+=("$tagged_reference")
     done
 
@@ -196,7 +217,7 @@ main() {
 
     local k3s_version k3s_release_url
     k3s_version="$(locked_field k3s 2)"
-    k3s_release_url="https://github.com/k3s-io/k3s/releases/download/${k3s_version//+/%2B}"
+    k3s_release_url="${K3S_RELEASE_BASE_URL}/${k3s_version//+/%2B}"
 
     download_verified \
         "${TOOLS_DIR}/k3s" \
@@ -213,6 +234,13 @@ main() {
     ensure_cli_binary hubble-cli hubble-linux-amd64.tar.gz hubble cilium/hubble
     ensure_chart cilium
     ensure_chart tetragon
+    ensure_chart fluent-bit-collector
+    ensure_chart kube-prometheus-stack
+    ensure_chart loki
+    ensure_chart tempo
+    ensure_chart pyroscope
+    ensure_chart opentelemetry-collector
+    ensure_chart perses
     capture_images
 
     local checksum_temporary

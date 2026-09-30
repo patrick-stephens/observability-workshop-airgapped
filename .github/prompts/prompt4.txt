@@ -1,0 +1,71 @@
+Context
+-------
+Read .github/copilot-instructions.md first.
+
+This is the beat of the demo where a network-sourced metric causes an
+alert, which Alertmanager groups, inhibits and silences, and which lands
+as a readable JSON payload on screen.
+
+Objective
+---------
+Alert rules, Alertmanager routing, and a local webhook sink that replaces
+Slack. Everything offline.
+
+Deliverables
+------------
+- manifests/alert-rules.yaml        PrometheusRule, kube-prometheus-stack CRD
+- manifests/alertmanager-config.yaml AlertmanagerConfig, CRD
+- manifests/echo-sink.yaml          deployment + service
+- values/kube-prometheus-stack.yaml must reference both CRDs
+- docs/alerting-runbook.md          what to show, in what order
+
+The alert rule
+--------------
+kind: PrometheusRule
+labels: { release: kps }   # must match the kube-prometheus-stack selector
+
+One rule, DemoHighErrorRate:
+  expr:
+    sum(rate(hubble_http_requests_total{reporter="destination",
+      http_status_code=~"5.."}[1m]))
+    /
+    sum(rate(hubble_http_requests_total{reporter="destination"}[1m]))
+    > 0.05
+  for: 1m
+  labels: { severity: warning, pillar: network }
+  annotations:
+    summary: "5xx above 5% on {{ $labels.destination_workload }}"
+    description: "Source: Cilium Hubble. No application instrumentation."
+
+The `for: 1m` is deliberate and pedagogically important — the presenter
+walks through Pending -> Firing on screen. Do not shorten it.
+
+Alertmanager
+------------
+- route: receiver echo, group_by [alertname, namespace],
+  group_wait 10s, group_interval 1m, repeat_interval 4h
+- receiver echo: webhook to http://echo-sink.demo.svc.cluster.local:8080/alerts
+- no receiver that could reach the internet
+
+Echo sink
+---------
+A minimal container that logs every request body to stdout as pretty JSON.
+Use a known small image, pinned by digest. It exists so the presenter can
+`kubectl logs -f` it and read the raw payload on the projector.
+
+docs/alerting-runbook.md must cover, in order:
+1. Show the rule YAML. Explain `for` as the difference between an alert
+   and a notification.
+2. Trigger it. Watch Inactive -> Pending -> Firing.
+3. Show two alerts grouping into one notification.
+4. Create a silence live from the UI, show notifications stop.
+5. Show the raw JSON in the echo sink logs.
+6. Explain inhibition in one sentence, without demonstrating it unless
+   time allows.
+
+Acceptance
+----------
+Apply the rules with the demo app and load generator running, then force
+5xx. Within ~90s a Firing alert appears in Alertmanager, and `kubectl logs
+deploy/echo-sink -n demo` shows a well-formed JSON payload. Paste that
+payload into docs/alerting-runbook.md as a reference.
