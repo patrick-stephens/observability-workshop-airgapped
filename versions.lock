@@ -9,3 +9,33 @@ go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0 - Instrume
 go.opentelemetry.io/otel v1.35.0 - Provides the OpenTelemetry API for distributed tracing and propagation.
 go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.35.0 - Exports traces to the configured OTLP gRPC endpoint.
 go.opentelemetry.io/otel/sdk v1.35.0 - Provides the OpenTelemetry SDK and trace provider.
+ubuntu-24.04-cloud-image sha256:6a81c37564db9b1ee84e141922625e1d7c5b389b99bb3c572e0243607d5bb4d2 - Base image for the disposable local KVM validation VM.
+qemu-system-x86 1:8.2.2+ds-0ubuntu1.18 - Runs the local validation guest with KVM acceleration and user-mode networking.
+qemu-utils 1:8.2.2+ds-0ubuntu1.18 - Creates the VM's qcow2 overlay without modifying the base image.
+cloud-image-utils 0.33-1 - Creates the cloud-init seed image that provisions guest SSH access.
+host-ca-certificates 20260601~24.04.1 - Supplies trusted CA certificates for pinned build-node downloads.
+host-curl 8.5.0-2ubuntu10.15 - Downloads verified build-node artifacts.
+host-git 1:2.43.0-1ubuntu7.3 - Checks out repository sources on the build node.
+host-jq 1.7.1-3ubuntu0.24.04.2 - Parses structured registry and validation output.
+host-yq 3.1.0-3 - Reads structured YAML configuration during provisioning.
+host-openssh-client 1:9.6p1-3ubuntu13.19 - Connects to the local validation VM over forwarded SSH.
+host-make 4.3-4.1build2 - Runs the Go application's documented Make targets.
+host-docker.io 29.1.3-0ubuntu3~24.04.2 - Captures and exports container images on the connected build node.
+host-golang-go 2:1.22~2build1 - Builds and tests the Go demo application.
+host-helm v4.3.0 sha256:86584a54def73570558f66f5111cc53dfed56689637ae32c1201205d494f54fb - Installs the pinned vendored Helm charts.
+host-kubectl v1.32.10 sha256:6e14ef4e509e9f3d1dfc2815643f832f853d2d9f6622d4a0f83f77c7e4014b57 - Verifies the pinned K3S Kubernetes version and installed components.
+k3s v1.32.10+k3s1 - Kubernetes server release for the offline single-node cluster.
+k3s-binary-amd64 sha256:6f4012de542b9e831c1fcdb030645156aa4ca355202ea20ea5e544ae4ee1e650 - Verifies the pinned K3S executable.
+k3s-airgap-images-amd64.tar.zst sha256:4217e7a36bfecc66cd678e854175f740f6b97dda44b094a132bf751c7198bba9 - Preloads K3S control-plane images without runtime registry access.
+chart.cilium 1.17.6 - Provides Cilium networking, Hubble relay/UI, and flow metrics.
+chart.tetragon 1.4.0 - Provides the Tetragon eBPF security agent DaemonSet.
+cilium-cli v0.20.1 sha256:24e817dcfcc8a12e325ce7547617bcbcf171c5b0b335bb24d2bb1207ba047f61 - Verifies Cilium readiness and kube-proxy replacement.
+hubble-cli v1.17.5 sha256:448f3b50326d1ea05e18a314e5d1f75174073188290a90d9e8f555e35e169ab0 - Verifies Hubble relay gRPC reachability.
+helm-archive v4.3.0 sha256:86584a54def73570558f66f5111cc53dfed56689637ae32c1201205d494f54fb - Supplies the pinned Helm binary to the offline node.
+image.cilium quay.io/cilium/cilium:v1.17.6@sha256:68148753c375f8ea5e3bc0a9efdce20d83954abf5fa24c69de23a0d2702c65ee - Cilium agent registry manifest.
+image.cilium-operator quay.io/cilium/operator-generic:v1.17.6@sha256:a47cb0985a8fea9b46af9cffb2d67e48501dc41d7e2070cf0e8da761faed32ba - Cilium operator registry manifest.
+image.cilium-envoy quay.io/cilium/cilium-envoy:v1.33.4-1752151664-7c2edb0b44cf95f326d628b837fcdd845102ba68@sha256:318eff387835ca2717baab42a84f35a83a5f9e7d519253df87269f80b9ff0171 - Cilium Envoy registry manifest.
+image.hubble-relay quay.io/cilium/hubble-relay:v1.17.6@sha256:6ff7762e7697f8249c9beb2a9ecb8f3a6bf6ff302acaecc2dbc9c192de2d3b8a - Hubble relay registry manifest.
+image.hubble-ui quay.io/cilium/hubble-ui:v0.13.2@sha256:f6574f768b890cbbe857f35f9083180b1a514b664592e874f7d7bbef2fbd6e3d - Hubble UI frontend registry manifest.
+image.hubble-ui-backend quay.io/cilium/hubble-ui-backend:v0.13.2@sha256:bfe0cb9158fd044ab499706c3e36469739e6b4accda8e79f80367935a17b4ac6 - Hubble UI backend registry manifest.
+image.tetragon quay.io/cilium/tetragon:v1.4.0@sha256:35b5a399fe3a031ff07c1075c1ac79a2f93162b3ed57252e8f10890599aeb556 - Tetragon agent registry manifest.

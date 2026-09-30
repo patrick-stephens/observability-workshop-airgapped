@@ -7,12 +7,10 @@ log() {
     printf '%s %s\n' "$LOG_PREFIX" "$*"
 }
 
-for tool in pre-commit; do
-    if ! command -v "$tool" >/dev/null 2>&1; then
-        log "ERROR: required tool '$tool' is not installed"
-        exit 1
-    fi
-done
+if ! command -v pre-commit >/dev/null 2>&1; then
+    log "ERROR: required tool 'pre-commit' is not installed"
+    exit 1
+fi
 
 log "Validating the repository pre-commit configuration"
 pre-commit validate-config
