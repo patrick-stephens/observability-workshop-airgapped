@@ -9,3 +9,4 @@
 7. Do not add features, dependencies, or abstractions that are not requested. When in doubt, do less and ask.
 8. Always run the appropriate linting locally across all files, and resolve any issues found.
 9. Before completing a task, run `pre-commit run --all-files` and confirm it passes. If the checks cannot be run, state why and do not claim they passed.
+10. In Markdown files, keep each sentence on a single line, with each new sentence starting on a new line.
