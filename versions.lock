@@ -1,1 +1,6 @@
-# No dependencies are captured yet.
+# Development tools and hook repositories; reasons are recorded for each pin.
+pre-commit 4.2.0 - Installs and runs the repository's configured hooks.
+gitleaks v8.30.1 - Detects secrets in staged changes.
+pre-commit-hooks v5.0.0 - Provides whitespace, file-format, symlink, and key checks.
+yamllint v1.38.0 - Lints YAML files.
+conventional-pre-commit v4.4.0 - Validates commit messages against Conventional Commits.

@@ -8,3 +8,4 @@
 6. Prefer explicit over clever. Long, obvious scripts beat short, clever ones. This repo will be read under pressure.
 7. Do not add features, dependencies, or abstractions that are not requested. When in doubt, do less and ask.
 8. Always run the appropriate linting locally across all files, and resolve any issues found.
+9. Before completing a task, run `pre-commit run --all-files` and confirm it passes. If the checks cannot be run, state why and do not claim they passed.

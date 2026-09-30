@@ -22,8 +22,30 @@ The replay node is the Ubuntu VM running K3S where the workshop demo is presente
 - `bundle/`: output from offline capture; generated contents are gitignored.
 - `docs/`: speaker notes and runbooks.
 
+## Local Checks
+
+The pre-commit configuration uses the pinned upstream hook repositories listed
+in `versions.lock`. On the connected build node, provision pre-commit 4.2.0,
+then run `bash scripts/00-install-hooks.sh` to validate the config and fetch the
+pinned hook environments. The script installs Git hooks unless a custom
+`core.hooksPath` is already configured; it leaves an existing hooks path
+unchanged. Subsequent checks use the installed environments without outbound
+access. For offline use on another node, transfer the pre-commit cache from
+`$HOME/.cache/pre-commit` along with the captured tools.
+
+Before completing a change, run `pre-commit run --all-files` and confirm it
+passes. This runs all applicable file hooks; the Conventional Commits hook is
+run for commit messages when a commit is created.
+
 ## Current State
 
-This repository is a skeleton. No scripts exist yet, so there are no scripts to run. No charts or Kubernetes manifests exist, and no resources are installed or applied. Accordingly, there are no active teardowns; every future `kubectl apply` or `helm install` must have its matching teardown documented here.
+This repository is a skeleton. The only script is
+`scripts/00-install-hooks.sh`, which validates the hook config and installs its
+pinned environments and Git hooks. No bootstrap or demo scripts exist yet. No
+charts or Kubernetes manifests exist, and no resources are installed or
+applied. Accordingly, there are no active teardowns; every future
+`kubectl apply` or `helm install` must have its matching teardown documented
+here.
 
-`versions.lock` currently has no dependency entries. Add dependencies only with an explicit instruction, recording the reason for each entry.
+`versions.lock` records the pinned local development tools and the reason for
+each dependency.
