@@ -55,6 +55,25 @@ check_hubble_monitor() {
         ' >/dev/null
 }
 
+check_hubble_metric() {
+    local prometheus_ip response
+    prometheus_ip="$(kubectl --kubeconfig "$KUBECONFIG_PATH" --namespace "$NAMESPACE" get service kube-prometheus-stack-prometheus -o jsonpath='{.spec.clusterIP}')" || return 1
+    response="$(curl --fail --silent --show-error --get "http://${prometheus_ip}:9090/api/v1/query" --data-urlencode 'query=hubble_http_requests_total')" || return 1
+    jq -e '.status == "success" and (.data.result | length > 0)' <<< "$response" >/dev/null
+}
+
+check_alert_resources() {
+    kubectl --kubeconfig "$KUBECONFIG_PATH" --namespace demo get prometheusrule demo-hubble-alerts -o json |
+        jq -e '.metadata.labels.release == "kps" and ([.spec.groups[].rules[] | select(.alert == "DemoHighErrorRate" and .for == "1m")] | length > 0)' >/dev/null || return 1
+    kubectl --kubeconfig "$KUBECONFIG_PATH" --namespace demo get alertmanagerconfig demo-local-webhook -o json |
+        jq -e '
+            .metadata.labels.alertmanagerConfig == "workshop" and
+            .spec.route.receiver == "echo" and
+            .spec.route.groupBy == ["alertname", "namespace"] and
+            ([.spec.receivers[].webhookConfigs[].url] | any(. == "http://echo-sink.demo.svc.cluster.local:8080/alerts"))
+        ' >/dev/null
+}
+
 main() {
     if [[ "$EUID" -ne 0 ]]; then
         log "ERROR: run this script with sudo"
@@ -64,7 +83,7 @@ main() {
         log "ERROR: kubeconfig '$KUBECONFIG_PATH' is not readable"
         exit 1
     fi
-    for tool in jq kubectl; do
+    for tool in curl jq kubectl; do
         if ! command -v "$tool" >/dev/null 2>&1; then
             log "ERROR: required command '$tool' is not installed"
             exit 1
@@ -97,6 +116,30 @@ main() {
         pass "Hubble metrics ServiceMonitor is configured"
     else
         fail "Hubble metrics ServiceMonitor is missing or incorrect"
+    fi
+
+    if check_hubble_metric; then
+        pass "Hubble HTTP request series is present in Prometheus"
+    else
+        fail "Hubble HTTP request series is missing from Prometheus"
+    fi
+
+    if check_alert_resources; then
+        pass "PrometheusRule and local AlertmanagerConfig are selected"
+    else
+        fail "PrometheusRule or AlertmanagerConfig is missing or misconfigured"
+    fi
+
+    if kubectl --kubeconfig "$KUBECONFIG_PATH" --namespace demo wait --for=condition=Available deployment/echo-sink --timeout=30s >/dev/null; then
+        pass "local Alertmanager JSON echo sink is available"
+    else
+        fail "local Alertmanager JSON echo sink is not available"
+    fi
+
+    if kubectl --kubeconfig "$KUBECONFIG_PATH" --namespace demo get service echo-sink >/dev/null; then
+        pass "local Alertmanager webhook Service exists"
+    else
+        fail "local Alertmanager webhook Service is missing"
     fi
 
     log "Summary: ${PASS_COUNT} passed, ${FAIL_COUNT} failed"

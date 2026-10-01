@@ -1,4 +1,6 @@
 ---
+crds:
+  enabled: true
 defaultRules:
   create: false
 kubeStateMetrics:
@@ -47,6 +49,11 @@ prometheus:
     serviceMonitorSelectorNilUsesHelmValues: false
     serviceMonitorSelector: {}
     serviceMonitorNamespaceSelector: {}
+    ruleSelectorNilUsesHelmValues: false
+    ruleSelector:
+      matchLabels:
+        release: kps
+    ruleNamespaceSelector: {}
     retention: 24h
     image:
       registry: quay.io
@@ -71,6 +78,12 @@ alertmanager:
       tag: v0.34.1
       pullPolicy: Never
       sha: ""
+    alertmanagerConfigSelector:
+      matchLabels:
+        alertmanagerConfig: workshop
+    alertmanagerConfigNamespaceSelector:
+      matchLabels:
+        alertmanagerConfig: enabled
     storage:
       volumeClaimTemplate:
         spec:

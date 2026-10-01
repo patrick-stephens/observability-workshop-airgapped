@@ -1,0 +1,45 @@
+---
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: demo-local-webhook
+  namespace: demo
+  labels:
+    alertmanagerConfig: workshop
+spec:
+  inhibitRules:
+    - sourceMatch:
+        - name: severity
+          value: critical
+          matchType: "="
+        - name: pillar
+          value: network
+          matchType: "="
+      targetMatch:
+        - name: severity
+          value: warning
+          matchType: "="
+        - name: pillar
+          value: network
+          matchType: "="
+      equal:
+        - alertname
+        - namespace
+        - destination_workload
+  route:
+    receiver: echo
+    groupBy:
+      - alertname
+      - namespace
+    groupWait: 10s
+    groupInterval: 1m
+    repeatInterval: 4h
+    matchers:
+      - name: pillar
+        value: network
+        matchType: "="
+  receivers:
+    - name: echo
+      webhookConfigs:
+        - url: http://echo-sink.demo.svc.cluster.local:8080/alerts
+          sendResolved: true

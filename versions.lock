@@ -63,3 +63,4 @@ image.prometheus-operator quay.io/prometheus-operator/prometheus-operator:v0.94.
 image.prometheus-config-reloader quay.io/prometheus-operator/prometheus-config-reloader:v0.94.1@sha256:ac2f46e50daebc6163d2ba17adbbbc7fe8f51a0000e7961e821dcb9331b3702f - Prometheus config reloader registry manifest.
 image.alertmanager quay.io/prometheus/alertmanager:v0.34.1@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3 - Alertmanager registry manifest.
 image.prometheus quay.io/prometheus/prometheus:v3.15.0-distroless@sha256:3e84c7d7c1b07a779c0d51ab41982dce05147a6bb49a674e8dec794a7ba25447 - Prometheus registry manifest.
+image.alert-echo docker.io/library/python:3.13-alpine@sha256:f3ebba2ace255c93267a0278da88c7f1044432991abc4e6ad20d22e34dd0f8ee - Minimal JSON Alertmanager webhook sink.

@@ -62,7 +62,7 @@ Wait for the script to report that the guest is reachable over SSH before contin
 
 Connect interactively with `scripts/01-local-vm.sh ssh` or `ssh -p 2222 -i ~/.ssh/id_ed25519 ubuntu@127.0.0.1`.
 If your SSH key is not `~/.ssh/id_ed25519`, set `SSH_PUBLIC_KEY_FILE` and `SSH_PRIVATE_KEY_FILE` before starting the VM.
-Copy the required scripts and all captured assets into the guest with `scp -P 2222 -i ~/.ssh/id_ed25519 -r scripts charts values bundle versions.lock ubuntu@127.0.0.1:/home/ubuntu/demo/`.
+Copy the required scripts, manifests, and all captured assets into the guest with `scp -P 2222 -i ~/.ssh/id_ed25519 -r scripts charts values manifests bundle versions.lock ubuntu@127.0.0.1:/home/ubuntu/demo/`.
 Then connect to the guest and run `cd /home/ubuntu/demo` before executing the bootstrap commands.
 
 Inside the offline guest, run `sudo scripts/00-prereqs.sh`, `sudo scripts/10-k3s.sh`, and `sudo scripts/30-stack.sh` in that order.
@@ -90,6 +90,17 @@ Every future `kubectl apply` or `helm install` must have its matching teardown d
 
 `versions.lock` records the pinned local development tools and the reason for each dependency.
 
+## Alerting Demo
+
+`scripts/30-stack.sh` installs the PrometheusRule, AlertmanagerConfig, and JSON echo sink after the kube-prometheus-stack CRDs are ready.
+Run `docs/alerting-runbook.md` with the demo application and load generator running to demonstrate the Hubble 5xx alert, grouping, silence, and local webhook payload.
+The webhook receiver is restricted to `http://echo-sink.demo.svc.cluster.local:8080/alerts`; there is no internet-facing receiver.
+Use `kubectl logs -f deploy/echo-sink -n demo` to display each pretty-printed notification body.
+`scripts/90-teardown-cluster.sh` removes the alerting manifests and echo sink before uninstalling the observability charts.
+The alerting demo requires the application and load generator from the demo deployment to be running in namespace `demo`.
+The current application build target runs services locally and does not create cluster workloads; complete the demo workload deployment before presenting this alerting beat.
+The alert definition and ordered presenter steps are in `docs/alerting-runbook.md`.
+
 ## Enterprise Mirrors and Proxies
 
 The capture scripts honour the standard `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment variables used by `curl`, Helm, and Docker.
@@ -108,14 +119,14 @@ The VM image, disk overlay, cloud-init data, and logs are stored under `$HOME/vm
 
 Connect with `scripts/01-local-vm.sh ssh`.
 For a manual SSH connection, run `ssh -p 2222 -i ~/.ssh/id_ed25519 ubuntu@127.0.0.1`.
-Copy the bootstrap files and captured assets into the guest with `scp -P 2222 -r scripts charts values bundle versions.lock ubuntu@127.0.0.1:/home/ubuntu/demo/`.
+Copy the bootstrap files, manifests, and captured assets into the guest with `scp -P 2222 -r scripts charts values manifests bundle versions.lock ubuntu@127.0.0.1:/home/ubuntu/demo/`.
 Use `scripts/01-local-vm.sh status` to inspect the QEMU process, `stop` to stop the guest, and `destroy` to remove the guest disk and cloud-init state while retaining the verified base image.
 
 ## K3S Cluster Bootstrap
 
 On the connected build node, run `scripts/05-capture-cluster-assets.sh` to capture the pinned K3S artifacts, vendored cluster and observability charts, CLI tools, and container images.
 Run `scripts/31-capture-plugins.sh` before disconnecting the build node so the Perses plugin archives are included in `bundle/`.
-Copy `scripts/`, `charts/`, `values/`, `bundle/`, and `versions.lock` into the running guest before disconnecting it from the network.
+Copy `scripts/`, `charts/`, `values/`, `manifests/`, `bundle/`, and `versions.lock` into the running guest before disconnecting it from the network.
 Inside the guest, run `sudo scripts/00-prereqs.sh`, `sudo scripts/10-k3s.sh`, and `sudo scripts/30-stack.sh` in that order.
 K3S starts with Flannel, Kubernetes network policy, kube-proxy, Traefik, and ServiceLB disabled; Cilium supplies the CNI and service proxy.
 Tetragon is installed as a separate pinned chart because the official Cilium chart does not deploy the Tetragon agent.

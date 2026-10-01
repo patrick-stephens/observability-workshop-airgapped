@@ -2,6 +2,7 @@
 set -euo pipefail
 
 LOG_PREFIX="[90-teardown-cluster]"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 KUBECONFIG_PATH="${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}"
 
 log() {
@@ -44,10 +45,17 @@ main() {
         error "K3S kubeconfig '$KUBECONFIG_PATH' is not readable"
         exit 1
     fi
-    if ! command -v helm >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
-        error "helm and jq must be installed"
+    if ! command -v helm >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1 || ! command -v kubectl >/dev/null 2>&1; then
+        error "helm, jq, and kubectl must be installed"
         exit 1
     fi
+
+    for manifest in alertmanager-config.yaml alert-rules.yaml echo-sink.yaml echo-sink-service.yaml echo-sink-config.yaml; do
+        if [[ -f "${REPO_ROOT}/manifests/${manifest}" ]]; then
+            log "Removing alerting resources from ${manifest}"
+            kubectl --kubeconfig "$KUBECONFIG_PATH" delete --filename "${REPO_ROOT}/manifests/${manifest}" --ignore-not-found
+        fi
+    done
 
     for release in perses fluent-bit otel-collector pyroscope tempo loki kube-prometheus-stack; do
         uninstall_release "$release" observability

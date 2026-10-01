@@ -1,0 +1,30 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: demo-hubble-alerts
+  namespace: demo
+  labels:
+    release: kps
+spec:
+  groups:
+    - name: demo.hubble.network
+      rules:
+        - alert: DemoHighErrorRate
+          expr: |
+            sum by (destination_workload) (
+              rate(hubble_http_requests_total{reporter="destination", http_status_code=~"5.."}[1m])
+            )
+            /
+            sum by (destination_workload) (
+              rate(hubble_http_requests_total{reporter="destination"}[1m])
+            )
+            > 0.05
+          for: 1m
+          labels:
+            namespace: demo
+            severity: warning
+            pillar: network
+          annotations:
+            summary: "5xx above 5% on {{ $labels.destination_workload }}"
+            description: "Source: Cilium Hubble. No application instrumentation."

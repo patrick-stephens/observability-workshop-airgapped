@@ -15,7 +15,9 @@ Deliverables
 ------------
 - manifests/alert-rules.yaml        PrometheusRule, kube-prometheus-stack CRD
 - manifests/alertmanager-config.yaml AlertmanagerConfig, CRD
-- manifests/echo-sink.yaml          deployment + service
+- manifests/echo-sink-config.yaml   webhook server source ConfigMap
+- manifests/echo-sink.yaml          webhook sink Deployment
+- manifests/echo-sink-service.yaml  webhook sink Service
 - values/kube-prometheus-stack.yaml must reference both CRDs
 - docs/alerting-runbook.md          what to show, in what order
 

@@ -72,13 +72,13 @@ install_chart() {
     state=0
     release_state "$release_name" "${chart_name}-${chart_version}" || state=$?
     case "$state" in
-        0) log "Release '$release_name' is already deployed"; return ;;
+        0) ;;
         1) ;;
         *) return "$state" ;;
     esac
 
-    log "Installing ${chart_name}-${chart_version} as '$release_name'"
-    helm install "$release_name" "$chart_archive" \
+    log "Upgrading or installing ${chart_name}-${chart_version} as '$release_name'"
+    helm upgrade --install "$release_name" "$chart_archive" \
         --namespace "$NAMESPACE" \
         --kubeconfig "$KUBECONFIG_PATH" \
         --values "$values_file" \
@@ -109,8 +109,14 @@ main() {
     install_chart tempo tempo
     install_chart pyroscope pyroscope
     install_chart otel-collector opentelemetry-collector opentelemetry-collector
+    kubectl --kubeconfig "$KUBECONFIG_PATH" create namespace demo --dry-run=client -o yaml |
+        kubectl --kubeconfig "$KUBECONFIG_PATH" apply -f - >/dev/null
+    kubectl --kubeconfig "$KUBECONFIG_PATH" label namespace demo alertmanagerConfig=enabled --overwrite >/dev/null
     install_chart fluent-bit fluent-bit-collector
     install_chart perses perses
+    if [[ -d "${REPO_ROOT}/manifests" ]]; then
+        kubectl --kubeconfig "$KUBECONFIG_PATH" apply -f "${REPO_ROOT}/manifests/"
+    fi
     log "Observability stack is deployed in namespace '$NAMESPACE'"
 }
 
