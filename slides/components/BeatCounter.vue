@@ -8,6 +8,7 @@ const beats = [
   'Latency',
   'Errors',
   'Alert lifecycle',
+  'Torpedo',
   'DNS',
   'Traces',
   'Logs',

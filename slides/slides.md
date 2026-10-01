@@ -2,11 +2,12 @@
 theme: default
 layout: cover
 title: Introduction to Observability
-author: Patrick Stephens
+author: "Presenter name (replace before presenting)"
 highlighter: shiki
 lineNumbers: false
 colorSchema: dark
 routerMode: hash
+wakeLock: false
 fonts:
   provider: none
   sans: Inter
@@ -17,7 +18,7 @@ fonts:
 
 <p class="track-line">OpenTelemetry · OpenTelemetry for Java · Prometheus · Fluent Bit · Perses</p>
 
-<!-- We have 45 minutes together. We will demo for 40 minutes, then the room opens up and you can choose a track for the remaining time. Nothing you are about to see reaches the internet. -->
+<!-- We have 45 minutes together. We will demo for 40 minutes, then the room opens up and you can choose a track. Nothing you are about to see is reaching the internet. -->
 
 <!-- Slide 2 -->
 ---
@@ -28,7 +29,7 @@ layout: statement
 
 Monitoring covers the failures you predicted. Observability covers the ones you didn't.
 
-<!-- The operative distinction is not which tools we use; it is whether we can ask a question we did not anticipate. That requires high-cardinality data, no pre-aggregation that discards the dimensions we need, and signals that are causally linked. Four tools that do not talk to each other are four monitoring tools. -->
+<!-- The operative distinction is not tooling; it is whether we can ask a question we did not anticipate. That requires high-cardinality data, no pre-aggregation, and signals that are causally linked. Four tools that do not talk to each other are four monitoring tools. -->
 
 <!-- Slide 3 -->
 ---
@@ -46,7 +47,7 @@ layout: default
   </tbody>
 </table>
 
-<!-- These signals answer different questions; the value comes from moving between them in one click. Metrics are cheap and always on, but blind to cardinality. Traces pinpoint a path, but they cost more to retain. Logs are ground truth that nobody wants to grep. Exemplars link a metric sample to its trace, and the OpenTelemetry for Java workshop covers that workflow. We will move on before this becomes a taxonomy debate. -->
+<!-- These signals answer different questions; the value is moving between them in one click. Metrics are cheap and always on, but cardinality-blind. Traces pinpoint a path, but cost more to retain. Logs are ground truth nobody wants to grep. Exemplars link metrics to traces, and the OpenTelemetry for Java workshop covers that workflow. We will move on before this becomes a taxonomy debate. There is a fifth thing you will see in a moment that is not on this list: an operational event. It is not a signal; it is a notification. Watch for it. -->
 
 <!-- Slide 4 -->
 ---
@@ -70,7 +71,7 @@ layout: default
   </div>
 </div>
 
-<!-- This slide justifies the demo, so I will land each point deliberately and pause. For fifteen years, network visibility meant a proxy; now it is the kernel. The control and the evidence are the same system. You are not choosing between Fluent Bit and the OpenTelemetry Collector; Fluent Bit speaks OTLP. -->
+<!-- This slide justifies the demo, so I will land each point deliberately and pause. For fifteen years, network visibility meant a proxy; now it is the kernel. The control and the evidence are the same system. You are not choosing between Fluent Bit and the OpenTelemetry Collector; Fluent Bit speaks OTLP. And note: an alert is not necessarily a failure. You will see that in a moment. -->
 
 <!-- Slide 5 -->
 ---
@@ -86,11 +87,12 @@ layout: default
     <tr><td>Source</td><td>Available. Auditable. Forkable.</td></tr>
     <tr><td>Transport</td><td>Nothing requires a hosted endpoint</td></tr>
     <tr><td>Data residency</td><td>Everything in-boundary</td></tr>
+    <tr><td>Notification path</td><td>In-boundary. Alertmanager to your own receivers</td></tr>
     <tr><td>Longevity</td><td>CNCF projects, not a single-vendor bet</td></tr>
   </tbody>
 </table>
 
-<!-- You could build this on a commercial platform. This is what it looks like when you do not want to. -->
+<!-- You could build this on a commercial platform. This is what it looks like when you do not want to. That includes where your alerts go. The notification path is part of the boundary, not an afterthought. -->
 
 <!-- Slide 6 -->
 ---
@@ -99,7 +101,7 @@ layout: section
 
 # Let's break something.
 
-<!-- Everything from here is live. We have one app, three services, and we are going to make it fail in three different ways. Watch where each failure shows up first. -->
+<!-- Everything from here is live. We have one app and three services, and we are going to make it fail in three different ways. One of them is not a failure at all. Watch where each one shows up first. -->
 
 <!-- Slide 7 -->
 ---
@@ -109,7 +111,7 @@ beat: 1
 
 # Metrics
 
-<!-- First, watch the request metrics expose the injected latency before we open the trace. -->
+<!-- The p99 panel shows degradation before anyone is paged. -->
 
 <!-- Slide 8 -->
 ---
@@ -117,9 +119,9 @@ layout: demo
 beat: 4
 ---
 
-# Network
+# Operational events
 
-<!-- Next, watch Hubble show the DNS flow being denied at the network boundary. -->
+<!-- This is the operator's view. The system is about to report something that is not a failure. -->
 
 <!-- Slide 9 -->
 ---
@@ -127,9 +129,19 @@ layout: demo
 beat: 5
 ---
 
+# Network
+
+<!-- This is the money beat: the policy causing the failure and the evidence proving it are in the same system. -->
+
+<!-- Slide 10 -->
+---
+layout: demo
+beat: 6
+---
+
 # Traces
 
-<!-- Now follow the failed request across the three services in the trace view. -->
+<!-- Follow the request path across services, answering a question metrics cannot answer. -->
 
 <!-- Slide 10 -->
 ---
@@ -141,7 +153,6 @@ layout: end
 <!-- We have reached the end of the core session. I will take questions before we open the optional tracks. -->
 
 <!-- Backup B1 -->
-<!-- Presenter note: versions and licences are pinned in versions.lock and the corresponding component metadata. -->
 ---
 layout: default
 ---
@@ -150,40 +161,48 @@ layout: default
 
 | Component | Version | Licence | Role |
 |:--|:--|:--|:--|
-| Kubernetes / K3S | v1.32.10+k3s1 | Apache-2.0 | Cluster runtime |
-| Cilium | 1.17.6 | Apache-2.0 | CNI, policy, and flow visibility |
-| OpenTelemetry Collector | 0.174.0 | Apache-2.0 | Telemetry pipeline |
-| Prometheus | v3.15.0 | Apache-2.0 | Metrics storage and alerting |
-| Fluent Bit | 5.1.2 | Apache-2.0 | Log collection and routing |
-| Perses | v0.54.0 | Apache-2.0 | Dashboards |
+| Kubernetes / K3S | [fill from versions.lock] | Apache-2.0 | Cluster runtime |
+| Cilium | [fill from versions.lock] | Apache-2.0 | CNI, policy, and flow visibility |
+| OpenTelemetry Collector | [fill from versions.lock] | Apache-2.0 | Telemetry pipeline |
+| Prometheus | [fill from versions.lock] | Apache-2.0 | Metrics storage and alerting |
+| Fluent Bit | [fill from versions.lock] | Apache-2.0 | Log collection and routing |
+| Perses | [fill from versions.lock] | Apache-2.0 | Dashboards |
 
-<!-- Presenter note: versions and licences are pinned in versions.lock and the corresponding component metadata. -->
+<!-- Before this session, fill the component versions from the parent repository's versions.lock and verify each licence against component metadata. -->
 
 <!-- Backup B2 -->
 ---
 layout: default
 ---
 
-# DemoHighErrorRate
+# The alert rules
 
 <div class="compact-code">
 
 ```yaml
 alert: DemoHighErrorRate
 expr: |
-  sum(rate(http_server_requests_total{service="api", status=~"5.."}[5m]))
+  sum(rate(hubble_http_requests_total{reporter="destination",
+    http_status_code=~"5.."}[1m]))
   /
-  sum(rate(http_server_requests_total{service="api"}[5m])) > 0.05
-for: 2m
+  sum(rate(hubble_http_requests_total{reporter="destination"}[1m]))
+  > 0.05
+for: 1m
+```
+
+```yaml
+alert: TorpedoDetected
+expr: sum(rate(torpedoes_detected_total[1m])) > 5
+for: 30s
 ```
 
 </div>
 
-<p class="backup-note"><code>Numerator</code> — API requests returning 5xx, measured over five minutes.</p>
-<p class="backup-note"><code>Denominator</code> — all API requests over the same window.</p>
-<p class="backup-note"><code>for: 2m</code> — the ratio must remain above 5% for two minutes before firing.</p>
+<p class="backup-note">Block 1 numerator: 5xx requests seen by the CNI, not the app.</p>
+<p class="backup-note">Block 1 denominator: all requests seen by the CNI.</p>
+<p class="backup-note">The two <code>for</code> values differ deliberately: tolerance is a per-alert decision, not a global setting.</p>
 
-<!-- This is a representative alert rule for the demo. The numerator counts API requests returning a 5xx status over five minutes, and the denominator counts all API requests over the same window. The condition must remain true for two minutes before the alert fires. -->
+<!-- DemoHighErrorRate counts 5xx requests observed by the CNI over one minute and divides them by all destination requests observed by the CNI. TorpedoDetected fires when the one-minute rate exceeds five per second for thirty seconds. The different for durations are deliberate because tolerance belongs to each alert, not to a global setting. -->
 
 <!-- Backup B3 -->
 ---
@@ -245,6 +264,8 @@ layout: default
 
 # How the demo was built
 
+<div class="build-details">
+
 | Element | Implementation |
 |:--|:--|
 | Kubernetes | K3S |
@@ -254,19 +275,48 @@ layout: default
 | Build node | Captures and stages dependencies |
 | Replay node | Runs the workshop demo inside the boundary |
 
-<!-- The build node captures and stages dependencies while it is connected. We carry those artefacts to the replay node, where K3S, Cilium with kube-proxy replaced, and Helm run the demo without outbound access. -->
+<h2>The business metrics path</h2>
+
+<div class="compact-code">
+
+```text
+torpedoes.detected (OTel, dotted name)
+  -> OTLP to the Collector
+  -> Prometheus 3 native OTLP receiver
+  -> torpedoes_detected_total (Prometheus name, _total appended)
+```
+
+</div>
+
+<p class="backup-note">This metric never touched the scrape path.</p>
+
+</div>
+
+<!-- The build node captures and stages dependencies while it is connected. We carry those artefacts to the replay node, where K3S, Cilium with kube-proxy replaced, and Helm run the demo without outbound access. The business metric starts as torpedoes.detected, travels over OTLP to the Collector, and enters Prometheus 3 through its native OTLP receiver as torpedoes_detected_total. It never touches the scrape path. -->
 
 <!-- Backup B6 -->
 ---
 layout: default
 ---
 
-# Offline acceptance checklist
+# The event path
 
-<div class="position-list">
-  <div class="position-item"><span class="position-number">1.</span><div><strong class="position-lead">Capture.</strong><span class="position-detail">Charts, plugins, and tag-plus-digest images are verified before transfer.</span></div></div>
-  <div class="position-item"><span class="position-number">2.</span><div><strong class="position-lead">Deploy.</strong><span class="position-detail">K3S, Cilium, Tetragon, and the observability stack install from local artefacts.</span></div></div>
-  <div class="position-item"><span class="position-number">3.</span><div><strong class="position-lead">Verify.</strong><span class="position-detail">Metrics, logs, traces, profiles, Hubble flows, and dashboard datasources remain inside the boundary.</span></div></div>
+<div class="event-flow">
+  <div><code>app metric (OTLP)</code><span>emitted by backend, travels via Collector</span></div>
+  <div class="flow-connector">|</div>
+  <div><code>Prometheus</code><span>ingests via native OTLP receiver</span></div>
+  <div class="flow-connector">|</div>
+  <div><code>alert rule</code><span>TorpedoDetected, rate &gt; 5/s for 30s</span></div>
+  <div class="flow-connector">|</div>
+  <div><code>Alertmanager</code><span>groups, routes, fires</span></div>
+  <div class="flow-connector">|</div>
+  <div><code>webhook</code><span>POST to frontend /webhook/alertmanager</span></div>
+  <div class="flow-connector">|</div>
+  <div><code>frontend receiver</code><span>translates alertname to operational text</span></div>
+  <div class="flow-connector">|</div>
+  <div><code>UI banner</code><span>TORPEDO DETECTED in red</span></div>
 </div>
 
-<!-- This is the handoff: the build node is connected only during capture, and the replay node is accepted only after the complete verification scripts pass. -->
+<p class="backup-note">Application event to operator notification, six hops, all in-boundary, all observable.</p>
+
+<!-- The backend emits a business metric over OTLP. The Collector carries it to Prometheus, where the TorpedoDetected rule evaluates the rate and Alertmanager groups, routes, and fires the alert. A webhook posts to the frontend receiver, which translates the alert name into operational text and displays the red TORPEDO DETECTED banner. That is an application event becoming an operator notification in six hops, all inside the boundary and all observable. -->

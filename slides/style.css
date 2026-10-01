@@ -183,6 +183,59 @@ body,
   margin-top: 0.75rem;
 }
 
+.compact-code pre code {
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.build-details table {
+  font-size: 0.9rem;
+}
+
+.build-details td {
+  padding-top: 0.28rem;
+  padding-bottom: 0.28rem;
+  line-height: 1.2;
+}
+
+.build-details h2 {
+  margin: 0.9rem 0 0.4rem;
+  font-size: 1.25rem;
+}
+
+.build-details .compact-code pre {
+  margin-top: 0;
+}
+
+.build-details p {
+  margin: 0.4rem 0;
+}
+
+.event-flow {
+  display: grid;
+  gap: 0.18rem;
+  margin-top: 0.35rem;
+}
+
+.event-flow > div:not(.flow-connector) {
+  display: grid;
+  grid-template-columns: 16rem 1fr;
+  align-items: baseline;
+  column-gap: 1rem;
+}
+
+.event-flow > div > span {
+  color: #b8bdc5;
+  font-size: 0.9rem;
+}
+
+.event-flow .flow-connector {
+  padding-left: 0.35rem;
+  color: #7d838c;
+  font-family: 'JetBrains Mono', monospace;
+  line-height: 0.8;
+}
+
 .backup-links p {
   margin: 0.8rem 0;
   color: #d4d7dc;
