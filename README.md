@@ -114,6 +114,18 @@ The load generator image is built reproducibly from `images/hey/Dockerfile` by `
 The official `rakyll/hey` container image is unavailable, so the connected build node builds the pinned v0.1.4 binary into a minimal scratch image.
 The run-of-show, cut order, and presenter narration are in `docs/demo-runbook.md`.
 
+## Offline Bundle Pipeline
+
+On the connected build node, `scripts/90-capture.sh` runs `scripts/05-capture-cluster-assets.sh`, renders every chart in `charts/` with `helm template` including hook and test resources, and unions those images with `images.txt` and the images in `manifests/`.
+It copies each pinned image with `skopeo copy --all --preserve-digests` into `bundle/oci/`, writes `bundle/manifest.json`, and produces `bundle/o11y-demo-<date>-<gitsha>.tar.gz`.
+`skopeo` runs from the pinned `image.skopeo` container image through Docker, so it adds no host package.
+`scripts/91-verify-bundle.sh` checks that every image in `manifest.json` is complete in `bundle/oci/` and that every chart in `charts/` is recorded, listing anything missing.
+`images.txt` is rewritten by every `scripts/30-stack.sh` run with the images running in the cluster, each resolved to its `versions.lock` pin; commit it after a validated run.
+On the replay node, `sudo scripts/30-stack.sh --offline` verifies the bundle, disables Helm repositories, sends non-local HTTP(S) to a closed port, and seeds `registry.lab.local:5000` from `bundle/oci/` before installing the stack.
+`sudo scripts/95-preflight-offline.sh` then asserts there is no default route, that the registry serves every bundle image, and that `scripts/preflight.sh` passes.
+The seeded images live in the local registry's `emptyDir` volume, so `scripts/90-teardown-cluster.sh` removes them with the registry.
+The full replay procedure is in `bundle/README.md`.
+
 ## Enterprise Mirrors and Proxies
 
 The capture scripts honour the standard `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment variables used by `curl`, Helm, and Docker.

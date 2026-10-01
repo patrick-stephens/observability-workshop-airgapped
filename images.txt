@@ -1,0 +1,23 @@
+# Every image running after scripts/30-stack.sh, resolved to its versions.lock pin. Written by scripts/30-stack.sh; do not edit.
+docker.io/grafana/grafana:13.2.3-distroless@sha256:8c7801a8ed84616d266ce871f3728c2e1054c284ec2eae766e42310361895fd4
+docker.io/grafana/loki:3.6.12@sha256:b957b4fb9534e979c15b3850fe2cf798d2979a78d6774033080fbaa48ac1495e
+docker.io/grafana/pyroscope:2.3.1@sha256:718b585ea168a616ca737018dbd1676992db9e5f1084ec4e9cd18f669326f334
+docker.io/grafana/tempo:2.9.0@sha256:b025a4a4db0a58cc94e2abfab59751f92d74ab8cc024d2e6025ba7efb87bbaff
+docker.io/library/python:3.13-alpine@sha256:f3ebba2ace255c93267a0278da88c7f1044432991abc4e6ad20d22e34dd0f8ee
+docker.io/library/registry:2.8.3@sha256:46faa9a1ae6813194b53921a370f2f4f8c5e1aae228a89bceafef5847a6a3278
+docker.io/nginxinc/nginx-unprivileged:1.29-alpine@sha256:8059701048a6cc7d64e8ab2812a44be70161bfa9ecfc01d69e95b8ff2a648705
+docker.io/otel/opentelemetry-collector-k8s:0.161.0@sha256:6f053bdf677220d726936b20df32d4d1d040bd76cf27f44275cc91f99e1dde23
+docker.io/persesdev/perses:v0.54.0@sha256:6def46a662a22e790b49c01865c80f547d11d16a83213ac102a0e722d27ece13
+ghcr.io/fluent/fluent-bit:5.1.2@sha256:71cda445290efc2d45d565c12e0de4b15aa0182510276ad50c317aae1423d7ee
+quay.io/cilium/cilium-envoy:v1.33.4-1752151664-7c2edb0b44cf95f326d628b837fcdd845102ba68@sha256:318eff387835ca2717baab42a84f35a83a5f9e7d519253df87269f80b9ff0171
+quay.io/cilium/cilium:v1.17.6@sha256:68148753c375f8ea5e3bc0a9efdce20d83954abf5fa24c69de23a0d2702c65ee
+quay.io/cilium/hubble-relay:v1.17.6@sha256:6ff7762e7697f8249c9beb2a9ecb8f3a6bf6ff302acaecc2dbc9c192de2d3b8a
+quay.io/cilium/hubble-ui-backend:v0.13.2@sha256:bfe0cb9158fd044ab499706c3e36469739e6b4accda8e79f80367935a17b4ac6
+quay.io/cilium/hubble-ui:v0.13.2@sha256:f6574f768b890cbbe857f35f9083180b1a514b664592e874f7d7bbef2fbd6e3d
+quay.io/cilium/operator-generic:v1.17.6@sha256:a47cb0985a8fea9b46af9cffb2d67e48501dc41d7e2070cf0e8da761faed32ba
+quay.io/cilium/tetragon:v1.4.0@sha256:35b5a399fe3a031ff07c1075c1ac79a2f93162b3ed57252e8f10890599aeb556
+quay.io/prometheus-operator/prometheus-config-reloader:v0.94.1@sha256:ac2f46e50daebc6163d2ba17adbbbc7fe8f51a0000e7961e821dcb9331b3702f
+quay.io/prometheus-operator/prometheus-operator:v0.94.1@sha256:ee7157809d227e2f9c112b329a9732bca4eb65d4df157ce83111f4debe4646fd
+quay.io/prometheus/alertmanager:v0.34.1@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3
+quay.io/prometheus/prometheus:v3.15.0-distroless@sha256:3e84c7d7c1b07a779c0d51ab41982dce05147a6bb49a674e8dec794a7ba25447
+registry.lab.local:5000/demo/hey:v0.1.4@sha256:ebf6de9ae1b0c6ba709238450c4ad88b7b6802c8ba48b217342d114caa1da4e2

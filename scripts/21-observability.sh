@@ -115,7 +115,12 @@ main() {
     install_chart fluent-bit fluent-bit-collector
     install_chart perses perses
     if [[ -d "${REPO_ROOT}/manifests" ]]; then
-        kubectl --kubeconfig "$KUBECONFIG_PATH" apply -f "${REPO_ROOT}/manifests/"
+        # chaos-*.yaml are demo breaks applied only by scripts/break.sh.
+        local manifest
+        for manifest in "${REPO_ROOT}"/manifests/*.yaml; do
+            [[ "$(basename "$manifest")" == chaos-* ]] && continue
+            kubectl --kubeconfig "$KUBECONFIG_PATH" apply -f "$manifest"
+        done
     fi
     log "Observability stack is deployed in namespace '$NAMESPACE'"
 }
