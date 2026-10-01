@@ -224,14 +224,25 @@ layout_has_digest() {
         jq -e --arg digest "$digest" 'any(.manifests[]; .digest == $digest)' "${layout_dir}/index.json" >/dev/null
 }
 
-build_loadgen_oci_archive() {
-    local archive="$1"
-    local expected_digest="$2"
-    local metadata_file="${WORK_DIR}/hey-metadata.json"
-    local actual_digest
+# Prints "<build context> <Dockerfile>" for images built locally instead of pulled; matches 05-capture-cluster-assets.sh.
+local_image_source() {
+    case "$1" in
+        "$(locked_field image.hey-loadgen 2)") printf '%s %s\n' "${REPO_ROOT}/images/hey" "${REPO_ROOT}/images/hey/Dockerfile" ;;
+        "$(locked_field image.demo-app 2)") printf '%s %s\n' "${REPO_ROOT}/app" "${REPO_ROOT}/images/app/Dockerfile" ;;
+        *) return 1 ;;
+    esac
+}
+
+build_local_oci_archive() {
+    local reference="$1"
+    local archive="$2"
+    local expected_digest="${reference##*@}"
+    local metadata_file="${WORK_DIR}/local-image-metadata.json"
+    local actual_digest build_context dockerfile
+    read -r build_context dockerfile <<< "$(local_image_source "$reference")"
 
     # 05-capture-cluster-assets.sh has already created this pinned BuildKit builder and verified the image digest.
-    log "Exporting the reproducible hey image as an OCI archive"
+    log "Exporting the reproducible ${reference%@sha256:*} image as an OCI archive"
     docker buildx build \
         --builder "$LOADGEN_BUILDER" \
         --platform linux/amd64 \
@@ -240,11 +251,12 @@ build_loadgen_oci_archive() {
         --build-arg SOURCE_DATE_EPOCH=0 \
         --build-arg "GO_BUILDER_IMAGE=$(locked_field build-image.hey-builder 2)" \
         --metadata-file "$metadata_file" \
+        --file "$dockerfile" \
         --output "type=oci,dest=${archive}" \
-        "${REPO_ROOT}/images/hey"
+        "$build_context"
     actual_digest="$(jq -r '."containerimage.digest" // empty' "$metadata_file")"
     if [[ "$actual_digest" != "$expected_digest" ]]; then
-        error "OCI export of hey has digest '$actual_digest'; versions.lock expects '$expected_digest'"
+        error "OCI export of ${reference%@sha256:*} has digest '$actual_digest'; versions.lock expects '$expected_digest'"
         return 1
     fi
 }
@@ -276,9 +288,9 @@ copy_image_to_oci() {
     fi
     rm -rf "${OCI_DIR:?}/${layout_name}"
 
-    if [[ "$reference" == "$(locked_field image.hey-loadgen 2)" ]]; then
-        build_loadgen_oci_archive "${WORK_DIR}/hey-oci.tar" "$digest"
-        source_reference="oci-archive:/work/hey-oci.tar"
+    if local_image_source "$reference" >/dev/null; then
+        build_local_oci_archive "$reference" "${WORK_DIR}/local-image-oci.tar"
+        source_reference="oci-archive:/work/local-image-oci.tar"
     else
         source_reference="docker://${tagged_reference%:*}@${digest}"
         if [[ -n "${IMAGE_REGISTRY_PREFIX:-}" ]]; then

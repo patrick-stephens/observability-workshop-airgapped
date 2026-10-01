@@ -1,0 +1,141 @@
+---
+kind: Dashboard
+metadata:
+  name: network
+  project: demo
+spec:
+  display:
+    name: Network
+  duration: 15m
+  refreshInterval: 10s
+  panels:
+    http5xx:
+      kind: Panel
+      spec:
+        display:
+          name: "Cilium Hubble: HTTP 5xx by destination workload"
+          description: >-
+            Source: Cilium Hubble, decoded from the wire by the Cilium proxy. No application instrumentation.
+            Server-side (reporter="server") 5xx responses per destination workload in namespace demo.
+        plugin:
+          kind: TimeSeriesChart
+          spec: {}
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: prometheus
+                  # The "or 0 * total" term keeps a zero line per workload when there are no 5xx responses.
+                  query: >-
+                    sum by (destination_workload) (
+                      rate(hubble_http_requests_total{
+                        reporter="server", destination_namespace="demo", status=~"5.."
+                      }[1m])
+                    )
+                    or
+                    0 * sum by (destination_workload) (
+                      rate(hubble_http_requests_total{reporter="server", destination_namespace="demo"}[1m])
+                    )
+                  seriesNameFormat: "{{destination_workload}}"
+    httpAll:
+      kind: Panel
+      spec:
+        display:
+          name: "Cilium Hubble: HTTP requests by destination workload"
+          description: >-
+            Source: Cilium Hubble. Every HTTP request the network carried into each demo workload, all statuses.
+        plugin:
+          kind: TimeSeriesChart
+          spec: {}
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: prometheus
+                  query: >-
+                    sum by (destination_workload, status) (
+                      rate(hubble_http_requests_total{reporter="server", destination_namespace="demo"}[1m])
+                    )
+                  seriesNameFormat: "{{destination_workload}} {{status}}"
+    dns:
+      kind: Panel
+      spec:
+        display:
+          name: "Cilium Hubble: DNS responses by response code"
+          description: >-
+            Source: Cilium Hubble's DNS proxy. On the pinned Cilium 1.17, hubble_dns_queries_total has no response-code
+            label (only qtypes and ips_returned), so this uses hubble_dns_responses_total, which carries rcode.
+        plugin:
+          kind: TimeSeriesChart
+          spec: {}
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: prometheus
+                  query: sum by (rcode) (rate(hubble_dns_responses_total[1m]))
+                  seriesNameFormat: "{{rcode}}"
+    drops:
+      kind: Panel
+      spec:
+        display:
+          name: "Cilium Hubble: packet drops by reason"
+          description: >-
+            Source: Cilium datapath via Hubble (hubble_drop_total, present in Cilium 1.17).
+            The DNS beat shows up here as policy-denied drops.
+        plugin:
+          kind: TimeSeriesChart
+          spec: {}
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: prometheus
+                  query: sum by (reason) (rate(hubble_drop_total[5m]))
+                  seriesNameFormat: "{{reason}}"
+  layouts:
+    - kind: Grid
+      spec:
+        display:
+          title: Network as the data source (Cilium Hubble)
+        items:
+          - x: 0
+            y: 0
+            width: 12
+            height: 9
+            content:
+              $ref: "#/spec/panels/http5xx"
+          - x: 12
+            y: 0
+            width: 12
+            height: 9
+            content:
+              $ref: "#/spec/panels/httpAll"
+          - x: 0
+            y: 9
+            width: 12
+            height: 9
+            content:
+              $ref: "#/spec/panels/dns"
+          - x: 12
+            y: 9
+            width: 12
+            height: 9
+            content:
+              $ref: "#/spec/panels/drops"

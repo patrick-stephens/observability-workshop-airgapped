@@ -54,6 +54,11 @@ prometheus:
       matchLabels:
         release: kps
     ruleNamespaceSelector: {}
+    # Native OTLP ingestion (Prometheus 3) for the app's business counters, sent by the Collector.
+    enableOTLPReceiver: true
+    otlp:
+      # The default strategy, set explicitly: dots become underscores and counters gain _total.
+      translationStrategy: UnderscoreEscapingWithSuffixes
     retention: 24h
     image:
       registry: quay.io

@@ -18,7 +18,7 @@ Use `kubectl -n demo port-forward svc/api 8081:8080` in one terminal and call `c
 Keep the load generator running against the frontend while the API remains in error mode.
 To create a second destination alert instance, port-forward `svc/backend` to `8082:8080` and call `curl 'http://localhost:8082/chaos?mode=error'` while the API continues calling it.
 Restore both services with `curl 'http://localhost:8081/chaos?mode=ok'` and `curl 'http://localhost:8082/chaos?mode=ok'` after the demonstration.
-In Prometheus, query `hubble_http_requests_total{reporter="destination",http_status_code=~"5.."}` to confirm Hubble is recording the failing requests.
+In Prometheus, query `hubble_http_requests_total{reporter="server",destination_namespace="demo",status=~"5.."}` to confirm Hubble is recording the failing requests.
 Open Alertmanager and show `DemoHighErrorRate` transition through Inactive, Pending, and Firing.
 
 3. Generate failures for at least two destination workloads in the same namespace.

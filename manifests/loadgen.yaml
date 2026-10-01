@@ -1,4 +1,6 @@
 ---
+# A Job's pod template is immutable, so re-applying is delete-then-create:
+# run scripts/loadgen-restart.sh, never a bare apply.
 apiVersion: batch/v1
 kind: Job
 metadata:

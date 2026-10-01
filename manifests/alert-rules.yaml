@@ -11,13 +11,15 @@ spec:
     - name: demo.hubble.network
       rules:
         - alert: DemoHighErrorRate
+          # Native Cilium 1.17 httpV2 labels: status, reporter=server (destination side), and destination_workload from
+          # the labelsContext set in values/cilium.yaml.
           expr: |
             sum by (destination_workload) (
-              rate(hubble_http_requests_total{reporter="destination", http_status_code=~"5.."}[1m])
+              rate(hubble_http_requests_total{reporter="server", destination_namespace="demo", status=~"5.."}[1m])
             )
             /
             sum by (destination_workload) (
-              rate(hubble_http_requests_total{reporter="destination"}[1m])
+              rate(hubble_http_requests_total{reporter="server", destination_namespace="demo"}[1m])
             )
             > 0.05
           for: 1m

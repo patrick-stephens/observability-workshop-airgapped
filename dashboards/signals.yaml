@@ -1,0 +1,143 @@
+---
+kind: Dashboard
+metadata:
+  name: signals
+  project: demo
+spec:
+  display:
+    name: One incident, four layers
+  # All four panels share this relative 5-minute window.
+  duration: 5m
+  refreshInterval: 10s
+  panels:
+    metrics:
+      kind: Panel
+      spec:
+        display:
+          name: "Metrics: p99 latency"
+          description: Metrics answer "is something wrong, and how badly?"
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            yAxis:
+              format:
+                unit: seconds
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: prometheus
+                  query: >-
+                    histogram_quantile(0.99, sum by (le, service) (rate(app_http_request_duration_seconds_bucket[1m])))
+                  seriesNameFormat: "{{service}}"
+    network:
+      kind: Panel
+      spec:
+        display:
+          name: "Network: Hubble HTTP 5xx rate"
+          description: The network answers "which hop is failing, seen from outside the application?"
+        plugin:
+          kind: TimeSeriesChart
+          spec: {}
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: prometheus
+                  query: >-
+                    sum by (destination_workload) (
+                      rate(hubble_http_requests_total{
+                        reporter="server", destination_namespace="demo", status=~"5.."
+                      }[1m])
+                    )
+                    or
+                    0 * sum by (destination_workload) (
+                      rate(hubble_http_requests_total{reporter="server", destination_namespace="demo"}[1m])
+                    )
+                  seriesNameFormat: "{{destination_workload}}"
+    traces:
+      kind: Panel
+      spec:
+        display:
+          name: "Traces: traces by service"
+          description: >-
+            Traces answer "where in the request path did the time or the error go?"
+            Each point is one trace, coloured by service;
+            the Perses Tempo plugin has no TraceQL-metrics query to count them.
+        plugin:
+          kind: ScatterChart
+          spec: {}
+        queries:
+          - kind: TraceQuery
+            spec:
+              plugin:
+                kind: TempoTraceQuery
+                spec:
+                  datasource:
+                    kind: TempoDatasource
+                    name: tempo
+                  query: '{ resource.service.name =~ "frontend|api|backend" }'
+                  limit: 200
+    logs:
+      kind: Panel
+      spec:
+        display:
+          name: "Logs: log volume by level"
+          description: Logs answer "what exactly did the failing component say?"
+        plugin:
+          kind: TimeSeriesChart
+          spec: {}
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: LokiTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: LokiDatasource
+                    name: loki
+                  # The app's JSON log sits in Fluent Bit's "log" field; "or vector(0)" keeps a flat line while the
+                  # healthy app is quiet.
+                  query: >-
+                    sum by (level) (
+                      count_over_time({kubernetes_namespace_name="demo"} | json | line_format "{{.log}}" | json
+                        | __error__="" [1m])
+                    ) or vector(0)
+  layouts:
+    - kind: Grid
+      spec:
+        display:
+          title: Same incident, same window
+        items:
+          - x: 0
+            y: 0
+            width: 6
+            height: 10
+            content:
+              $ref: "#/spec/panels/metrics"
+          - x: 6
+            y: 0
+            width: 6
+            height: 10
+            content:
+              $ref: "#/spec/panels/network"
+          - x: 12
+            y: 0
+            width: 6
+            height: 10
+            content:
+              $ref: "#/spec/panels/traces"
+          - x: 18
+            y: 0
+            width: 6
+            height: 10
+            content:
+              $ref: "#/spec/panels/logs"

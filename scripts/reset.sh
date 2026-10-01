@@ -21,6 +21,7 @@ main() {
         "${APP_MANIFEST_DIR}/api.yaml"
         "${APP_MANIFEST_DIR}/frontend.yaml"
         "${APP_MANIFEST_DIR}/servicemonitor.yaml"
+        "${APP_MANIFEST_DIR}/l7-visibility.yaml"
         "${REPO_ROOT}/manifests/loadgen.yaml"
         "${REPO_ROOT}/manifests/alert-rules.yaml"
         "${REPO_ROOT}/manifests/alertmanager-config.yaml"
@@ -56,23 +57,24 @@ main() {
 
     log "Deleting the demo namespace and its previous beat state"
     kubectl --kubeconfig "$KUBECONFIG_PATH" delete namespace demo \
-        --ignore-not-found=true --wait=true --timeout=15s
+        --ignore-not-found=true --grace-period=5 --wait=true --timeout=45s
     kubectl --kubeconfig "$KUBECONFIG_PATH" create namespace demo --dry-run=client -o yaml |
         kubectl --kubeconfig "$KUBECONFIG_PATH" apply -f - >/dev/null
     kubectl --kubeconfig "$KUBECONFIG_PATH" label namespace demo alertmanagerConfig=enabled --overwrite >/dev/null
 
     log "Applying demo app services and metrics monitor"
-    for manifest in backend.yaml api.yaml frontend.yaml servicemonitor.yaml; do
+    for manifest in l7-visibility.yaml backend.yaml api.yaml frontend.yaml servicemonitor.yaml; do
         kubectl --kubeconfig "$KUBECONFIG_PATH" apply --filename "${APP_MANIFEST_DIR}/${manifest}" >/dev/null
     done
-    log "Applying the load generator"
-    kubectl --kubeconfig "$KUBECONFIG_PATH" apply --filename "${REPO_ROOT}/manifests/loadgen.yaml" >/dev/null
+    kubectl --kubeconfig "$KUBECONFIG_PATH" --namespace demo rollout status deployment/backend --timeout=60s >/dev/null
+    kubectl --kubeconfig "$KUBECONFIG_PATH" --namespace demo rollout status deployment/api --timeout=60s >/dev/null
+    kubectl --kubeconfig "$KUBECONFIG_PATH" --namespace demo rollout status deployment/frontend --timeout=60s >/dev/null
     log "Applying alerting resources and echo sink"
     for manifest in alert-rules.yaml alertmanager-config.yaml echo-sink-config.yaml echo-sink-service.yaml echo-sink.yaml; do
         kubectl --kubeconfig "$KUBECONFIG_PATH" apply --filename "${REPO_ROOT}/manifests/${manifest}" >/dev/null
     done
 
-    log "Returning the demo to baseline"
+    log "Returning the demo to baseline (this also creates the load generator)"
     "$REPO_ROOT/scripts/break.sh" baseline
     log "Demo namespace reset to beat 0"
 }

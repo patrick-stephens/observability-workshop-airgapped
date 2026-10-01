@@ -1,0 +1,23 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: demo-app
+  namespace: demo
+  labels:
+    # values/kube-prometheus-stack.yaml sets serviceMonitorSelector: {} (select all), so this label is not required;
+    # it is kept to match the release: kps convention used by the rule selector.
+    release: kps
+spec:
+  selector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - frontend
+          - api
+          - backend
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s

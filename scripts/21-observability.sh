@@ -86,6 +86,23 @@ install_chart() {
         --timeout 10m
 }
 
+# Pyroscope's v2 metastore can wedge with "non-monotonic log entries" after a disk write stall, and only a restart
+# recovers it (grafana/pyroscope#5432). The chart has no liveness setting, so a /ready probe is patched in.
+ensure_pyroscope_liveness() {
+    log "Ensuring the Pyroscope liveness probe restarts a wedged metastore"
+    kubectl --kubeconfig "$KUBECONFIG_PATH" --namespace "$NAMESPACE" patch statefulset pyroscope --type strategic --patch '
+{"spec": {"template": {"spec": {"containers": [{
+  "name": "pyroscope",
+  "livenessProbe": {
+    "httpGet": {"path": "/ready", "port": "http2"},
+    "initialDelaySeconds": 120,
+    "periodSeconds": 10,
+    "timeoutSeconds": 5,
+    "failureThreshold": 12
+  }
+}]}}}}' >/dev/null
+}
+
 main() {
     if [[ "$EUID" -ne 0 ]]; then
         error "run this script with sudo"
@@ -108,6 +125,7 @@ main() {
     install_chart loki loki
     install_chart tempo tempo
     install_chart pyroscope pyroscope
+    ensure_pyroscope_liveness
     install_chart otel-collector opentelemetry-collector opentelemetry-collector
     kubectl --kubeconfig "$KUBECONFIG_PATH" create namespace demo --dry-run=client -o yaml |
         kubectl --kubeconfig "$KUBECONFIG_PATH" apply -f - >/dev/null
@@ -115,10 +133,10 @@ main() {
     install_chart fluent-bit fluent-bit-collector
     install_chart perses perses
     if [[ -d "${REPO_ROOT}/manifests" ]]; then
-        # chaos-*.yaml are demo breaks applied only by scripts/break.sh.
+        # chaos-*.yaml are demo breaks applied only by scripts/break.sh; the loadgen Job is created by scripts/reset.sh.
         local manifest
         for manifest in "${REPO_ROOT}"/manifests/*.yaml; do
-            [[ "$(basename "$manifest")" == chaos-* ]] && continue
+            [[ "$(basename "$manifest")" == chaos-* || "$(basename "$manifest")" == loadgen.yaml ]] && continue
             kubectl --kubeconfig "$KUBECONFIG_PATH" apply -f "$manifest"
         done
     fi

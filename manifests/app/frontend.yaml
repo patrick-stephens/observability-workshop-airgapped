@@ -1,0 +1,87 @@
+---
+# Deployment + Service wrapped in a List so this file stays a single YAML document.
+apiVersion: v1
+kind: List
+items:
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: frontend
+      namespace: demo
+      labels:
+        app: frontend
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: frontend
+      template:
+        metadata:
+          labels:
+            app: frontend
+          annotations:
+            # Asks Cilium to send port-8080 HTTP through Envoy so Hubble decodes L7 (hubble_http_requests_total).
+            # Cilium 1.16+ ignores this annotation; on the pinned 1.17, manifests/app/l7-visibility.yaml does the job.
+            policy.cilium.io/proxy-visibility: "<Ingress/8080/TCP/HTTP>,<Egress/8080/TCP/HTTP>"
+            demo/role: "periscope watch"
+        spec:
+          automountServiceAccountToken: false
+          containers:
+            - name: frontend
+              # Pinned by tag and digest in versions.lock (image.demo-app); imported locally, never pulled.
+              image: registry.lab.local:5000/demo/app:v0.1.0
+              imagePullPolicy: Never
+              command:
+                - /frontend
+              ports:
+                - name: http
+                  containerPort: 8080
+                  protocol: TCP
+              env:
+                - name: OTEL_EXPORTER_OTLP_ENDPOINT
+                  value: http://otel-collector.observability.svc.cluster.local:4317
+                - name: OTEL_SERVICE_NAME
+                  value: frontend
+                - name: API_URL
+                  value: http://api:8080
+              readinessProbe:
+                httpGet:
+                  path: /readyz
+                  port: http
+                periodSeconds: 5
+              livenessProbe:
+                httpGet:
+                  path: /healthz
+                  port: http
+                periodSeconds: 10
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+              securityContext:
+                runAsNonRoot: true
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: frontend
+      namespace: demo
+      labels:
+        app: frontend
+    spec:
+      selector:
+        app: frontend
+      ports:
+        - name: http
+          port: 8080
+          targetPort: 8080
+          protocol: TCP
+        # Port 80 lets the load generator and presenter use http://frontend.demo.svc.cluster.local/ without a port.
+        - name: web
+          port: 80
+          targetPort: 8080
+          protocol: TCP

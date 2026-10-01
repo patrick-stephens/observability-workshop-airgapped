@@ -152,21 +152,36 @@ ensure_cli_binary() {
     rm -rf "$temporary_directory"
 }
 
-ensure_loadgen_image() {
-    local image_reference tagged_reference expected_digest actual_digest metadata_file builder_name builder_image buildkit_image
-    image_reference="$(locked_field image.hey-loadgen 2)"
+# Prints "<build context> <Dockerfile>" for images built locally instead of pulled.
+local_image_source() {
+    case "$1" in
+        image.hey-loadgen) printf '%s %s\n' "${REPO_ROOT}/images/hey" "${REPO_ROOT}/images/hey/Dockerfile" ;;
+        image.demo-app) printf '%s %s\n' "${REPO_ROOT}/app" "${REPO_ROOT}/images/app/Dockerfile" ;;
+        *) return 1 ;;
+    esac
+}
+
+create_local_image_builder() {
+    local buildkit_image
+    buildkit_image="${BUILDKIT_IMAGE:-$(locked_field build-image.buildkit 2)}"
+    log "Creating pinned BuildKit builder 'observability-workshop-hey' for locally built images"
+    docker buildx rm observability-workshop-hey >/dev/null 2>&1 || true
+    docker buildx create --name observability-workshop-hey --driver docker-container --driver-opt "image=$buildkit_image" >/dev/null
+}
+
+ensure_local_image() {
+    local lock_key="$1"
+    local image_reference tagged_reference expected_digest actual_digest metadata_file builder_name builder_image
+    local build_context dockerfile
+    image_reference="$(locked_field "$lock_key" 2)"
     tagged_reference="${image_reference%@sha256:*}"
     expected_digest="${image_reference##*@}"
+    read -r build_context dockerfile <<< "$(local_image_source "$lock_key")"
     builder_image="${HEY_BUILDER_IMAGE:-$(locked_field build-image.hey-builder 2)}"
-    buildkit_image="${BUILDKIT_IMAGE:-$(locked_field build-image.buildkit 2)}"
     builder_name="observability-workshop-hey"
     metadata_file="$(mktemp)"
 
-    log "Creating pinned BuildKit builder '$builder_name' for the load-generator image"
-    docker buildx rm "$builder_name" >/dev/null 2>&1 || true
-    docker buildx create --name "$builder_name" --driver docker-container --driver-opt "image=$buildkit_image" >/dev/null
-
-    log "Building pinned hey load-generator image"
+    log "Building pinned image $tagged_reference"
     if ! docker buildx build \
         --builder "$builder_name" \
         --no-cache \
@@ -174,9 +189,10 @@ ensure_loadgen_image() {
         --build-arg SOURCE_DATE_EPOCH=0 \
         --build-arg "GO_BUILDER_IMAGE=$builder_image" \
         --metadata-file "$metadata_file" \
+        --file "$dockerfile" \
         --tag "$tagged_reference" \
         --load \
-        "${REPO_ROOT}/images/hey"; then
+        "$build_context"; then
         rm -f "$metadata_file"
         return 1
     fi
@@ -184,10 +200,10 @@ ensure_loadgen_image() {
     actual_digest="$(jq -r '."containerimage.digest" // empty' "$metadata_file")"
     rm -f "$metadata_file"
     if [[ "$actual_digest" != "$expected_digest" ]]; then
-        error "built hey image digest '$actual_digest' does not match versions.lock '$expected_digest'"
+        error "built image $tagged_reference has digest '$actual_digest'; versions.lock '$lock_key' expects '$expected_digest'"
         return 1
     fi
-    log "Verified load-generator image digest $actual_digest"
+    log "Verified $tagged_reference digest $actual_digest"
 }
 
 capture_images() {
@@ -227,7 +243,7 @@ capture_images() {
         local image_key_for_reference
         image_key_for_reference="$(awk -v reference="$image_reference" '$1 ~ /^image\./ && $2 == reference { print $1; exit }' "$VERSIONS_LOCK")"
         local pull_reference="$image_reference"
-        if [[ "$image_key_for_reference" == image.hey-loadgen ]]; then
+        if local_image_source "$image_key_for_reference" >/dev/null; then
             tagged_reference="${image_reference%@sha256:*}"
             docker image inspect "$tagged_reference" >/dev/null
             log "Using reproducibly built pinned image $image_reference"
@@ -290,7 +306,9 @@ main() {
     ensure_chart pyroscope
     ensure_chart opentelemetry-collector
     ensure_chart perses
-    ensure_loadgen_image
+    create_local_image_builder
+    ensure_local_image image.hey-loadgen
+    ensure_local_image image.demo-app
     capture_images
 
     local checksum_temporary

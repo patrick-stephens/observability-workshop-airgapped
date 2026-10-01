@@ -22,7 +22,8 @@ The bundle captures immutable tag-plus-digest image pins, while replay manifests
 
 - `charts/`: vendored Helm `.tgz` archives; never fetched during install.
 - `values/`: one values file per chart.
-- `manifests/`: Kubernetes objects applied directly.
+- `manifests/`: Kubernetes objects applied directly; `manifests/app/` holds the demo app Deployments, Services, ServiceMonitor, and L7 visibility policy.
+- `dashboards/`: Perses project, datasources, and dashboards for the host-side Perses.
 - `scripts/`: numbered, idempotent VM, bootstrap, and demo scripts.
 - `images/`: source Dockerfiles for locally built offline workload images.
 - `app/`: demo application source.
@@ -86,6 +87,8 @@ The guest-side prerequisite, K3S, Cilium/Tetragon, and cluster verification scri
 The Cilium, Tetragon, and observability charts are vendored, and the build-node capture script creates the offline image bundle.
 The observability stack uses the dedicated `fluent-bit-collector` chart as a DaemonSet for node log collection and direct Loki forwarding.
 The separate `fluent-bit-aggregator` chart is not deployed because this topology has no Fluent Bit forward-input tier; it remains an option for a future multi-tier logging design.
+Pyroscope's v2 metastore can wedge with `non-monotonic log entries` after a disk write stall, which only a restart clears (grafana/pyroscope#5432).
+`scripts/21-observability.sh` therefore patches a `/ready` liveness probe onto the Pyroscope StatefulSet, so kubelet restarts a wedged pod after about two minutes.
 The local KVM guest has been used to verify the Ubuntu VM and K3S installer; chart rollout verification is recorded by `scripts/verify-cluster.sh`.
 The chart teardown script removes the observability, Cilium, and Tetragon releases while preserving K3S.
 Every future `kubectl apply` or `helm install` must have its matching teardown documented here.
@@ -99,13 +102,17 @@ Run `docs/alerting-runbook.md` with the demo application and load generator runn
 The webhook receiver is restricted to `http://echo-sink.demo.svc.cluster.local:8080/alerts`; there is no internet-facing receiver.
 Use `kubectl logs -f deploy/echo-sink -n demo` to display each pretty-printed notification body.
 `scripts/90-teardown-cluster.sh` removes the alerting manifests and echo sink before uninstalling the observability charts.
-The alerting demo requires the application and load generator from the demo deployment to be running in namespace `demo`.
-The current application build target runs services locally and does not create cluster workloads; complete the demo workload deployment before presenting this alerting beat.
+The alerting demo requires the application and load generator from the demo deployment to be running in namespace `demo`; `sudo scripts/reset.sh` deploys them.
 The alert definition and ordered presenter steps are in `docs/alerting-runbook.md`.
 
 ## Demo Rehearsal
 
 After `manifests/app/` contains the frontend, API, backend, and ServiceMonitor resources, run `sudo scripts/reset.sh` followed by `sudo scripts/preflight.sh` from the repository root on the K3S node.
+`scripts/05-capture-cluster-assets.sh` builds the frontend, api, and backend binaries reproducibly into one image from `images/app/Dockerfile`, pinned as `image.demo-app` in `versions.lock`.
+After changing anything under `app/`, rebuild with that script and update the `image.demo-app` digest it reports.
+The frontend serves an operator status page at `/index.html`, which polls the `/status` JSON endpoint every 2 seconds.
+`manifests/app/l7-visibility.yaml` is required for Hubble HTTP and DNS metrics because Cilium 1.16 and later ignore the proxy-visibility annotation.
+The three metrics paths are explained in `docs/metrics-path.md`.
 `reset.sh` completes the demo namespace reset in under 60 seconds and refuses to delete namespace `demo` if the app, loadgen, alert, or sink manifests are missing.
 `preflight.sh` checks the local registry, Cilium, Prometheus, Loki, Tempo, Perses, and demo pod readiness before establishing a clean baseline.
 Use `sudo scripts/break.sh latency`, `errors`, `dns`, or `ok` to perform a named beat and its matching reset.
@@ -113,6 +120,15 @@ The DNS beat applies `manifests/chaos-dns-block.yaml` and should be demonstrated
 The load generator image is built reproducibly from `images/hey/Dockerfile` by `scripts/05-capture-cluster-assets.sh`, pinned in `versions.lock`, and included in the offline image archive.
 The official `rakyll/hey` container image is unavailable, so the connected build node builds the pinned v0.1.4 binary into a minimal scratch image.
 The run-of-show, cut order, and presenter narration are in `docs/demo-runbook.md`.
+
+## Host-Side Perses
+
+The presenter's Perses runs on the K3S host as a Docker container, outside the cluster.
+Run `sudo scripts/41-perses-portforwards.sh` to forward Prometheus, Loki, and Tempo to `localhost:9090`, `localhost:3100`, and `localhost:3200`, with PIDs in `/tmp/perses-pf/`.
+Run `scripts/40-perses.sh` to start Perses on `http://localhost:8080`, bound to localhost only, and apply everything in `dashboards/`.
+Both scripts replace any previous instance, so they are safe to rerun.
+`scripts/preflight.sh` checks that Perses, all three port-forwards, the load generator, and the OTLP business metrics are present.
+Run `scripts/42-perses-stop.sh` to stop the port-forwards and remove the Perses container.
 
 ## Offline Bundle Pipeline
 

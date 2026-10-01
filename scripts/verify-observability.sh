@@ -98,7 +98,7 @@ main() {
         fi
     done
 
-    for service in kube-prometheus-stack-prometheus loki-gateway tempo perses otel-collector-opentelemetry-collector; do
+    for service in kube-prometheus-stack-prometheus loki-gateway tempo perses otel-collector; do
         if check_service "$service"; then
             pass "Service '${service}' exists"
         else

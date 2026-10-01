@@ -16,7 +16,7 @@ test:
 	go test ./...
 
 docker-build:
-	@printf '%s\n' 'Docker build is out of scope because this application has no Dockerfiles.' >&2
+	@printf '%s\n' 'Container images are built reproducibly by scripts/05-capture-cluster-assets.sh from images/app/Dockerfile.' >&2
 	@exit 2
 
 run-all: build

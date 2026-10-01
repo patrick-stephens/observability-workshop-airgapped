@@ -1,0 +1,284 @@
+---
+kind: Dashboard
+metadata:
+  name: overview
+  project: demo
+spec:
+  display:
+    name: Demo Overview
+  duration: 15m
+  refreshInterval: 10s
+  panels:
+    requestRate:
+      kind: Panel
+      spec:
+        display:
+          name: Request rate by service
+          description: "Scrape path: app_http_requests_total from each service's /metrics."
+        plugin:
+          kind: TimeSeriesChart
+          spec: {}
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: prometheus
+                  query: sum by (service) (rate(app_http_requests_total[1m]))
+                  seriesNameFormat: "{{service}}"
+    errorRate:
+      kind: Panel
+      spec:
+        display:
+          name: Error rate % (Hubble 5xx / total)
+          description: >-
+            Same ratio as the DemoHighErrorRate alert, from Cilium Hubble.
+            The "or ... * 0" keeps a zero line when there are no 5xx responses.
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            yAxis:
+              format:
+                unit: percent
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: prometheus
+                  query: >-
+                    100 * (
+                      sum by (destination_workload) (
+                        rate(hubble_http_requests_total{
+                          reporter="server", destination_namespace="demo", status=~"5.."
+                        }[1m])
+                      )
+                      or
+                      0 * sum by (destination_workload) (
+                        rate(hubble_http_requests_total{reporter="server", destination_namespace="demo"}[1m])
+                      )
+                    )
+                    /
+                    sum by (destination_workload) (
+                      rate(hubble_http_requests_total{reporter="server", destination_namespace="demo"}[1m])
+                    )
+                  seriesNameFormat: "{{destination_workload}}"
+    latency:
+      kind: Panel
+      spec:
+        display:
+          name: Frontend latency p50 / p95 / p99
+          description: "Scrape path: app_http_request_duration_seconds histogram for the frontend service."
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            yAxis:
+              format:
+                unit: seconds
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: prometheus
+                  query: >-
+                    histogram_quantile(0.50,
+                      sum by (le) (rate(app_http_request_duration_seconds_bucket{service="frontend"}[1m])))
+                  seriesNameFormat: p50
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: prometheus
+                  query: >-
+                    histogram_quantile(0.95,
+                      sum by (le) (rate(app_http_request_duration_seconds_bucket{service="frontend"}[1m])))
+                  seriesNameFormat: p95
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: prometheus
+                  query: >-
+                    histogram_quantile(0.99,
+                      sum by (le) (rate(app_http_request_duration_seconds_bucket{service="frontend"}[1m])))
+                  seriesNameFormat: p99
+    chaosState:
+      kind: Panel
+      spec:
+        display:
+          name: Active chaos state
+          description: "Scrape path: app_chaos_mode{service, mode} is 1 for each service's active mode."
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            metricLabel: mode
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: prometheus
+                  query: max by (service, mode) (app_chaos_mode) == 1
+                  seriesNameFormat: "{{service}}"
+    torpedoes:
+      kind: Panel
+      spec:
+        display:
+          name: Torpedo detections
+          description: Emitted as torpedoes.detected via OTLP. Prometheus materialized the name.
+        plugin:
+          kind: TimeSeriesChart
+          spec: {}
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: prometheus
+                  query: sum(rate(torpedoes_detected_total[1m]))
+                  seriesNameFormat: torpedoes/s
+    sonar:
+      kind: Panel
+      spec:
+        display:
+          name: Sonar contacts
+          description: Emitted as sonar.contacts.detected via OTLP by the api service.
+        plugin:
+          kind: TimeSeriesChart
+          spec: {}
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: prometheus
+                  query: sum(rate(sonar_contacts_detected_total[1m]))
+                  seriesNameFormat: contacts/s
+    detectionMix:
+      kind: Panel
+      spec:
+        display:
+          name: Detection mix
+          description: Roughly 0.6 at steady load — surface contacts outnumber submarines.
+        plugin:
+          kind: TimeSeriesChart
+          spec: {}
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: prometheus
+                  query: >-
+                    sum(rate(submarine_contacts_detected_total[1m]))
+                    /
+                    sum(rate(surface_ship_contacts_detected_total[1m]))
+                  seriesNameFormat: submarine / surface
+    countermeasures:
+      kind: Panel
+      spec:
+        display:
+          name: Countermeasure launches
+          description: Moves only in error mode. The operational response to the failure.
+        plugin:
+          kind: TimeSeriesChart
+          spec: {}
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  datasource:
+                    kind: PrometheusDatasource
+                    name: prometheus
+                  query: sum(rate(countermeasure_launches_total[1m]))
+                  seriesNameFormat: launches/s
+  layouts:
+    - kind: Grid
+      spec:
+        display:
+          title: Service health
+        items:
+          - x: 0
+            y: 0
+            width: 12
+            height: 8
+            content:
+              $ref: "#/spec/panels/requestRate"
+          - x: 12
+            y: 0
+            width: 12
+            height: 8
+            content:
+              $ref: "#/spec/panels/errorRate"
+          - x: 0
+            y: 8
+            width: 12
+            height: 8
+            content:
+              $ref: "#/spec/panels/latency"
+          - x: 12
+            y: 8
+            width: 12
+            height: 8
+            content:
+              $ref: "#/spec/panels/chaosState"
+    - kind: Grid
+      spec:
+        display:
+          title: Business telemetry (OTLP)
+        items:
+          - x: 0
+            y: 0
+            width: 6
+            height: 8
+            content:
+              $ref: "#/spec/panels/torpedoes"
+          - x: 6
+            y: 0
+            width: 6
+            height: 8
+            content:
+              $ref: "#/spec/panels/sonar"
+          - x: 12
+            y: 0
+            width: 6
+            height: 8
+            content:
+              $ref: "#/spec/panels/detectionMix"
+          - x: 18
+            y: 0
+            width: 6
+            height: 8
+            content:
+              $ref: "#/spec/panels/countermeasures"

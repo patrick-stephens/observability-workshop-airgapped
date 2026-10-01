@@ -20,17 +20,12 @@ hostVolumes:
 config:
   service:
     log_level: info
-  parsers:
-    - name: kubernetes-tag
-      format: regex
-      regex: '^(?<namespace_name>[^.]+)\.(?<pod_name>[^.]+)\.(?<container_name>[^.]+)'
   pipeline:
     inputs:
       - name: tail
         alias: k8s-logs
         path: /var/log/containers/*.log
-        tag_regex: '(?<pod_name>[^_]+)_(?<namespace_name>[^_]+)_(?<container_name>.+)-'
-        tag: kube.<namespace_name>.<pod_name>.<container_name>
+        tag: 'kube.*'
         read_from_head: true
         multiline.parser: cri
         skip_long_lines: true
@@ -38,8 +33,6 @@ config:
         processors:
           logs:
             - name: kubernetes
-              kube_tag_prefix: kube.
-              regex_parser: kubernetes-tag
               k8s-logging.parser: true
               k8s-logging.exclude: true
     filters: []

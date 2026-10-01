@@ -143,7 +143,7 @@ install_chart() {
     local values_file="$4"
     local wait_for_ready="${5:-true}"
     local chart_archive="${CHARTS_DIR}/${chart_name}-${chart_version}.tgz"
-    local state
+    local state values_checksum deployed_description action=install
 
     if [[ ! -f "$chart_archive" ]]; then
         error "vendored Helm chart is missing: $chart_archive"
@@ -154,12 +154,19 @@ install_chart() {
         return 1
     fi
 
+    # The values checksum in the release description lets reruns skip an upgrade, which would rotate Hubble's TLS certificates.
+    values_checksum="values-sha256=$(sha256sum "$values_file" | awk '{ print $1 }')"
     state=0
     release_state "$release_name" "${chart_name}-${chart_version}" || state=$?
     case "$state" in
         0)
-            log "Release '$release_name' already uses ${chart_name}-${chart_version}; no changes needed"
-            return
+            deployed_description="$(helm history "$release_name" --namespace "$NAMESPACE" --kubeconfig "$KUBECONFIG_PATH" \
+                --max 1 --output json | jq -r '.[0].description')"
+            if [[ "$deployed_description" == "$values_checksum" ]]; then
+                log "Release '$release_name' already uses ${chart_name}-${chart_version} with current values; no changes needed"
+                return
+            fi
+            action=upgrade
             ;;
         1)
             ;;
@@ -168,10 +175,11 @@ install_chart() {
             ;;
     esac
 
-    log "Installing ${chart_name}-${chart_version} as release '$release_name'"
-    local -a helm_args=(install "$release_name" "$chart_archive" \
+    log "Running helm ${action} for ${chart_name}-${chart_version} as release '$release_name'"
+    local -a helm_args=("$action" "$release_name" "$chart_archive" \
         --namespace "$NAMESPACE" \
         --kubeconfig "$KUBECONFIG_PATH" \
+        --description "$values_checksum" \
         --values "$values_file")
     if [[ "$wait_for_ready" == true ]]; then
         helm_args+=(--wait --timeout 10m)

@@ -1,0 +1,61 @@
+---
+# Cilium 1.16+ no longer reads the policy.cilium.io/proxy-visibility annotation; L7 rules are how the pinned 1.17
+# sends traffic through its proxies so Hubble decodes it. Without this, hubble_http_requests_total and
+# hubble_dns_queries_total never exist and the DemoHighErrorRate alert cannot fire.
+# Selected pods become policy-enforced, so the rules list every flow the app needs;
+# the empty L7 rules permit all requests.
+# manifests/chaos-dns-block.yaml is an egressDeny, which still wins over the DNS allow below.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: app-l7-visibility
+  namespace: demo
+spec:
+  endpointSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - frontend
+          - api
+          - backend
+  ingress:
+    - fromEntities:
+        - all
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+          rules:
+            http:
+              - {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+          rules:
+            dns:
+              - matchPattern: "*"
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: demo
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+          rules:
+            http:
+              - {}
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: observability
+            app.kubernetes.io/name: opentelemetry-collector
+      toPorts:
+        - ports:
+            - port: "4317"
+              protocol: TCP

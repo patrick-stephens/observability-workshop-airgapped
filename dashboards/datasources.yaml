@@ -1,0 +1,41 @@
+---
+# Perses proxies every query server-side, so the browser never needs CORS access to the host's port-forwards.
+- kind: Datasource
+  metadata:
+    name: prometheus
+    project: demo
+  spec:
+    default: true
+    plugin:
+      kind: PrometheusDatasource
+      spec:
+        proxy:
+          kind: HTTPProxy
+          spec:
+            url: http://localhost:9090
+- kind: Datasource
+  metadata:
+    name: loki
+    project: demo
+  spec:
+    default: true
+    plugin:
+      kind: LokiDatasource
+      spec:
+        proxy:
+          kind: HTTPProxy
+          spec:
+            url: http://localhost:3100
+- kind: Datasource
+  metadata:
+    name: tempo
+    project: demo
+  spec:
+    default: true
+    plugin:
+      kind: TempoDatasource
+      spec:
+        proxy:
+          kind: HTTPProxy
+          spec:
+            url: http://localhost:3200

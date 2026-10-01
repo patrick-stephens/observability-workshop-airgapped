@@ -1,0 +1,7 @@
+---
+kind: Project
+metadata:
+  name: demo
+spec:
+  display:
+    name: Airgapped observability demo

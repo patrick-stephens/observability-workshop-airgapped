@@ -5,7 +5,6 @@ LOG_PREFIX="[break]"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 KUBECONFIG_PATH="${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}"
 NAMESPACE="demo"
-LOADGEN_MANIFEST="${REPO_ROOT}/manifests/loadgen.yaml"
 CHAOS_POLICY="${REPO_ROOT}/manifests/chaos-dns-block.yaml"
 LOCAL_PORT=18080
 
@@ -110,12 +109,7 @@ main() {
             ;;
         baseline)
             reset_modes
-            kubectl --kubeconfig "$KUBECONFIG_PATH" delete \
-                --filename "$LOADGEN_MANIFEST" --ignore-not-found >/dev/null
-            kubectl --kubeconfig "$KUBECONFIG_PATH" apply \
-                --filename "$LOADGEN_MANIFEST" >/dev/null
-            kubectl --kubeconfig "$KUBECONFIG_PATH" --namespace "$NAMESPACE" wait \
-                --for=condition=Ready pod --selector role=loadgen --timeout=20s >/dev/null
+            "${REPO_ROOT}/scripts/loadgen-restart.sh"
             log "baseline restored and load generator restarted; confirm steady Hubble flows"
             ;;
         *)

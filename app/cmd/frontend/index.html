@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo status</title>
+<style>
+  body { margin: 0; padding: 2rem; background: #0b0d10; color: #d4d7dc; font-family: system-ui, sans-serif; }
+  h1 { margin: 0; font-size: 3.5rem; color: #ffb454; }
+  #mode { margin: 0.5rem 0 2rem; font-size: 3rem; font-weight: 700; }
+  .ok { color: #4ade80; }
+  .slow { color: #ffb454; }
+  .error, .dns { color: #f87171; }
+  table { border-collapse: collapse; font-size: 1.5rem; font-family: ui-monospace, monospace; }
+  th, td { padding: 0.25rem 1.5rem 0.25rem 0; text-align: left; }
+  th { color: #ffb454; font-weight: 400; }
+  #note { margin-top: 1.5rem; font-size: 1rem; opacity: 0.6; }
+</style>
+</head>
+<body>
+<h1 id="service">loading…</h1>
+<div id="mode">—</div>
+<table>
+  <thead><tr><th>time (UTC)</th><th>status</th><th>duration ms</th></tr></thead>
+  <tbody id="requests"></tbody>
+</table>
+<div id="note">polling /status every 2 s</div>
+<script>
+  async function refresh() {
+    try {
+      const response = await fetch("/status", { cache: "no-store" });
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      const status = await response.json();
+      document.getElementById("service").textContent = status.service;
+      const mode = document.getElementById("mode");
+      mode.textContent = "chaos: " + status.mode;
+      mode.className = status.mode;
+      const rows = document.getElementById("requests");
+      rows.replaceChildren();
+      for (const request of status.requests) {
+        const row = document.createElement("tr");
+        for (const value of [request.time.slice(11, 23), request.status, request.duration_ms.toFixed(1)]) {
+          const cell = document.createElement("td");
+          cell.textContent = value;
+          row.appendChild(cell);
+        }
+        if (request.status >= 500) row.className = "error";
+        rows.appendChild(row);
+      }
+      document.getElementById("note").textContent = "updated " + new Date().toISOString().slice(11, 19) + " UTC";
+    } catch (error) {
+      document.getElementById("note").textContent = "status unavailable: " + error.message;
+    }
+  }
+  refresh();
+  setInterval(refresh, 2000);
+</script>
+</body>
+</html>

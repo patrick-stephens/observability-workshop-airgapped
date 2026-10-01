@@ -1,5 +1,7 @@
 ---
 mode: deployment
+# Names the Service otel-collector, the OTEL_EXPORTER_OTLP_ENDPOINT host used by the demo app manifests.
+fullnameOverride: otel-collector
 replicaCount: 1
 image:
   repository: docker.io/otel/opentelemetry-collector-k8s
@@ -53,6 +55,13 @@ config:
       endpoint: tempo.observability.svc.cluster.local:4317
       tls:
         insecure: true
+    # The prompt's "otlp/prometheus (otlphttp exporter)": collector 0.161 names the OTLP/HTTP exporter type otlp_http.
+    # Verified for Prometheus v3.15 (prometheus.io/docs/guides/opentelemetry): with --web.enable-otlp-receiver the
+    # receiver serves POST /api/v1/otlp/v1/metrics; otlp_http appends /v1/metrics to this endpoint.
+    otlp_http/prometheus:
+      endpoint: http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090/api/v1/otlp
+      tls:
+        insecure: true
     debug: null
   service:
     pipelines:
@@ -64,5 +73,13 @@ config:
           - batch
         exporters:
           - otlp/tempo
+      # Only the app's OTLP business counters use this; scraped metrics never pass through the Collector.
+      metrics:
+        receivers:
+          - otlp
+        processors:
+          - memory_limiter
+          - batch
+        exporters:
+          - otlp_http/prometheus
       logs: null
-      metrics: null

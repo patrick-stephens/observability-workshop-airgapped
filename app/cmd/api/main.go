@@ -14,7 +14,7 @@ func main() {
 		nextURL = "http://backend:8080"
 	}
 
-	if err := server.Run("api", nextURL); err != nil {
+	if err := server.Run("api", nextURL, nil); err != nil {
 		slog.Error("service stopped with an error", "error", err)
 		os.Exit(1)
 	}

@@ -2,14 +2,16 @@ Context
 -------
 Read .github/copilot-instructions.md first.
 
-This closes out the demo. It covers six things:
+This closes out the demo. It covers these things:
 
   1. A minimal status UI served by the frontend
   2. Business metrics emitted via OTLP only (the "small C" demonstration)
-  3. The demo app's Kubernetes manifests, which do not exist yet
-  4. A `hey`-based load generator
-  5. Perses dashboards, running against an external Perses on the host
-  6. The host-side scripts that tie it together
+  3. An operational event feed driven by Alertmanager webhooks
+  4. The demo app's Kubernetes manifests, which do not exist yet
+  5. A `hey`-based load generator
+  6. Perses dashboards, running against an external Perses on the host
+  7. The host-side scripts that tie it together
+  8. Updates to scripts owned by earlier prompts
 
 The metrics path is now FIXED and confirmed. Do not change it:
 
@@ -37,32 +39,63 @@ Do NOT route scraped metrics through the Collector. Do NOT add a
 prometheusremotewrite exporter. The OTLP metrics path exists ONLY for
 the business metrics listed in Part 2.
 
+This prompt edits files that belong to earlier prompts:
+  manifests/alert-rules.yaml         (from prompt 4) — new rule
+  manifests/alertmanager-config.yaml (from prompt 4) — second webhook
+  scripts/break.sh                   (from prompt 5) — torpedo case
+  scripts/preflight.sh               (from prompt 5) — new assertions
+Make those edits carefully and add a comment at the top of each edited
+file naming the prompt it originated from.
+
 Part 1 — Demo UI
 ----------------
-Amend app/cmd/frontend to serve a minimal HTML status page.
+Amend app/cmd/frontend to serve a minimal HTML status page with an
+operational event feed.
 
 Requirements:
 - Serve at GET /index.html. The existing / handler stays as the API
   path — do not change its behaviour.
 - Single self-contained HTML file, embedded via go:embed. No external
   assets, no CDN links, no web fonts.
-- Displays, in large type:
-    * the service name (frontend / api / backend)
-    * the current /chaos mode for this service, colour-coded:
-        ok     green   (#4ade80)
-        slow   amber   (#ffb454)
-        error  red     (#f87171)
-        dns    red     (#f87171)
-    * the last 10 requests as a list: timestamp, HTTP status, duration ms
-- Polls GET /status every 2 seconds. Add a /status JSON endpoint that
-  returns the same data, so the UI has something clean to consume.
+- Displays, in this order from top to bottom:
+
+  (a) ALERT BANNER — a full-width strip at the top.
+      * Empty and dark when no alerts are firing.
+      * Coloured by the highest-severity firing alert:
+          critical  #f87171      warning  #ffb454
+      * Shows the translated event text in large type.
+      * Pulses subtly when the state changes. A CSS transition, not
+        JS animation. No seizure-inducing flashing.
+
+  (b) SERVICE STATUS — the service name (frontend / api / backend) and
+      the current /chaos mode, colour-coded:
+          ok     #4ade80
+          slow   #ffb454
+          error  #f87171
+          dns    #f87171
+          torpedo #f87171
+
+  (c) RECENT REQUESTS — the last 10, as a list: timestamp, HTTP status,
+      duration ms.
+
+  (d) EVENT FEED — the last 50 operational events, newest first. Each
+      entry shows:
+        * timestamp
+        * a coloured severity dot
+        * the translated event text
+        * the source alertname in 11px mono underneath, at reduced
+          opacity
+
+- Polls GET /status every 2 seconds for all four sections. Add /status
+  as a JSON endpoint returning the same data.
 - Minimal CSS inline in the HTML. Dark theme matching the slides:
   background #0b0d10, body text #d4d7dc, accent #ffb454.
 - No JavaScript frameworks. Plain fetch and DOM manipulation.
 
 The purpose of this UI is that the presenter can put it on screen as a
 "what the operator sees" view, next to the observability stack. It is
-not the main demo surface. Keep it small.
+not the main demo surface. Keep it small but make the alert banner
+unmissable — that's the beat.
 
 Part 2 — Business metrics, OTLP-only
 ------------------------------------
@@ -74,9 +107,9 @@ OTel instrument names use dots. Prometheus 3 materializes them with
 underscores and appends _total for counters. This translation is part
 of the demo — the presenter will point at it.
 
-  OTel name                        | Prometheus name                      | Emitted by | Increment
-  ---------------------------------|--------------------------------------|------------|------------------
-  torpedoes.detected               | torpedoes_detected_total             | backend    | every request
+  OTel name                        | Prometheus name                      | Emitted by | Rate
+  ---------------------------------|--------------------------------------|------------|--------------------------
+  torpedoes.detected               | torpedoes_detected_total             | backend    | ~0.3/s baseline; ~50/s in torpedo mode
   sonar.contacts.detected          | sonar_contacts_detected_total        | api        | every request
   surface.ship.contacts.detected   | surface_ship_contacts_detected_total | api        | ~1 in 3 requests
   submarine.contacts.detected      | submarine_contacts_detected_total    | api        | ~1 in 5 requests
@@ -89,10 +122,22 @@ Requirements:
 - The /chaos?mode=error handler must increment countermeasure.launches
   on each subsequent errored request. This is a deliberate demo beat:
   the failure has an operational signature, not just a technical one.
+- torpedoes.detected: implement as a background goroutine that ticks
+  at ~1/s normally, and at ~50/s when chaos mode is "torpedo". The
+  observable rate is what matters, not the mechanism. This is what
+  gives TorpedoDetected a meaningful threshold to fire on.
 - Surface vs submarine ratio: surface contacts are the more common
   contact class, roughly 5:3 over submarine contacts at steady load.
   Implement with a simple modulo or rand.IntN — do not over-engineer.
 - All instruments must have a unit where applicable.
+
+Add a "torpedo" value to the chaos mode set. In torpedo mode:
+  * the backend continues to serve requests normally (HTTP 200)
+  * the torpedoes.detected background goroutine ticks at ~50/s
+  * no request-level behaviour changes
+The torpedo mode is a signal generator, not a failure. It fires an
+alert without breaking the service. That distinction is deliberate and
+the presenter will call it out.
 
 Update values/opentelemetry-collector.yaml to add a metrics pipeline:
 
@@ -134,7 +179,9 @@ Requirements for every Deployment:
     policy.cilium.io/proxy-visibility: "<Ingress/8080/TCP/HTTP>,<Egress/8080/TCP/HTTP>"
   This is required for Hubble to decode L7 HTTP. Without it, the
   hubble_http_requests_total metric will not exist and the alert rule
-  will never fire. Comment this in the manifest.
+  will never fire. Comment this in the manifest. It also means the
+  webhook traffic from Alertmanager to frontend is visible in Hubble —
+  worth knowing.
 - annotations (cosmetic, for the Hubble UI and Perses panels):
     demo/role: "periscope watch"     (frontend)
     demo/role: "sonar processing"    (api)
@@ -262,20 +309,36 @@ scripts/loadgen-restart.sh
 
 Part 7 — Updates to existing scripts
 ------------------------------------
-scripts/break.sh
-  Update the `baseline` case to also run loadgen-restart.sh.
+# From prompt 5: scripts/break.sh
+Update the baseline case to also run loadgen-restart.sh.
 
-scripts/preflight.sh
-  Add assertions:
-  - Perses responds at http://localhost:8080/api/v1/health
-  - All three port-forward PIDs exist and their processes are alive
-  - The loadgen Job is present and its pod is Running
-  - Prometheus returns a non-zero value for torpedoes_detected_total:
-      curl -fsS 'http://localhost:9090/api/v1/query?query=torpedoes_detected_total' \
-        | grep -q '"value"' || {
-          echo "✗ torpedoes_detected_total not in Prometheus — OTLP metrics path broken"
-          exit 1
-        }
+Add a torpedo case:
+    break.sh torpedo  -> call /chaos?mode=torpedo on backend
+The torpedo mode is a signal generator, not a failure. Its echo line
+must say so explicitly:
+    "backend: torpedo contacts spiking — no request impact"
+
+Update the ok case to also reset torpedo mode on backend.
+
+# From prompt 5: scripts/preflight.sh
+Add assertions:
+- Perses responds at http://localhost:8080/api/health
+- All three port-forward PIDs exist and their processes are alive
+- The loadgen Job is present and its pod is Running
+- Prometheus returns a non-zero value for torpedoes_detected_total:
+    curl -fsS 'http://localhost:9090/api/v1/query?query=torpedoes_detected_total' \
+      | grep -q '"value"' || {
+        echo "✗ torpedoes_detected_total not in Prometheus — OTLP metrics path broken"
+        exit 1
+      }
+- The webhook receiver accepts a synthetic payload and returns 200:
+    curl -fsS -X POST http://localhost:8080/webhook/alertmanager \
+      -H 'Content-Type: application/json' \
+      -d @scripts/preflight-test-payload.json
+  Add scripts/preflight-test-payload.json — a well-formed Alertmanager
+  payload with one firing alert named PreflightTest.
+  Then assert the event appears in /status:
+    curl -fsS http://localhost:8080/status | grep -q 'PreflightTest'
 
 Part 8 — Documentation
 ----------------------
@@ -292,13 +355,119 @@ docs/metrics-path.md must explain:
 - The countermeasure tie-in: in error mode, the failure has an
   operational signature, not just a technical one.
 
+docs/alerting-events.md must explain:
+- The full path from application event to operator UI:
+    app metric -> Prometheus -> alert rule -> Alertmanager ->
+    webhook -> frontend receiver -> translation -> UI event feed
+- The translation table (see Part 9)
+- Why the receiver is designed to pass through unmapped alert names
+  unchanged, and what that means operationally (add a rule, get it in
+  the UI with no code change)
+- The torpedo mode: a signal generator that fires an alert without
+  breaking the service, and why that distinction matters
+
+Part 9 — Webhook receiver and event feed
+----------------------------------------
+Add a webhook receiver to frontend, and the alert rules that feed it.
+
+# 9a. Receiver code
+
+Add an internal package at app/internal/alerts with:
+
+  translate.go   alert name -> operational text mapping
+  store.go       a bounded in-memory event store
+  webhook.go     the HTTP handler
+
+The Event type:
+  Timestamp    time.Time  `json:"ts"`
+  Severity     string     `json:"severity"`     // critical | warning | ok
+  Text         string     `json:"text"`         // translated, human-readable
+  AlertName    string     `json:"alertname"`
+  Status       string     `json:"status"`       // firing | resolved
+  Fingerprint  string     `json:"fingerprint,omitempty"`
+  Summary      string     `json:"summary,omitempty"`  // from annotations
+
+The translation table, as a var:
+  "DemoHighErrorRate": "Contact lost — elevated error rate"
+  "TorpedoDetected":   "TORPEDO DETECTED"
+Unmapped alert names pass through as the alertname itself, with
+severity "warning". This is deliberate: adding an alert rule should
+surface it in the UI with no code change.
+
+Resolved alerts are prefixed with "CLEAR — " and severity "ok".
+
+The store:
+- Bounded ring buffer, capacity 50.
+- Newest first on read.
+- Safe for concurrent use. The webhook handler and the /status handler
+  run on different goroutines.
+- No persistence. This is an operator view of recent events, not a log.
+
+The webhook handler:
+- Path: POST /webhook/alertmanager
+- Content-Type must be application/json. Reject otherwise with 415.
+- Body size limit: 1MB. Reject with 413 beyond that.
+- Parse the standard Alertmanager webhook payload:
+    { "status": "...", "alerts": [ { "status", "labels",
+      "annotations", "startsAt", "fingerprint" }, ... ] }
+  Parse defensively. A malformed payload logs a warning and returns 400.
+  It must never panic and never crash the process.
+- For each alert in the payload, translate and append to the store.
+- Return 200 with an empty body on success.
+- Log one line per received notification with the alert count.
+
+The /status endpoint must include:
+  "events": [ ... the event feed, newest first ... ]
+in addition to the existing fields.
+
+# 9b. Alertmanager configuration
+
+Edit manifests/alertmanager-config.yaml (from prompt 4).
+
+The existing echo receiver must now have TWO webhook URLs:
+
+  receivers:
+    - name: echo
+      webhook_configs:
+        - url: http://echo-sink.demo.svc.cluster.local:8080/alerts
+        - url: http://frontend.demo.svc.cluster.local:8080/webhook/alertmanager
+
+The echo sink is NOT removed. Beat 3 of the demo shows the raw JSON
+payload in the echo sink logs. The frontend receiver shows the
+translated operational event. Both run from the same notification.
+
+# 9c. New alert rule
+
+Edit manifests/alert-rules.yaml (from prompt 4). Add a second rule to
+the same group:
+
+  - alert: TorpedoDetected
+    expr: sum(rate(torpedoes_detected_total[1m])) > 5
+    for: 30s
+    labels:
+      severity: critical
+      pillar: business
+    annotations:
+      summary: "Torpedo contact — detection rate above threshold"
+      description: "Source: OTLP business metric from the application.
+                    No scrape path."
+
+Threshold rationale: baseline is ~0.3/s. Torpedo mode is ~50/s. A
+threshold of 5/s fires only in torpedo mode, with a wide margin. Do
+not tune this without re-measuring both rates.
+
+The `for: 30s` is shorter than DemoHighErrorRate's `for: 1m`, and that
+is deliberate — the presenter uses the two rules to show that `for` is
+a per-alert decision about how much tolerance you have, not a global
+setting.
+
 Constraints
 -----------
 - Do not change the metrics ingestion architecture.
 - Do not add a prometheusremotewrite exporter unless the pinned
   Prometheus cannot do native OTLP, and document it if you do.
-- Do not modify the alert rules, the CiliumNetworkPolicy, or the
-  Slidev deck.
+- Do not remove the echo sink or its receiver entry.
+- Do not modify the CiliumNetworkPolicy or the Slidev deck.
 - Every image pinned by tag and digest, recorded in versions.lock.
 - Everything must work with the network interface down, except the
   initial build.
@@ -317,7 +486,19 @@ Acceptance
    value. Paste the raw response into docs/metrics-path.md.
 5. All three Perses dashboards load in the UI with no error banner and
    no empty panel after 30 seconds.
-6. `preflight.sh` passes clean.
+6. `preflight.sh` passes clean, including the synthetic webhook test.
 7. Run `./break.sh errors`, wait 30 seconds, and confirm
    countermeasure_launches_total is increasing. Then `./break.sh ok`
    and confirm it stops. Report both observations.
+8. Run `./break.sh torpedo`. Within 60 seconds:
+     - TorpedoDetected appears as Firing in Alertmanager
+     - `kubectl logs deploy/echo-sink -n demo` shows the raw payload
+     - `curl http://frontend.demo.svc.cluster.local/status` shows an
+       event with text "TORPEDO DETECTED" and severity "critical"
+   Report all three.
+9. Then `./break.sh ok`. Within 2 minutes a second event appears with
+   text "CLEAR — TORPEDO DETECTED" and severity "ok". Report it.
+10. Confirm the frontend container did not restart during either test:
+    `kubectl -n demo get pods -l app=frontend -o json | \
+      jq '.items[0].status.containerStatuses[0].restartCount'`
+    Must be 0.

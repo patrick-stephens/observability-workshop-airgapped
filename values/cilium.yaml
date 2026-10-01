@@ -2,6 +2,8 @@
 kubeProxyReplacement: true
 k8sServiceHost: 127.0.0.1
 k8sServicePort: 6443
+# Restart the agents when cilium-config changes; otherwise a values upgrade never takes effect.
+rollOutCiliumPods: true
 
 image:
   repository: quay.io/cilium/cilium
@@ -63,4 +65,5 @@ hubble:
       - flow
       - port-distribution
       - icmp
-      - httpV2
+      # Workload context gives hubble_http_requests_total the source_/destination_workload labels.
+      - httpV2:labelsContext=source_namespace,source_workload,destination_namespace,destination_workload
