@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/patrick-stephens/observability-workshop-airgapped/app/internal/alerts"
 	"github.com/patrick-stephens/observability-workshop-airgapped/app/internal/chaos"
 	"github.com/patrick-stephens/observability-workshop-airgapped/app/internal/logging"
 	"github.com/patrick-stephens/observability-workshop-airgapped/app/internal/telemetry"
@@ -57,6 +58,7 @@ type Config struct {
 	Logger      *slog.Logger
 	IndexHTML   []byte
 	Business    *telemetry.BusinessMetrics
+	Alerts      *alerts.Store
 }
 
 type RecentRequest struct {
@@ -69,6 +71,8 @@ type Status struct {
 	Service  string          `json:"service"`
 	Mode     string          `json:"mode"`
 	Requests []RecentRequest `json:"requests"`
+	Events   []alerts.Event  `json:"events"`
+	Firing   []alerts.Event  `json:"firing"`
 }
 
 type service struct {
@@ -79,6 +83,7 @@ type service struct {
 	logger    *slog.Logger
 	indexHTML []byte
 	business  *telemetry.BusinessMetrics
+	alerts    *alerts.Store
 
 	recentMutex sync.Mutex
 	recent      []RecentRequest
@@ -110,6 +115,7 @@ func NewHandler(config Config) http.Handler {
 		logger:    config.Logger,
 		indexHTML: config.IndexHTML,
 		business:  config.Business,
+		alerts:    config.Alerts,
 	}
 	current.publishChaosMode()
 	if current.business != nil && current.name == "backend" {
@@ -126,6 +132,9 @@ func NewHandler(config Config) http.Handler {
 	if len(current.indexHTML) > 0 {
 		mux.HandleFunc("GET /index.html", current.index)
 	}
+	if current.alerts != nil {
+		mux.HandleFunc("POST /webhook/alertmanager", alerts.NewWebhookHandler(current.alerts, current.logger))
+	}
 	mux.Handle("GET /metrics", promhttp.Handler())
 
 	return otelhttp.NewHandler(mux, config.ServiceName)
@@ -138,7 +147,7 @@ func NewHTTPClient() *http.Client {
 	}
 }
 
-func Run(serviceName, nextURL string, indexHTML []byte) error {
+func Run(serviceName, nextURL string, indexHTML []byte, receiveAlerts bool) error {
 	if configuredName := strings.TrimSpace(os.Getenv("OTEL_SERVICE_NAME")); configuredName != "" {
 		serviceName = configuredName
 	}
@@ -166,9 +175,29 @@ func Run(serviceName, nextURL string, indexHTML []byte) error {
 		address = ":8080"
 	}
 
+	controller := chaos.New()
+	business, err := telemetry.NewBusinessMetrics()
+	if err != nil {
+		return fmt.Errorf("create business metrics: %w", err)
+	}
+	config := Config{
+		ServiceName: serviceName,
+		NextURL:     nextURL,
+		Chaos:       controller,
+		Logger:      logger,
+		IndexHTML:   indexHTML,
+		Business:    business,
+	}
+	if receiveAlerts {
+		config.Alerts = alerts.NewStore()
+	}
+	if serviceName == "backend" {
+		go RunTorpedoSensor(ctx, controller, business, TorpedoBaselineInterval, TorpedoAttackInterval)
+	}
+
 	httpServer := &http.Server{
 		Addr:              address,
-		Handler:           NewHandler(Config{ServiceName: serviceName, NextURL: nextURL, Logger: logger, IndexHTML: indexHTML}),
+		Handler:           NewHandler(config),
 		ReadHeaderTimeout: 5 * time.Second,
 		ErrorLog:          slog.NewLogLogger(logger.Handler(), slog.LevelError),
 	}
@@ -275,8 +304,6 @@ func (s *service) countBusinessEvents(ctx context.Context) {
 		return
 	}
 	switch s.name {
-	case "backend":
-		s.business.TorpedoesDetected.Add(ctx, 1)
 	case "api":
 		s.business.SonarContactsDetected.Add(ctx, 1)
 		// 1 in 3 surface and 1 in 5 submarine gives the intended 5:3 surface-to-submarine mix.
@@ -291,7 +318,7 @@ func (s *service) countBusinessEvents(ctx context.Context) {
 
 func (s *service) publishChaosMode() {
 	current := s.chaos.Mode()
-	for _, mode := range []chaos.Mode{chaos.ModeOK, chaos.ModeSlow, chaos.ModeError, chaos.ModeDNS} {
+	for _, mode := range []chaos.Mode{chaos.ModeOK, chaos.ModeSlow, chaos.ModeError, chaos.ModeDNS, chaos.ModeTorpedo} {
 		value := 0.0
 		if mode == current {
 			value = 1
@@ -350,7 +377,18 @@ func (s *service) status(w http.ResponseWriter, _ *http.Request) {
 	s.recentMutex.Unlock()
 
 	w.Header().Set("Cache-Control", "no-store")
-	writeJSON(w, http.StatusOK, Status{Service: s.name, Mode: string(s.chaos.Mode()), Requests: requests})
+	status := Status{
+		Service:  s.name,
+		Mode:     string(s.chaos.Mode()),
+		Requests: requests,
+		Events:   []alerts.Event{},
+		Firing:   []alerts.Event{},
+	}
+	if s.alerts != nil {
+		status.Events = s.alerts.Events()
+		status.Firing = s.alerts.Firing()
+	}
+	writeJSON(w, http.StatusOK, status)
 }
 
 func (s *service) index(w http.ResponseWriter, _ *http.Request) {

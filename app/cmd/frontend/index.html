@@ -5,32 +5,101 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Demo status</title>
 <style>
-  body { margin: 0; padding: 2rem; background: #0b0d10; color: #d4d7dc; font-family: system-ui, sans-serif; }
-  h1 { margin: 0; font-size: 3.5rem; color: #ffb454; }
-  #mode { margin: 0.5rem 0 2rem; font-size: 3rem; font-weight: 700; }
+  body { margin: 0; background: #0b0d10; color: #d4d7dc; font-family: system-ui, sans-serif; }
+  main { padding: 1.5rem 2rem; }
+  #banner {
+    min-height: 5.5rem; display: flex; align-items: center; padding: 0 2rem;
+    background: #111418; color: #0b0d10; font-size: 3rem; font-weight: 800; letter-spacing: 0.04em;
+    box-shadow: 0 0 0 0 transparent;
+    transition: background-color 0.6s ease, box-shadow 1.2s ease;
+  }
+  #banner.critical { background: #f87171; }
+  #banner.warning { background: #ffb454; }
+  #banner.pulse { box-shadow: 0 0 2.5rem 0.75rem rgba(255, 255, 255, 0.35); transition: box-shadow 0.4s ease; }
+  h1 { margin: 0; font-size: 3rem; color: #ffb454; }
+  h2 { margin: 2rem 0 0.5rem; font-size: 1rem; font-weight: 600; color: #ffb454; text-transform: uppercase; }
+  #mode { margin-top: 0.25rem; font-size: 2.5rem; font-weight: 700; }
   .ok { color: #4ade80; }
   .slow { color: #ffb454; }
-  .error, .dns { color: #f87171; }
-  table { border-collapse: collapse; font-size: 1.5rem; font-family: ui-monospace, monospace; }
-  th, td { padding: 0.25rem 1.5rem 0.25rem 0; text-align: left; }
+  .error, .dns, .torpedo { color: #f87171; }
+  table { border-collapse: collapse; font-size: 1.25rem; font-family: ui-monospace, monospace; }
+  th, td { padding: 0.15rem 1.5rem 0.15rem 0; text-align: left; }
   th { color: #ffb454; font-weight: 400; }
-  #note { margin-top: 1.5rem; font-size: 1rem; opacity: 0.6; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { display: grid; grid-template-columns: 7rem 1rem 1fr; align-items: baseline; padding: 0.35rem 0; font-size: 1.25rem; }
+  .ts { font-family: ui-monospace, monospace; font-size: 1rem; opacity: 0.7; }
+  .dot { width: 0.7rem; height: 0.7rem; border-radius: 50%; background: #ffb454; }
+  .dot.critical { background: #f87171; }
+  .dot.ok { background: #4ade80; }
+  .source { display: block; font-family: ui-monospace, monospace; font-size: 11px; opacity: 0.55; }
+  #note { margin-top: 1.5rem; font-size: 0.9rem; opacity: 0.6; }
 </style>
 </head>
 <body>
-<h1 id="service">loading…</h1>
-<div id="mode">—</div>
-<table>
-  <thead><tr><th>time (UTC)</th><th>status</th><th>duration ms</th></tr></thead>
-  <tbody id="requests"></tbody>
-</table>
-<div id="note">polling /status every 2 s</div>
+<div id="banner"></div>
+<main>
+  <h1 id="service">loading…</h1>
+  <div id="mode">—</div>
+
+  <h2>Recent requests</h2>
+  <table>
+    <thead><tr><th>time (UTC)</th><th>status</th><th>duration ms</th></tr></thead>
+    <tbody id="requests"></tbody>
+  </table>
+
+  <h2>Event feed</h2>
+  <ul id="events"></ul>
+  <div id="note">polling /status every 2 s</div>
+</main>
 <script>
+  let bannerState = "";
+
+  function cell(row, value) {
+    const element = document.createElement("td");
+    element.textContent = value;
+    row.appendChild(element);
+  }
+
+  function renderBanner(firing) {
+    const banner = document.getElementById("banner");
+    const top = firing.length > 0 ? firing[0] : null;
+    const state = top ? top.severity + ":" + top.text : "";
+    if (state === bannerState) return;
+    bannerState = state;
+    banner.textContent = top ? top.text : "";
+    banner.className = top ? top.severity : "";
+    // CSS transitions do the pulse: the glow is added, then removed so it fades back out.
+    banner.classList.add("pulse");
+    setTimeout(() => banner.classList.remove("pulse"), 400);
+  }
+
+  function renderEvents(events) {
+    const list = document.getElementById("events");
+    list.replaceChildren();
+    for (const event of events) {
+      const item = document.createElement("li");
+      const ts = document.createElement("span");
+      ts.className = "ts";
+      ts.textContent = event.ts.slice(11, 19);
+      const dot = document.createElement("span");
+      dot.className = "dot " + event.severity;
+      const text = document.createElement("span");
+      text.textContent = event.text;
+      const source = document.createElement("span");
+      source.className = "source";
+      source.textContent = event.alertname;
+      text.appendChild(source);
+      item.append(ts, dot, text);
+      list.appendChild(item);
+    }
+  }
+
   async function refresh() {
     try {
       const response = await fetch("/status", { cache: "no-store" });
       if (!response.ok) throw new Error("HTTP " + response.status);
       const status = await response.json();
+      renderBanner(status.firing || []);
       document.getElementById("service").textContent = status.service;
       const mode = document.getElementById("mode");
       mode.textContent = "chaos: " + status.mode;
@@ -39,14 +108,13 @@
       rows.replaceChildren();
       for (const request of status.requests) {
         const row = document.createElement("tr");
-        for (const value of [request.time.slice(11, 23), request.status, request.duration_ms.toFixed(1)]) {
-          const cell = document.createElement("td");
-          cell.textContent = value;
-          row.appendChild(cell);
-        }
+        cell(row, request.time.slice(11, 23));
+        cell(row, request.status);
+        cell(row, request.duration_ms.toFixed(1));
         if (request.status >= 500) row.className = "error";
         rows.appendChild(row);
       }
+      renderEvents(status.events || []);
       document.getElementById("note").textContent = "updated " + new Date().toISOString().slice(11, 19) + " UTC";
     } catch (error) {
       document.getElementById("note").textContent = "status unavailable: " + error.message;

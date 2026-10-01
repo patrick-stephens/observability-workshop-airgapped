@@ -115,7 +115,9 @@ The frontend serves an operator status page at `/index.html`, which polls the `/
 The three metrics paths are explained in `docs/metrics-path.md`.
 `reset.sh` completes the demo namespace reset in under 60 seconds and refuses to delete namespace `demo` if the app, loadgen, alert, or sink manifests are missing.
 `preflight.sh` checks the local registry, Cilium, Prometheus, Loki, Tempo, Perses, and demo pod readiness before establishing a clean baseline.
-Use `sudo scripts/break.sh latency`, `errors`, `dns`, or `ok` to perform a named beat and its matching reset.
+Use `sudo scripts/break.sh latency`, `errors`, `dns`, `torpedo`, or `ok` to perform a named beat and its matching reset.
+`torpedo` is a signal generator rather than a failure: requests keep returning 200 while `TorpedoDetected` fires.
+Alertmanager sends each notification to both the echo sink and the frontend's `POST /webhook/alertmanager`, which feeds the alert banner and event feed on `/index.html`; see `docs/alerting-events.md`.
 The DNS beat applies `manifests/chaos-dns-block.yaml` and should be demonstrated with `hubble observe --namespace demo --verdict DROPPED --last 20`.
 The load generator image is built reproducibly from `images/hey/Dockerfile` by `scripts/05-capture-cluster-assets.sh`, pinned in `versions.lock`, and included in the offline image archive.
 The official `rakyll/hey` container image is unavailable, so the connected build node builds the pinned v0.1.4 binary into a minimal scratch image.

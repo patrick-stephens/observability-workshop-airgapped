@@ -8,7 +8,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/patrick-stephens/observability-workshop-airgapped/app/internal/alerts"
 	"github.com/patrick-stephens/observability-workshop-airgapped/app/internal/chaos"
 	"github.com/patrick-stephens/observability-workshop-airgapped/app/internal/logging"
 	"github.com/patrick-stephens/observability-workshop-airgapped/app/internal/telemetry"
@@ -144,7 +146,85 @@ func TestCountermeasuresOnlyLaunchInErrorMode(t *testing.T) {
 			}
 		}
 	}
-	if totals["torpedoes.detected"] != 4 || totals["countermeasure.launches"] != 2 {
-		t.Fatalf("business totals = %v, want 4 torpedoes and 2 countermeasures", totals)
+	if totals["torpedoes.detected"] != 0 || totals["countermeasure.launches"] != 2 {
+		t.Fatalf("business totals = %v, want 0 request-driven torpedoes and 2 countermeasures", totals)
+	}
+}
+
+func TestTorpedoModeRaisesSensorRateWithoutRequestImpact(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	defer provider.Shutdown(context.Background())
+	otel.SetMeterProvider(provider)
+	business, err := telemetry.NewBusinessMetrics()
+	if err != nil {
+		t.Fatal(err)
+	}
+	controller := chaos.New()
+	server := httptest.NewServer(NewHandler(Config{
+		ServiceName: "backend",
+		Chaos:       controller,
+		Logger:      logging.NewWithWriter("backend", io.Discard),
+		Business:    business,
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go RunTorpedoSensor(ctx, controller, business, 50*time.Millisecond, time.Millisecond)
+
+	count := func() int64 {
+		var collected metricdata.ResourceMetrics
+		if err := reader.Collect(context.Background(), &collected); err != nil {
+			t.Fatal(err)
+		}
+		for _, scope := range collected.ScopeMetrics {
+			for _, item := range scope.Metrics {
+				if item.Name == "torpedoes.detected" {
+					return item.Data.(metricdata.Sum[int64]).DataPoints[0].Value
+				}
+			}
+		}
+		return 0
+	}
+
+	time.Sleep(300 * time.Millisecond)
+	baseline := count()
+	get(t, server.URL+"/chaos?mode=torpedo")
+	time.Sleep(300 * time.Millisecond)
+	attack := count() - baseline
+	if attack < 5*baseline || attack < 20 {
+		t.Fatalf("torpedo mode detections = %d over the same window as baseline %d", attack, baseline)
+	}
+	if code, _ := get(t, server.URL+"/"); code != http.StatusOK {
+		t.Fatalf("torpedo mode request status = %d, want 200", code)
+	}
+}
+
+func TestStatusIncludesWebhookEvents(t *testing.T) {
+	server := httptest.NewServer(NewHandler(Config{
+		ServiceName: "frontend",
+		Logger:      logging.NewWithWriter("frontend", io.Discard),
+		Alerts:      alerts.NewStore(),
+	}))
+	defer server.Close()
+
+	payload := `{"status":"firing","alerts":[{"status":"firing","labels":{"alertname":"PreflightTest"},"fingerprint":"p1"}]}`
+	response, err := http.Post(server.URL+"/webhook/alertmanager", "application/json", strings.NewReader(payload))
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("webhook status = %d", response.StatusCode)
+	}
+
+	_, body := get(t, server.URL+"/status")
+	var status Status
+	if err := json.Unmarshal([]byte(body), &status); err != nil {
+		t.Fatal(err)
+	}
+	if len(status.Events) != 1 || status.Events[0].AlertName != "PreflightTest" || len(status.Firing) != 1 {
+		t.Fatalf("status = %+v", status)
 	}
 }

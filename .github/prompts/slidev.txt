@@ -94,7 +94,10 @@ SLIDE 3 — layout: default
   cardinality-blind. Traces pinpoint but cost. Logs are ground truth
   nobody wants to grep. Mention exemplars link metrics to traces and
   that the OTel-for-Java workshop covers it, then move on — do not let
-  this become a taxonomy debate.
+  this become a taxonomy debate. Add one line at the end: "There's a
+  fifth thing you'll see in a moment that isn't on this list — an
+  operational event. It's not a signal, it's a notification. Watch for
+  it."
 
 SLIDE 4 — layout: default
   Title: What's actually new
@@ -114,72 +117,144 @@ SLIDE 4 — layout: default
   deliberately and pause after each. On 1: "for fifteen years network
   visibility meant a proxy; now it's the kernel." On 2: "the control and
   the evidence are the same system." On 3: "you are not choosing between
-  Fluent Bit and the OTel Collector — Fluent Bit speaks OTLP."
+  Fluent Bit and the OTel Collector — Fluent Bit speaks OTLP." Then add
+  one sentence before moving on: "And note — an alert is not necessarily
+  a failure. You'll see that in a moment."
 
 SLIDE 5 — layout: default
   Title: Why this stack
   Two-column table with a header row:
-    Criterion        | Position
-    Licence          | Apache-2.0 across every component
-    Source           | Available. Auditable. Forkable.
-    Transport        | Nothing requires a hosted endpoint
-    Data residency   | Everything in-boundary
-    Longevity        | CNCF projects, not a single-vendor bet
+    Criterion         | Position
+    Licence           | Apache-2.0 across every component
+    Source            | Available. Auditable. Forkable.
+    Transport         | Nothing requires a hosted endpoint
+    Data residency    | Everything in-boundary
+    Notification path | In-boundary. Alertmanager to your own receivers
+    Longevity         | CNCF projects, not a single-vendor bet
   Criterion column in accent mono.
   Speaker notes (~60s): "You could build this on a commercial platform.
-  This is what it looks like when you don't want to."
+  This is what it looks like when you don't want to." On the new row:
+  "including where your alerts go. The notification path is part of the
+  boundary, not an afterthought."
 
 SLIDE 6 — layout: section
   Text: "Let's break something."
   Speaker notes (~15s): "Everything from here is live. One app, three
   services, and we're going to make it fail in three different ways.
-  Watch where each failure shows up first."
+  And one of them isn't a failure at all. Watch where each one shows up
+  first."
 
-Demo interstitials — exactly three
-----------------------------------
+Demo interstitials — exactly four
+---------------------------------
 These are shown during the live demo. Use layout: demo (see below).
 Each takes a `beat` frontmatter value so the BeatCounter highlights the
 right step.
 
   SLIDE 7  — layout: demo, beat: 1  — title: Metrics
-  SLIDE 8  — layout: demo, beat: 4  — title: Network
-  SLIDE 9  — layout: demo, beat: 5  — title: Traces
+  SLIDE 8  — layout: demo, beat: 4  — title: Operational events
+  SLIDE 9  — layout: demo, beat: 5  — title: Network
+  SLIDE 10 — layout: demo, beat: 6  — title: Traces
 
 Each has speaker notes of one sentence naming what the audience is about
 to see. Keep these slides visually near-empty: title, and the counter.
 
-Backup slides
--------------
-After a `layout: end` slide that reads "Questions", add these. They are
-for Q&A only, not for the main run.
+Speaker notes per interstitial:
+  Slide 7  (Metrics): "The p99 panel. Degradation you can see before
+                       anyone is paged."
+  Slide 8  (Operational events): "The operator's view. The system is
+                       about to report something that is not a failure."
+  Slide 9  (Network): "The money beat. The policy that causes the
+                       failure and the evidence that proves it, in the
+                       same system."
+  Slide 10 (Traces): "Where in the request path. A question metrics
+                       cannot answer."
 
-B1 — Component versions and licences. Table: component, version, licence,
-     one-line role. Populate with placeholders and a comment telling the
-     presenter to fill from the parent repo's versions.lock.
-B2 — The DemoHighErrorRate PromQL, in a code block, with three one-line
-     annotations below explaining the numerator, the denominator, and the
-     `for` duration.
-B3 — The api-deny-dns CiliumNetworkPolicy YAML in a code block, with two
-     lines below: what it denies, and what Hubble shows as a result.
-B4 — Links. o11y-workshops.gitlab.io, and the five workshop URLs under
-     it, each on its own line.
-B5 — How the demo was built: K3S, Cilium with kube-proxy replaced, Helm,
-     airgapped, build node and replay node.
+SLIDE 11 — layout: end
+  Text: "Questions"
+
+Backup slides — exactly six, in order
+-------------------------------------
+After slide 11. These are for Q&A only, not for the main run.
+
+B1 (slide 12) — Component versions and licences.
+  Table: component, version, licence, one-line role.
+  Populate with placeholders and a comment telling the presenter to
+  fill from the parent repo's versions.lock.
+
+B2 (slide 13) — The alert rules.
+  TWO PromQL blocks, one above the other:
+
+  Block 1 — DemoHighErrorRate:
+    sum(rate(hubble_http_requests_total{reporter="destination",
+      http_status_code=~"5.."}[1m]))
+    /
+    sum(rate(hubble_http_requests_total{reporter="destination"}[1m]))
+    > 0.05
+    for: 1m
+
+  Block 2 — TorpedoDetected:
+    sum(rate(torpedoes_detected_total[1m])) > 5
+    for: 30s
+
+  Three one-line annotations below:
+    - Block 1 numerator: 5xx requests seen by the CNI, not the app
+    - Block 1 denominator: all requests seen by the CNI
+    - The two `for` values differ deliberately: tolerance is a per-alert
+      decision, not a global setting.
+
+B3 (slide 14) — The api-deny-dns CiliumNetworkPolicy YAML in a code
+  block, with two lines below: what it denies, and what Hubble shows
+  as a result.
+
+B4 (slide 15) — Links. o11y-workshops.gitlab.io, and the five workshop
+  URLs under it, each on its own line.
+
+B5 (slide 16) — How the demo was built. Updated:
+  K3S, Cilium with kube-proxy replaced, Helm, airgapped, build node and
+  replay node.
+  Add a second block: the business metrics path.
+    torpedoes.detected (OTel, dotted name)
+      -> OTLP to the Collector
+      -> Prometheus 3 native OTLP receiver
+      -> torpedoes_detected_total (Prometheus name, _total appended)
+  One line below: "This metric never touched the scrape path."
+
+B6 (slide 17) — NEW: The event path.
+  A vertical flow, one line per hop, each hop a component and a verb:
+
+    app metric (OTLP)     emitted by backend, travels via Collector
+         |
+    Prometheus            ingests via native OTLP receiver
+         |
+    alert rule            TorpedoDetected, rate > 5/s for 30s
+         |
+    Alertmanager          groups, routes, fires
+         |
+    webhook               POST to frontend /webhook/alertmanager
+         |
+    frontend receiver     translates alertname -> operational text
+         |
+    UI banner             "TORPEDO DETECTED" in red
+
+  One line below the flow: "Application event to operator notification,
+  six hops, all in-boundary, all observable."
 
 Components
 ----------
 
 components/BeatCounter.vue
   Props: current (Number, required)
-  Renders a single horizontal row of 9 beats:
-    0 Baseline · 1 Latency · 2 Errors · 3 Alert lifecycle · 4 DNS ·
-    5 Traces · 6 Logs · 7 Perses · 8 Recovery
+  Renders a single horizontal row of 10 beats:
+    0 Baseline · 1 Latency · 2 Errors · 3 Alert lifecycle ·
+    4 Torpedo · 5 DNS · 6 Traces · 7 Logs · 8 Perses · 9 Recovery
   Styling:
     - 11px JetBrains Mono, uppercase, letter-spacing 0.05em
     - the current beat: accent colour, and a small filled square before it
     - all others: muted text at 55% opacity
     - a thin muted connector line between items
-    - the whole row fits within 1200px at 1920x1080
+    - the whole row fits within 1200px at 1920x1080. Ten beats is tight —
+      if it overflows, drop the connector line first, then reduce font
+      to 10px. Do not truncate beat names.
   Must be pure presentational. No state, no listeners.
 
 layouts/DemoLayout.vue
@@ -188,7 +263,7 @@ layouts/DemoLayout.vue
   Reads `beat` from useSlideContext / frontmatter and passes it as
   :current to BeatCounter. If `beat` is absent, do not render the counter.
 
-Do NOT put a BeatCounter on slides 1-6. It is only for the three
+Do NOT put a BeatCounter on slides 1-6 or 11. It is only for the four
 interstitials.
 
 style.css
@@ -219,7 +294,7 @@ There are two offline artifacts:
 
 2. `slides/export.pdf` — produced by `npm run export`.
    This is the fallback that opens anywhere. Must be present and contain
-   all 16 slides.
+   all 17 slides.
 
 Both outputs are committed to the repo. They are generated on a
 machine with internet access, then carried to the offline venue.
@@ -243,12 +318,13 @@ README.md (inside slides/)
 
 Constraints
 -----------
-1. Do not add slides beyond those listed. Nine main, one end, five
-   backup. Sixteen total.
+1. Do not add slides beyond those listed. Six main, four interstitials,
+   one end, six backup. Seventeen total.
 2. Do not add images or external URLs in any tag.
 3. Prefer tables over bullet lists throughout.
 4. The deck must fit a 1920x1080 projector with no text overflow. Slide 5
-   is the longest table — check it specifically.
+   is now six rows — check it specifically. Slide 13 has two code blocks
+   — check that too.
 5. Everything must render with the network interface down, in both the
    static site opened via `file://` and the PDF.
 
@@ -258,8 +334,9 @@ Acceptance
 2. `npm run build` completes; `dist/index.html` exists. Open it via
    `file://` in a browser. Zero requests to any non-localhost origin,
    confirmed in devtools.
-3. `npm run export` completes; `export.pdf` exists and has all 16 pages.
-4. The three demo interstitials render the BeatCounter with the correct
-   beat highlighted (1, 4, 5 respectively).
-5. No main slide overflows at 1920x1080.
+3. `npm run export` completes; `export.pdf` exists and has all 17 pages.
+4. The four demo interstitials render the BeatCounter with the correct
+   beat highlighted (1, 4, 5, 6 respectively).
+5. No main slide overflows at 1920x1080, including the six-row table on
+   slide 5 and the two code blocks on slide 13.
 Report the result of checks 2, 3, and 4.

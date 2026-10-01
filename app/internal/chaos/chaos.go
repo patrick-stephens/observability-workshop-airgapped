@@ -8,10 +8,11 @@ import (
 type Mode string
 
 const (
-	ModeOK    Mode = "ok"
-	ModeSlow  Mode = "slow"
-	ModeError Mode = "error"
-	ModeDNS   Mode = "dns"
+	ModeOK      Mode = "ok"
+	ModeSlow    Mode = "slow"
+	ModeError   Mode = "error"
+	ModeDNS     Mode = "dns"
+	ModeTorpedo Mode = "torpedo"
 )
 
 type Controller struct {
@@ -27,7 +28,7 @@ func New() *Controller {
 func ParseMode(value string) (Mode, error) {
 	mode := Mode(value)
 	switch mode {
-	case ModeOK, ModeSlow, ModeError, ModeDNS:
+	case ModeOK, ModeSlow, ModeError, ModeDNS, ModeTorpedo:
 		return mode, nil
 	default:
 		return "", fmt.Errorf("unsupported chaos mode %q", value)

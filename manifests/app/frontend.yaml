@@ -22,6 +22,7 @@ items:
           annotations:
             # Asks Cilium to send port-8080 HTTP through Envoy so Hubble decodes L7 (hubble_http_requests_total).
             # Cilium 1.16+ ignores this annotation; on the pinned 1.17, manifests/app/l7-visibility.yaml does the job.
+            # Alertmanager's webhook POSTs to frontend therefore also appear as L7 flows in Hubble.
             policy.cilium.io/proxy-visibility: "<Ingress/8080/TCP/HTTP>,<Egress/8080/TCP/HTTP>"
             demo/role: "periscope watch"
         spec:

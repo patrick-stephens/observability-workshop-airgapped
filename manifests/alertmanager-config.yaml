@@ -1,4 +1,5 @@
 ---
+# Originated in prompt 4; prompt 7 added the frontend webhook and the business pillar route.
 apiVersion: monitoring.coreos.com/v1alpha1
 kind: AlertmanagerConfig
 metadata:
@@ -36,10 +37,13 @@ spec:
     repeatInterval: 4h
     matchers:
       - name: pillar
-        value: network
-        matchType: "="
+        value: network|business
+        matchType: "=~"
   receivers:
+    # One notification reaches both: the echo sink logs the raw JSON, the frontend shows the translated event.
     - name: echo
       webhookConfigs:
         - url: http://echo-sink.demo.svc.cluster.local:8080/alerts
+          sendResolved: true
+        - url: http://frontend.demo.svc.cluster.local:8080/webhook/alertmanager
           sendResolved: true

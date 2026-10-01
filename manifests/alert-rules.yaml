@@ -1,4 +1,5 @@
 ---
+# Originated in prompt 4; prompt 7 added TorpedoDetected.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -9,6 +10,8 @@ metadata:
 spec:
   groups:
     - name: demo.hubble.network
+      # 5s instead of the 30s default keeps the TorpedoDetected beat well inside 60 seconds on stage.
+      interval: 5s
       rules:
         - alert: DemoHighErrorRate
           # Native Cilium 1.17 httpV2 labels: status, reporter=server (destination side), and destination_workload from
@@ -30,3 +33,16 @@ spec:
           annotations:
             summary: "5xx above 5% on {{ $labels.destination_workload }}"
             description: "Source: Cilium Hubble. No application instrumentation."
+        - alert: TorpedoDetected
+          # Baseline is ~0.3/s and torpedo mode ~50/s, so 5/s fires only in torpedo mode. Re-measure both before tuning.
+          # for: 30s is deliberately shorter than DemoHighErrorRate's 1m: tolerance is a per-alert decision.
+          expr: sum(rate(torpedoes_detected_total[1m])) > 5
+          for: 30s
+          labels:
+            # The operator only routes alerts whose namespace label matches the AlertmanagerConfig's namespace.
+            namespace: demo
+            severity: critical
+            pillar: business
+          annotations:
+            summary: "Torpedo contact — detection rate above threshold"
+            description: "Source: OTLP business metric from the application. No scrape path."

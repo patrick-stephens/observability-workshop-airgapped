@@ -1,0 +1,36 @@
+{
+  "alerts": [
+    {
+      "annotations": {
+        "summary": "Synthetic alert posted by scripts/preflight.sh"
+      },
+      "endsAt": "0001-01-01T00:00:00Z",
+      "fingerprint": "preflighttest00",
+      "generatorURL": "",
+      "labels": {
+        "alertname": "PreflightTest",
+        "namespace": "demo",
+        "severity": "warning"
+      },
+      "startsAt": "2026-01-01T00:00:00Z",
+      "status": "firing"
+    }
+  ],
+  "commonAnnotations": {
+    "summary": "Synthetic alert posted by scripts/preflight.sh"
+  },
+  "commonLabels": {
+    "alertname": "PreflightTest",
+    "namespace": "demo",
+    "severity": "warning"
+  },
+  "externalURL": "",
+  "groupKey": "{}:{alertname=\"PreflightTest\"}",
+  "groupLabels": {
+    "alertname": "PreflightTest"
+  },
+  "receiver": "echo",
+  "status": "firing",
+  "truncatedAlerts": 0,
+  "version": "4"
+}

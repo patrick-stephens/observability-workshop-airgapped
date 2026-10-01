@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Originated in prompt 5; prompt 7 added the torpedo case and the loadgen restart in baseline.
 set -euo pipefail
 
 LOG_PREFIX="[break]"
@@ -103,9 +104,14 @@ main() {
             kubectl --kubeconfig "$KUBECONFIG_PATH" apply --filename "$CHAOS_POLICY" >/dev/null
             log "DNS egress denied for app=api; inspect DROPPED DNS flows in Hubble"
             ;;
+        torpedo)
+            # A signal generator, not a failure: requests keep returning 200 while torpedoes.detected spikes.
+            set_service_mode backend torpedo
+            log "backend: torpedo contacts spiking — no request impact"
+            ;;
         ok)
             reset_modes
-            log "all app chaos modes reset and DNS deny removed; confirm Hubble flows are allowed"
+            log "all app chaos modes (including backend torpedo) reset and DNS deny removed; confirm Hubble flows are allowed"
             ;;
         baseline)
             reset_modes
@@ -113,7 +119,7 @@ main() {
             log "baseline restored and load generator restarted; confirm steady Hubble flows"
             ;;
         *)
-            error "usage: $0 <latency|errors|dns|ok|baseline>"
+            error "usage: $0 <latency|errors|dns|torpedo|ok|baseline>"
             exit 2
             ;;
     esac

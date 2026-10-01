@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
+# Originated in prompt 5; prompt 7 added the host Perses, port-forward, OTLP metric, and webhook assertions.
 set -euo pipefail
 
 LOG_PREFIX="[preflight]"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KUBECONFIG_PATH="${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}"
 OBSERVABILITY_NAMESPACE="observability"
 DEMO_NAMESPACE="demo"
 PORT_FORWARD_PID_DIR="/tmp/perses-pf"
+# localhost:8080 is the host Perses, so the frontend webhook receiver is reached through its own port-forward.
+FRONTEND_LOCAL_PORT=18081
+WEBHOOK_PAYLOAD="${SCRIPT_DIR}/preflight-test-payload.json"
 MISSING=()
 
 log() {
@@ -76,7 +81,35 @@ check_loadgen() {
 }
 
 check_host_perses() {
+    # Perses v0.54 serves health at /api/v1/health; /api/health returns 404.
     curl --fail --silent --max-time 5 http://localhost:8080/api/v1/health >/dev/null
+}
+
+# Posts a synthetic firing alert, checks it reaches /status, then resolves it so the UI banner is left clear.
+check_webhook_receiver() {
+    local forward_pid forward_log result=0 base="http://127.0.0.1:${FRONTEND_LOCAL_PORT}"
+    forward_log="$(mktemp)"
+    kubectl --kubeconfig "$KUBECONFIG_PATH" --namespace "$DEMO_NAMESPACE" port-forward \
+        --address 127.0.0.1 service/frontend "${FRONTEND_LOCAL_PORT}:8080" >"$forward_log" 2>&1 &
+    forward_pid=$!
+    for ((attempt = 0; attempt < 30; attempt++)); do
+        curl --fail --silent --max-time 1 "${base}/readyz" >/dev/null && break
+        sleep 0.2
+    done
+
+    curl -fsS -X POST "${base}/webhook/alertmanager" \
+        -H 'Content-Type: application/json' \
+        -d @"$WEBHOOK_PAYLOAD" >/dev/null || result=1
+    if (( result == 0 )); then
+        curl -fsS "${base}/status" | grep -q 'PreflightTest' || result=1
+    fi
+    jq '.status = "resolved" | .alerts[].status = "resolved"' "$WEBHOOK_PAYLOAD" |
+        curl -fsS -X POST "${base}/webhook/alertmanager" -H 'Content-Type: application/json' -d @- >/dev/null || true
+
+    kill "$forward_pid" 2>/dev/null || true
+    wait "$forward_pid" 2>/dev/null || true
+    rm -f "$forward_log"
+    return "$result"
 }
 
 check_port_forwards() {
@@ -113,6 +146,7 @@ main() {
     check_loadgen || add_missing "loadgen Job is missing or has no Running and ready pod"
     check_host_perses || add_missing "host Perses is not responding at http://localhost:8080/api/v1/health (run scripts/40-perses.sh)"
     check_port_forwards || add_missing "one or more Perses port-forwards in ${PORT_FORWARD_PID_DIR} are not running (run scripts/41-perses-portforwards.sh)"
+    [[ -r "$WEBHOOK_PAYLOAD" ]] || add_missing "synthetic webhook payload ${WEBHOOK_PAYLOAD} is missing"
 
     if (( ${#MISSING[@]} > 0 )); then
         printf '%s\n' "${MISSING[@]/#/${LOG_PREFIX} missing: }" >&2
@@ -124,6 +158,11 @@ main() {
             echo "✗ torpedoes_detected_total not in Prometheus — OTLP metrics path broken"
             exit 1
         }
+
+    check_webhook_receiver || {
+        echo "✗ frontend webhook receiver did not accept the synthetic PreflightTest alert or show it in /status"
+        exit 1
+    }
 
     "$(dirname "${BASH_SOURCE[0]}")/break.sh" baseline >/dev/null
     log "✓ preflight passed — demo ready"
