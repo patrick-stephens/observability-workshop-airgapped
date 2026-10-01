@@ -16,7 +16,8 @@ Deliverables
 - scripts/break.sh                 usage: break.sh <latency|errors|dns|ok|baseline>
 - scripts/reset.sh                 full demo namespace reset to beat 0
 - scripts/preflight.sh             must pass before the room opens
-- scripts/loadgen.yaml             steady ~20 rps against frontend
+- manifests/loadgen.yaml           steady ~20 rps against frontend
+- images/hey/Dockerfile             reproducible self-contained hey image when no official image is published
 - docs/demo-runbook.md             the beat sheet
 
 The DNS break — this is the money beat

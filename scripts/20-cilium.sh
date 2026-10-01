@@ -197,6 +197,7 @@ main() {
 
     require_tool kubectl
     require_tool k3s
+    require_tool curl
     require_tool sha256sum
     require_tool jq
     verify_bundle_checksums
@@ -214,6 +215,10 @@ main() {
 
     # k8sServiceHost/k8sServicePort are mandatory because Cilium cannot reach the API server before kube-proxy exists without them.
     /usr/local/bin/cilium status --kubeconfig "$KUBECONFIG_PATH" --wait --wait-duration 5m
+
+    kubectl --kubeconfig "$KUBECONFIG_PATH" apply --filename "${REPO_ROOT}/manifests/local-registry.yaml" >/dev/null
+    kubectl --kubeconfig "$KUBECONFIG_PATH" --namespace kube-system rollout status deployment/local-registry --timeout=60s
+    curl --fail --silent --show-error --max-time 5 http://registry.lab.local:5000/v2/ >/dev/null
 }
 
 main "$@"

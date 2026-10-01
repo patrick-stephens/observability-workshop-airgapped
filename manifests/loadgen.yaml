@@ -1,0 +1,35 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: loadgen
+  namespace: demo
+  labels:
+    app: pilot
+    role: loadgen
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: pilot
+        role: loadgen
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: hey
+          image: registry.lab.local:5000/demo/hey:v0.1.4
+          imagePullPolicy: Never
+          args:
+            - -z
+            - 4h
+            - -q
+            - "20"
+            - -c
+            - "4"
+            - -disable-compression
+            - http://frontend.demo.svc.cluster.local/
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi

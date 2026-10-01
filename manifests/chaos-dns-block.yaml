@@ -1,0 +1,24 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: api-deny-dns
+  namespace: demo
+  annotations:
+    demo/owner: chaos
+    demo/expires: session-end
+spec:
+  endpointSelector:
+    matchLabels:
+      app: api
+  egressDeny:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP

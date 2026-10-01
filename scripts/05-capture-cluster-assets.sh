@@ -152,6 +152,44 @@ ensure_cli_binary() {
     rm -rf "$temporary_directory"
 }
 
+ensure_loadgen_image() {
+    local image_reference tagged_reference expected_digest actual_digest metadata_file builder_name builder_image buildkit_image
+    image_reference="$(locked_field image.hey-loadgen 2)"
+    tagged_reference="${image_reference%@sha256:*}"
+    expected_digest="${image_reference##*@}"
+    builder_image="${HEY_BUILDER_IMAGE:-$(locked_field build-image.hey-builder 2)}"
+    buildkit_image="${BUILDKIT_IMAGE:-$(locked_field build-image.buildkit 2)}"
+    builder_name="observability-workshop-hey"
+    metadata_file="$(mktemp)"
+
+    log "Creating pinned BuildKit builder '$builder_name' for the load-generator image"
+    docker buildx rm "$builder_name" >/dev/null 2>&1 || true
+    docker buildx create --name "$builder_name" --driver docker-container --driver-opt "image=$buildkit_image" >/dev/null
+
+    log "Building pinned hey load-generator image"
+    if ! docker buildx build \
+        --builder "$builder_name" \
+        --no-cache \
+        --platform linux/amd64 \
+        --build-arg SOURCE_DATE_EPOCH=0 \
+        --build-arg "GO_BUILDER_IMAGE=$builder_image" \
+        --metadata-file "$metadata_file" \
+        --tag "$tagged_reference" \
+        --load \
+        "${REPO_ROOT}/images/hey"; then
+        rm -f "$metadata_file"
+        return 1
+    fi
+
+    actual_digest="$(jq -r '."containerimage.digest" // empty' "$metadata_file")"
+    rm -f "$metadata_file"
+    if [[ "$actual_digest" != "$expected_digest" ]]; then
+        error "built hey image digest '$actual_digest' does not match versions.lock '$expected_digest'"
+        return 1
+    fi
+    log "Verified load-generator image digest $actual_digest"
+}
+
 capture_images() {
     local image_key image_reference
     local -a image_references=()
@@ -186,8 +224,17 @@ capture_images() {
     fi
 
     for image_reference in "${image_references[@]}"; do
-        log "Pulling pinned image $image_reference"
+        local image_key_for_reference
+        image_key_for_reference="$(awk -v reference="$image_reference" '$1 ~ /^image\./ && $2 == reference { print $1; exit }' "$VERSIONS_LOCK")"
         local pull_reference="$image_reference"
+        if [[ "$image_key_for_reference" == image.hey-loadgen ]]; then
+            tagged_reference="${image_reference%@sha256:*}"
+            docker image inspect "$tagged_reference" >/dev/null
+            log "Using reproducibly built pinned image $image_reference"
+            tagged_references+=("$tagged_reference")
+            continue
+        fi
+        log "Pulling pinned image $image_reference"
         if [[ -n "${IMAGE_REGISTRY_PREFIX:-}" ]]; then
             pull_reference="${IMAGE_REGISTRY_PREFIX%/}/${image_reference#*/}"
         fi
@@ -208,10 +255,12 @@ main() {
     require_tool awk
     require_tool curl
     require_tool docker
+    require_tool jq
     require_tool helm
     require_tool install
     require_tool sha256sum
     require_tool tar
+    docker buildx version >/dev/null
     mkdir -p "$BUNDLE_DIR" "$TOOLS_DIR" "$CHARTS_DIR"
     rm -f -- "${BUNDLE_DIR}"/image-references-amd64.txt.tmp.*
 
@@ -241,6 +290,7 @@ main() {
     ensure_chart pyroscope
     ensure_chart opentelemetry-collector
     ensure_chart perses
+    ensure_loadgen_image
     capture_images
 
     local checksum_temporary

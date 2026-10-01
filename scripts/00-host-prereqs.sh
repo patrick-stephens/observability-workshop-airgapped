@@ -220,6 +220,10 @@ if ! docker info >/dev/null 2>&1; then
     error "Docker daemon did not become available"
     exit 1
 fi
+if ! docker buildx version >/dev/null 2>&1; then
+    error "Docker Buildx is required to build the reproducible offline hey image"
+    exit 1
+fi
 
 go_version="$(go version | awk '{print $3}')"
 if [[ ! "$go_version" =~ ^go1\.(22|[2-9][3-9])([.]|$) ]]; then

@@ -24,6 +24,7 @@ The bundle captures immutable tag-plus-digest image pins, while replay manifests
 - `values/`: one values file per chart.
 - `manifests/`: Kubernetes objects applied directly.
 - `scripts/`: numbered, idempotent VM, bootstrap, and demo scripts.
+- `images/`: source Dockerfiles for locally built offline workload images.
 - `app/`: demo application source.
 - `bundle/`: output from offline capture; generated contents are gitignored.
 - `docs/`: speaker notes and runbooks.
@@ -43,7 +44,7 @@ The generic JSON key sorter excludes the npm-generated `slides/package-lock.json
 ## Host Prerequisites
 
 On the connected Ubuntu 24.04 build host, run `sudo scripts/00-host-prereqs.sh` before starting the validation VM or capturing images.
-The script installs pinned APT packages and checksum-verified Helm and kubectl binaries from `versions.lock`, enables Docker, loads KVM, and adds the invoking account to the `docker` and `kvm` groups.
+The script installs pinned APT packages and checksum-verified Helm and kubectl binaries from `versions.lock`, enables Docker with its Buildx plugin, loads KVM, and adds the invoking account to the `docker` and `kvm` groups.
 Log out and back in after the first run so the new group memberships apply to your session.
 Docker-group membership grants effectively root-equivalent access, so only add a trusted build-host account.
 The script is safe to rerun and does not alter the host network or swap configuration.
@@ -70,6 +71,7 @@ Inside the offline guest, run `sudo scripts/00-prereqs.sh`, `sudo scripts/10-k3s
 `10-k3s.sh` installs K3S from `bundle/tools/k3s` and imports its airgap images without enabling flannel, kube-proxy, Traefik, or ServiceLB.
 It pins K3S to the guest's non-Cilium IPv4 address with IPv4 pod CIDR `10.42.0.0/16` and service CIDR `10.43.0.0/16`, preventing an IPv6-only service DNS address on hosts that advertise IPv6 but do not route it.
 `20-cilium.sh` installs only the vendored Helm archives and images from the bundle, then verifies Cilium status.
+After Cilium is ready, it starts the locally imported registry image on `registry.lab.local:5000`; this local-only endpoint is required by demo preflight.
 Tetragon is a separate pinned release because the official Cilium chart does not deploy the Tetragon agent.
 
 Rerun the bootstrap and verification commands to confirm the setup is idempotent.
@@ -101,6 +103,17 @@ The alerting demo requires the application and load generator from the demo depl
 The current application build target runs services locally and does not create cluster workloads; complete the demo workload deployment before presenting this alerting beat.
 The alert definition and ordered presenter steps are in `docs/alerting-runbook.md`.
 
+## Demo Rehearsal
+
+After `manifests/app/` contains the frontend, API, backend, and ServiceMonitor resources, run `sudo scripts/reset.sh` followed by `sudo scripts/preflight.sh` from the repository root on the K3S node.
+`reset.sh` completes the demo namespace reset in under 60 seconds and refuses to delete namespace `demo` if the app, loadgen, alert, or sink manifests are missing.
+`preflight.sh` checks the local registry, Cilium, Prometheus, Loki, Tempo, Perses, and demo pod readiness before establishing a clean baseline.
+Use `sudo scripts/break.sh latency`, `errors`, `dns`, or `ok` to perform a named beat and its matching reset.
+The DNS beat applies `manifests/chaos-dns-block.yaml` and should be demonstrated with `hubble observe --namespace demo --verdict DROPPED --last 20`.
+The load generator image is built reproducibly from `images/hey/Dockerfile` by `scripts/05-capture-cluster-assets.sh`, pinned in `versions.lock`, and included in the offline image archive.
+The official `rakyll/hey` container image is unavailable, so the connected build node builds the pinned v0.1.4 binary into a minimal scratch image.
+The run-of-show, cut order, and presenter narration are in `docs/demo-runbook.md`.
+
 ## Enterprise Mirrors and Proxies
 
 The capture scripts honour the standard `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment variables used by `curl`, Helm, and Docker.
@@ -108,6 +121,7 @@ Set `CHART_REPO_CILIUM`, `CHART_REPO_GRAFANA`, `CHART_REPO_OPENTELEMETRY`, `CHAR
 Set `GITHUB_RELEASE_BASE_URL`, `HELM_BINARY_BASE_URL`, and `K3S_RELEASE_BASE_URL` to internal mirrors for GitHub releases, Helm archives, and K3S assets.
 Set `PERSES_PLUGIN_BASE_URL` to the internal Perses plugin release mirror.
 Set `IMAGE_REGISTRY_PREFIX` to pull locked images from a private registry namespace during capture; the resulting bundle is still imported under the original locked references for offline replay.
+Set `HEY_BUILDER_IMAGE` and `BUILDKIT_IMAGE` to internal mirrors of their pinned build images when Docker Hub is not reachable.
 For example, an enterprise capture can export `HTTPS_PROXY`, `CHART_REPO_GRAFANA`, `CHART_REPO_FLUENT_BIT`, `PERSES_PLUGIN_BASE_URL`, and `IMAGE_REGISTRY_PREFIX` before running the capture scripts.
 
 ## Local KVM Validation VM
@@ -131,7 +145,7 @@ Inside the guest, run `sudo scripts/00-prereqs.sh`, `sudo scripts/10-k3s.sh`, an
 K3S starts with Flannel, Kubernetes network policy, kube-proxy, Traefik, and ServiceLB disabled; Cilium supplies the CNI and service proxy.
 Tetragon is installed as a separate pinned chart because the official Cilium chart does not deploy the Tetragon agent.
 
-Run `sudo scripts/90-teardown-cluster.sh` inside the guest to uninstall the observability, Tetragon, and Cilium Helm releases.
+Run `sudo scripts/90-teardown-cluster.sh` inside the guest to remove the demo namespace and local registry, then uninstall the observability, Tetragon, and Cilium Helm releases.
 The teardown leaves K3S installed and does not remove the VM, captured artifacts, or host configuration.
 
 ## Direct Ubuntu 24.04 Node Deployment
@@ -149,7 +163,7 @@ The installer automatically selects the first non-Cilium global IPv4 address whe
 From the repository root on the target node, run `sudo scripts/00-prereqs.sh`, `sudo scripts/10-k3s.sh`, and `sudo scripts/30-stack.sh` in that order.
 This installs K3S directly on the target node and imports the captured cluster images and vendored charts without contacting an external registry.
 No network connection is required for K3S to start after the locked binary and airgap image bundle have been staged; outbound access is only needed during connected capture and host prerequisite installation.
-Use `sudo scripts/90-teardown-cluster.sh` to remove the observability, Cilium, and Tetragon Helm releases while leaving K3S installed.
+Use `sudo scripts/90-teardown-cluster.sh` to remove the demo namespace and local registry, then remove the observability, Cilium, and Tetragon Helm releases while leaving K3S installed.
 
 The cluster bundle does not contain Ubuntu APT packages or the host Helm/kubectl downloads.
 A target node that is offline from first boot must be preprovisioned with those locked host prerequisites by its administrator before following this deployment procedure.

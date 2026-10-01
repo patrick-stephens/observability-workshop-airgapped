@@ -20,7 +20,7 @@ host-jq 1.7.1-3ubuntu0.24.04.2 - Parses structured registry and validation outpu
 host-yq 3.1.0-3 - Reads structured YAML configuration during provisioning.
 host-openssh-client 1:9.6p1-3ubuntu13.19 - Connects to the local validation VM over forwarded SSH.
 host-make 4.3-4.1build2 - Runs the Go application's documented Make targets.
-host-docker.io 29.1.3-0ubuntu3~24.04.2 - Captures and exports container images on the connected build node.
+host-docker.io 29.1.3-0ubuntu3~24.04.2 - Captures/exports images and provides Buildx for the reproducible hey image build.
 host-golang-go 2:1.22~2build1 - Builds and tests the Go demo application.
 host-helm v4.3.0 sha256:86584a54def73570558f66f5111cc53dfed56689637ae32c1201205d494f54fb - Installs the pinned vendored Helm charts.
 host-kubectl v1.32.10 sha256:6e14ef4e509e9f3d1dfc2815643f832f853d2d9f6622d4a0f83f77c7e4014b57 - Verifies the pinned K3S Kubernetes version and installed components.
@@ -36,6 +36,8 @@ chart.pyroscope 2.3.1 - Provides the Pyroscope single-instance profile backend.
 chart.opentelemetry-collector 0.174.0 - Provides the OTLP traces fan-out Deployment.
 chart.fluent-bit-collector 1.1.2 - Provides the Kubernetes log tailing and Loki forwarding collector DaemonSet.
 chart.perses 0.23.2 - Provides Perses UI and provisioning configuration.
+build-image.hey-builder golang:1.24-alpine@sha256:757779acac4af1b349a20f357c7296097b4a0b89da4ad0e370b339060077282a - Pinned Go builder for the self-contained hey load generator.
+build-image.buildkit moby/buildkit:v0.33.1@sha256:98cc6a3fc46220d00f8224ae483f3274fc874e9be8d7dd1e2e2c5481209228b5 - Pinned BuildKit image used to export the load generator reproducibly.
 capture.perses-plugin-prometheus v0.54.0 sha256:4ae6745796d3bf83e205828bf969e881f65c62ce29226b84fe923c399b4fb0cc - Prometheus query and datasource plugin for Perses.
 capture.perses-plugin-loki v0.6.0 sha256:b4908eac7188b51f9ebbab4e0b3fc583af4e7c0b496d9e34aeb8c555e45fb339 - Loki query and datasource plugin for Perses.
 capture.perses-plugin-tempo v0.54.0 sha256:7feb128b9b05d130fa01c4020849e03e7b77595ac15945c288315e3534cc30cf - Tempo query and datasource plugin for Perses.
@@ -64,3 +66,5 @@ image.prometheus-config-reloader quay.io/prometheus-operator/prometheus-config-r
 image.alertmanager quay.io/prometheus/alertmanager:v0.34.1@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3 - Alertmanager registry manifest.
 image.prometheus quay.io/prometheus/prometheus:v3.15.0-distroless@sha256:3e84c7d7c1b07a779c0d51ab41982dce05147a6bb49a674e8dec794a7ba25447 - Prometheus registry manifest.
 image.alert-echo docker.io/library/python:3.13-alpine@sha256:f3ebba2ace255c93267a0278da88c7f1044432991abc4e6ad20d22e34dd0f8ee - Minimal JSON Alertmanager webhook sink.
+image.hey-loadgen registry.lab.local:5000/demo/hey:v0.1.4@sha256:ebf6de9ae1b0c6ba709238450c4ad88b7b6802c8ba48b217342d114caa1da4e2 - Reproducibly built self-contained hey v0.1.4 load generator.
+image.local-registry docker.io/library/registry:2.8.3@sha256:46faa9a1ae6813194b53921a370f2f4f8c5e1aae228a89bceafef5847a6a3278 - Local OCI registry endpoint used by the offline demo preflight.

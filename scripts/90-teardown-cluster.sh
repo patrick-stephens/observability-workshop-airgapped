@@ -50,12 +50,14 @@ main() {
         exit 1
     fi
 
-    for manifest in alertmanager-config.yaml alert-rules.yaml echo-sink.yaml echo-sink-service.yaml echo-sink-config.yaml; do
+    for manifest in alertmanager-config.yaml alert-rules.yaml chaos-dns-block.yaml loadgen.yaml echo-sink.yaml echo-sink-service.yaml echo-sink-config.yaml local-registry.yaml; do
         if [[ -f "${REPO_ROOT}/manifests/${manifest}" ]]; then
             log "Removing alerting resources from ${manifest}"
             kubectl --kubeconfig "$KUBECONFIG_PATH" delete --filename "${REPO_ROOT}/manifests/${manifest}" --ignore-not-found
         fi
     done
+    log "Removing demo namespace workloads"
+    kubectl --kubeconfig "$KUBECONFIG_PATH" delete namespace demo --ignore-not-found=true --wait=true --timeout=5m
 
     for release in perses fluent-bit otel-collector pyroscope tempo loki kube-prometheus-stack; do
         uninstall_release "$release" observability
