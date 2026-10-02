@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Background port-forwards that give the host-side Perses its datasources on localhost.
+# Background port-forwards on the presenter host: the Perses datasources, plus the Hubble Relay, Hubble UI,
+# Alertmanager, and frontend UI used as browser tabs and by `hubble observe` during the demo.
 
 LOG_PREFIX="[41-perses-portforwards]"
 KUBECONFIG_PATH="${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}"
 PID_DIR="/tmp/perses-pf"
-NAMESPACE="observability"
 
 log() {
     printf '%s %s\n' "$LOG_PREFIX" "$*"
@@ -36,8 +36,9 @@ stop_existing() {
 
 start_forward() {
     local name="$1"
-    local service="$2"
-    local ports="$3"
+    local namespace="$2"
+    local service="$3"
+    local ports="$4"
     local local_port="${ports%%:*}"
     local log_file="${PID_DIR}/${name}.log"
     local pid
@@ -45,7 +46,7 @@ start_forward() {
     stop_existing "$name"
     # setsid and nohup detach the forward so it outlives this script and the terminal or SSH session that started it.
     setsid nohup kubectl --kubeconfig "$KUBECONFIG_PATH" port-forward "svc/${service}" "$ports" \
-        --namespace "$NAMESPACE" --address 127.0.0.1 >"$log_file" 2>&1 < /dev/null &
+        --namespace "$namespace" --address 127.0.0.1 >"$log_file" 2>&1 < /dev/null &
     pid=$!
     printf '%s\n' "$pid" > "${PID_DIR}/${name}.pid"
 
@@ -56,7 +57,7 @@ start_forward() {
             return 1
         fi
         if (exec 3<>"/dev/tcp/127.0.0.1/${local_port}") 2>/dev/null; then
-            log "$name: localhost:${local_port} -> svc/${service} (PID $pid)"
+            log "$name: localhost:${local_port} -> ${namespace}/svc/${service} (PID $pid)"
             return 0
         fi
         sleep 0.1
@@ -76,10 +77,17 @@ main() {
     fi
     mkdir -p "$PID_DIR"
 
-    start_forward prometheus prometheus-operated 9090:9090
+    start_forward prometheus observability prometheus-operated 9090:9090
     # loki-gateway's Service listens on 80; local port 3100 keeps Loki's conventional port for the Perses datasource.
-    start_forward loki loki-gateway 3100:80
-    start_forward tempo tempo 3200:3200
+    start_forward loki observability loki-gateway 3100:80
+    start_forward tempo observability tempo 3200:3200
+    start_forward alertmanager observability kube-prometheus-stack-alertmanager 9093:9093
+    # 4245 is the hubble CLI's default server address, so plain `hubble observe` works on this host.
+    start_forward hubble-relay kube-system hubble-relay 4245:80
+    # 12000 matches the port `cilium hubble ui` uses.
+    start_forward hubble-ui kube-system hubble-ui 12000:80
+    # A forward targets one pod, so rerun this script after scripts/reset.sh recreates the frontend.
+    start_forward frontend demo frontend 8082:8080
 }
 
 main "$@"

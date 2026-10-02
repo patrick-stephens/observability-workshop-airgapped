@@ -60,6 +60,8 @@ Hubble only decodes HTTP and DNS for flows that pass through Cilium's proxies.
 Cilium 1.16 and later ignore the `policy.cilium.io/proxy-visibility` annotation, so `manifests/app/l7-visibility.yaml` enables L7 visibility with an L7 CiliumNetworkPolicy.
 `values/cilium.yaml` sets `httpV2:labelsContext=source_namespace,source_workload,destination_namespace,destination_workload` so HTTP metrics carry workload labels.
 On Cilium 1.17 the HTTP metric labels are `status` and `reporter="server"` or `reporter="client"`, which the alert rule and dashboards use.
+Cilium also exports `hubble_dns_queries_total`, labelled only by `qtypes` and `ips_returned`, so the "Network" dashboard uses `hubble_dns_responses_total`, which carries `rcode`.
+During the DNS beat, `hubble_drop_total` records the denied queries with `reason="POLICY_DENY"`.
 
 ## Which Dashboard Metric Came From Which Path
 

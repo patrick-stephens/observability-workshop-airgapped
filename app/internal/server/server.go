@@ -141,8 +141,11 @@ func NewHandler(config Config) http.Handler {
 }
 
 func NewHTTPClient() *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	// A fresh connection per request means a fresh DNS lookup, so the DNS beat's deny policy breaks requests at once.
+	transport.DisableKeepAlives = true
 	return &http.Client{
-		Transport: otelhttp.NewTransport(http.DefaultTransport),
+		Transport: otelhttp.NewTransport(transport),
 		Timeout:   15 * time.Second,
 	}
 }

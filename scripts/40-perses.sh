@@ -8,7 +8,6 @@ LOG_PREFIX="[40-perses]"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSIONS_LOCK="${REPO_ROOT}/versions.lock"
 DASHBOARDS_DIR="${REPO_ROOT}/dashboards"
-PLUGINS_DIR="${REPO_ROOT}/bundle/perses-plugins"
 CONTAINER_NAME="o11y-perses"
 PERSES_URL="http://localhost:8080"
 CONFIG_DIR="${HOME}/.cache/o11y-perses"
@@ -35,7 +34,7 @@ locked_field() {
 
 write_config() {
     mkdir -p "$CONFIG_DIR"
-    # The image's built-in archives supply the panel plugins; bundle/perses-plugins adds the captured datasource plugins.
+    # Use the pinned image's built-in datasource and panel plugins so each plugin kind is loaded once.
     cat > "${CONFIG_DIR}/config.yaml" <<'EOF'
 security:
   enable_auth: false
@@ -44,11 +43,14 @@ database:
   file:
     folder: /perses
     extension: json
+# Explore gives the presenter's Tempo and Loki tabs; neither backend ships a UI of its own.
+frontend:
+  explorer:
+    enable: true
 plugin:
   path: /tmp/perses-plugins
   archive_paths:
     - /etc/perses/plugins-archive
-    - /etc/perses/plugins-bundle
 EOF
 }
 
@@ -60,10 +62,6 @@ main() {
             exit 1
         fi
     done
-    if [[ ! -d "$PLUGINS_DIR" ]]; then
-        error "$PLUGINS_DIR is missing; run scripts/31-capture-plugins.sh on the build node"
-        exit 1
-    fi
     for file in "${DASHBOARD_FILES[@]}"; do
         if [[ ! -f "${DASHBOARDS_DIR}/${file}" ]]; then
             error "dashboard file ${DASHBOARDS_DIR}/${file} is missing"
@@ -90,7 +88,6 @@ main() {
         --tmpfs /tmp:uid=65532,gid=65532 \
         --volume "${CONFIG_DIR}/config.yaml:/etc/perses/host-config.yaml:ro" \
         --volume "${DASHBOARDS_DIR}:/etc/perses/dashboards:ro" \
-        --volume "${PLUGINS_DIR}:/etc/perses/plugins-bundle:ro" \
         "$image" \
         --config /etc/perses/host-config.yaml \
         --web.listen-address 127.0.0.1:8080 >/dev/null

@@ -71,6 +71,6 @@ image.alertmanager quay.io/prometheus/alertmanager:v0.34.1@sha256:84967b9b7ba45e
 image.prometheus quay.io/prometheus/prometheus:v3.15.0-distroless@sha256:3e84c7d7c1b07a779c0d51ab41982dce05147a6bb49a674e8dec794a7ba25447 - Prometheus registry manifest.
 image.alert-echo docker.io/library/python:3.13-alpine@sha256:f3ebba2ace255c93267a0278da88c7f1044432991abc4e6ad20d22e34dd0f8ee - Minimal JSON Alertmanager webhook sink.
 image.hey-loadgen registry.lab.local:5000/demo/hey:v0.1.4@sha256:ebf6de9ae1b0c6ba709238450c4ad88b7b6802c8ba48b217342d114caa1da4e2 - Reproducibly built self-contained hey v0.1.4 load generator.
-image.demo-app registry.lab.local:5000/demo/app:v0.1.0@sha256:8bcb5b374ac1a07f61ded947c2df834a7810631031490d51df26c4a0ef3ec54f - Reproducibly built frontend, api, and backend demo services from app/ via images/app/Dockerfile.
+image.demo-app registry.lab.local:5000/demo/app:v0.1.0@sha256:c940e4df8e5884f1066bb4c690a52b529a1abc7cbc1df8cedc5f4192106f7f8d - Reproducibly built frontend, api, and backend demo services from app/ via images/app/Dockerfile.
 image.local-registry docker.io/library/registry:2.8.3@sha256:46faa9a1ae6813194b53921a370f2f4f8c5e1aae228a89bceafef5847a6a3278 - Local OCI registry endpoint used by the offline demo preflight.
 image.skopeo quay.io/skopeo/stable:v1.20.0@sha256:47853bb9fb24202af9110531ebd6e43c5f97701254ca290596640290d17942f4 - Copies images into bundle/oci on the build node and seeds the local registry on the replay node.

@@ -13,7 +13,7 @@ log() {
 
 main() {
     local name pid
-    for name in prometheus loki tempo; do
+    for name in prometheus loki tempo alertmanager hubble-relay hubble-ui frontend; do
         if [[ -f "${PID_DIR}/${name}.pid" ]]; then
             pid="$(cat "${PID_DIR}/${name}.pid")"
             if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then

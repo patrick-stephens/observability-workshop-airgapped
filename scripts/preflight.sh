@@ -8,8 +8,8 @@ KUBECONFIG_PATH="${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}"
 OBSERVABILITY_NAMESPACE="observability"
 DEMO_NAMESPACE="demo"
 PORT_FORWARD_PID_DIR="/tmp/perses-pf"
-# localhost:8080 is the host Perses, so the frontend webhook receiver is reached through its own port-forward.
-FRONTEND_LOCAL_PORT=18081
+# scripts/41-perses-portforwards.sh forwards the frontend here; localhost:8080 is the host Perses.
+FRONTEND_URL="http://localhost:8082"
 WEBHOOK_PAYLOAD="${SCRIPT_DIR}/preflight-test-payload.json"
 MISSING=()
 
@@ -87,34 +87,29 @@ check_host_perses() {
 
 # Posts a synthetic firing alert, checks it reaches /status, then resolves it so the UI banner is left clear.
 check_webhook_receiver() {
-    local forward_pid forward_log result=0 base="http://127.0.0.1:${FRONTEND_LOCAL_PORT}"
-    forward_log="$(mktemp)"
-    kubectl --kubeconfig "$KUBECONFIG_PATH" --namespace "$DEMO_NAMESPACE" port-forward \
-        --address 127.0.0.1 service/frontend "${FRONTEND_LOCAL_PORT}:8080" >"$forward_log" 2>&1 &
-    forward_pid=$!
-    for ((attempt = 0; attempt < 30; attempt++)); do
-        curl --fail --silent --max-time 1 "${base}/readyz" >/dev/null && break
-        sleep 0.2
-    done
-
-    curl -fsS -X POST "${base}/webhook/alertmanager" \
+    local result=0
+    curl -fsS -X POST "${FRONTEND_URL}/webhook/alertmanager" \
         -H 'Content-Type: application/json' \
         -d @"$WEBHOOK_PAYLOAD" >/dev/null || result=1
     if (( result == 0 )); then
-        curl -fsS "${base}/status" | grep -q 'PreflightTest' || result=1
+        curl -fsS "${FRONTEND_URL}/status" | grep -q 'PreflightTest' || result=1
     fi
     jq '.status = "resolved" | .alerts[].status = "resolved"' "$WEBHOOK_PAYLOAD" |
-        curl -fsS -X POST "${base}/webhook/alertmanager" -H 'Content-Type: application/json' -d @- >/dev/null || true
-
-    kill "$forward_pid" 2>/dev/null || true
-    wait "$forward_pid" 2>/dev/null || true
-    rm -f "$forward_log"
+        curl -fsS -X POST "${FRONTEND_URL}/webhook/alertmanager" -H 'Content-Type: application/json' -d @- >/dev/null || true
     return "$result"
+}
+
+check_frontend_ui() {
+    curl --fail --silent --max-time 5 "${FRONTEND_URL}/index.html" | grep -q 'id="banner"'
+}
+
+check_hubble_relay() {
+    hubble status --server localhost:4245 --timeout 5s >/dev/null 2>&1
 }
 
 check_port_forwards() {
     local name pid
-    for name in prometheus loki tempo; do
+    for name in prometheus loki tempo alertmanager hubble-relay hubble-ui frontend; do
         [[ -f "${PORT_FORWARD_PID_DIR}/${name}.pid" ]] || return 1
         pid="$(cat "${PORT_FORWARD_PID_DIR}/${name}.pid")"
         if [[ -z "$pid" ]] || ! kill -0 "$pid" 2>/dev/null; then
@@ -128,7 +123,7 @@ main() {
         log "ERROR: kubeconfig '$KUBECONFIG_PATH' is not readable"
         exit 1
     fi
-    for tool in curl jq kubectl; do
+    for tool in curl hubble jq kubectl; do
         if ! command -v "$tool" >/dev/null 2>&1; then
             log "ERROR: required command '$tool' is not installed"
             exit 1
@@ -145,7 +140,9 @@ main() {
     check_demo_services || add_missing "one or more demo Services (frontend, api, backend) are missing"
     check_loadgen || add_missing "loadgen Job is missing or has no Running and ready pod"
     check_host_perses || add_missing "host Perses is not responding at http://localhost:8080/api/v1/health (run scripts/40-perses.sh)"
-    check_port_forwards || add_missing "one or more Perses port-forwards in ${PORT_FORWARD_PID_DIR} are not running (run scripts/41-perses-portforwards.sh)"
+    check_port_forwards || add_missing "one or more host port-forwards in ${PORT_FORWARD_PID_DIR} are not running (run scripts/41-perses-portforwards.sh)"
+    check_hubble_relay || add_missing "Hubble Relay is not answering on localhost:4245 (run scripts/41-perses-portforwards.sh)"
+    check_frontend_ui || add_missing "frontend UI is not served at ${FRONTEND_URL}/index.html; it is the beat-4 surface (run scripts/41-perses-portforwards.sh)"
     [[ -r "$WEBHOOK_PAYLOAD" ]] || add_missing "synthetic webhook payload ${WEBHOOK_PAYLOAD} is missing"
 
     if (( ${#MISSING[@]} > 0 )); then

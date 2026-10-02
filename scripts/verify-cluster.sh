@@ -42,7 +42,7 @@ check_hubble_relay() {
         --port-forward \
         --kubeconfig "$KUBECONFIG_PATH" \
         --kube-namespace "$NAMESPACE" \
-        --port-forward-port 4245 \
+        --port-forward-port 14245 \
         --timeout 10s
 }
 

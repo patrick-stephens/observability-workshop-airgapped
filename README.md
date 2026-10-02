@@ -118,7 +118,8 @@ The three metrics paths are explained in `docs/metrics-path.md`.
 Use `sudo scripts/break.sh latency`, `errors`, `dns`, `torpedo`, or `ok` to perform a named beat and its matching reset.
 `torpedo` is a signal generator rather than a failure: requests keep returning 200 while `TorpedoDetected` fires.
 Alertmanager sends each notification to both the echo sink and the frontend's `POST /webhook/alertmanager`, which feeds the alert banner and event feed on `/index.html`; see `docs/alerting-events.md`.
-The DNS beat applies `manifests/chaos-dns-block.yaml` and should be demonstrated with `hubble observe --namespace demo --verdict DROPPED --last 20`.
+The DNS beat applies `manifests/chaos-dns-block.yaml` and should be demonstrated with `hubble observe --namespace demo --verdict DROPPED --last 20`, which reaches Hubble Relay through the `localhost:4245` forward described below.
+The app's HTTP client disables keep-alive, so every upstream call resolves DNS and the DNS beat produces real request failures.
 The load generator image is built reproducibly from `images/hey/Dockerfile` by `scripts/05-capture-cluster-assets.sh`, pinned in `versions.lock`, and included in the offline image archive.
 The official `rakyll/hey` container image is unavailable, so the connected build node builds the pinned v0.1.4 binary into a minimal scratch image.
 The run-of-show, cut order, and presenter narration are in `docs/demo-runbook.md`.
@@ -126,11 +127,35 @@ The run-of-show, cut order, and presenter narration are in `docs/demo-runbook.md
 ## Host-Side Perses
 
 The presenter's Perses runs on the K3S host as a Docker container, outside the cluster.
-Run `sudo scripts/41-perses-portforwards.sh` to forward Prometheus, Loki, and Tempo to `localhost:9090`, `localhost:3100`, and `localhost:3200`, with PIDs in `/tmp/perses-pf/`.
+Run `sudo scripts/41-perses-portforwards.sh` to start these localhost-only forwards, with PIDs in `/tmp/perses-pf/`:
+
+| Local address | Target |
+| --- | --- |
+| `localhost:9090` | Prometheus |
+| `localhost:3100` | Loki gateway |
+| `localhost:3200` | Tempo |
+| `localhost:9093` | Alertmanager UI |
+| `localhost:4245` | Hubble Relay, the `hubble` CLI's default server |
+| `localhost:12000` | Hubble UI |
+| `localhost:8082` | Frontend operator UI, `/index.html` |
+
+Run it after `scripts/reset.sh`, because recreating the frontend pod ends the frontend forward.
+From the presenter host, open a second terminal and keep this SSH tunnel running so the browser can reach the guest's forwarded services:
+
+```bash
+ssh -N -p 2222 -i ~/.ssh/id_ed25519 \
+	-L 9090:127.0.0.1:9090 -L 3100:127.0.0.1:3100 -L 3200:127.0.0.1:3200 \
+	-L 9093:127.0.0.1:9093 -L 4245:127.0.0.1:4245 \
+	-L 12000:127.0.0.1:12000 -L 8082:127.0.0.1:8082 \
+	-R 8080:127.0.0.1:8080 ubuntu@127.0.0.1
+```
+
+Press `Ctrl-C` in that terminal to close the tunnel after the workshop.
 Run `scripts/40-perses.sh` to start Perses on `http://localhost:8080`, bound to localhost only, and apply everything in `dashboards/`.
+Perses Explore is enabled and uses the pinned image's built-in Prometheus, Loki, and Tempo plugins, so traces and log lines can be browsed without a dashboard.
 Both scripts replace any previous instance, so they are safe to rerun.
-`scripts/preflight.sh` checks that Perses, all three port-forwards, the load generator, and the OTLP business metrics are present.
-Run `scripts/42-perses-stop.sh` to stop the port-forwards and remove the Perses container.
+`scripts/preflight.sh` checks that Perses, every port-forward, Hubble Relay, the frontend UI, the load generator, and the OTLP business metrics are present.
+Run `sudo scripts/42-perses-stop.sh` to stop the port-forwards and remove the Perses container.
 
 ## Offline Bundle Pipeline
 
