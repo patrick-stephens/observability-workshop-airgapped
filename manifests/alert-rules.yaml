@@ -1,5 +1,4 @@
 ---
-# Originated in prompt 4; prompt 7 added TorpedoDetected.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:

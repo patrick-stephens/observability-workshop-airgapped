@@ -40,12 +40,12 @@ Subsequent builds use `npm ci` so dependency versions are reproducible.
 
 To verify offline operation, build the deck and open `dist/index.html` via `file://`.
 Open the browser developer tools and confirm the Network tab shows zero requests to non-localhost origins.
-Also open `export.pdf` and confirm that all 17 slides render. The demo interstitials must highlight beats 1, 4, 5, and 6, respectively.
+Also open `export.pdf` and confirm that all 18 slides render. The demo interstitials must highlight beats 1, 4, 5, and 6, respectively.
 
 ## Presenter Follow-ups
 
 - Slidev's optional screen wake lock is disabled to avoid permission-denied errors in restricted browsers. Prevent display sleep through the operating system during the live session if needed.
-- Confirm the `http_server_requests_total` metric name, `service` and `status` labels, 5% threshold, and two-minute `for` duration against the running demo. The `DemoHighErrorRate` rule is illustrative because no matching alert rule exists in the repository yet.
-- Confirm the `demo` namespace and `app: api` selector against the deployed workload. The `api-deny-dns` policy is illustrative because no Cilium policy exists in the repository yet.
+- Verify `DemoHighErrorRate` against `manifests/alert-rules.yaml`: it evaluates Hubble server-side 5xx ratios per destination workload with a 5% threshold and one-minute `for` duration.
+- Verify `manifests/chaos-dns-block.yaml` against the deployed `demo` namespace and `app: api` selector.
 - Confirm each optional workshop URL remains current before presenting.
-- The deck contains 17 pages: six core slides, four demo interstitials, one end slide, and six Q&A backups.
+- The deck contains 18 pages: six core slides, four demo interstitials, one end slide, and seven Q&A backups.

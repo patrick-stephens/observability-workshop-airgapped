@@ -35,7 +35,27 @@ config:
             - name: kubernetes
               k8s-logging.parser: true
               k8s-logging.exclude: true
-    filters: []
+      # A container log, a host log, and an appliance's syslog are the same signal from three sources.
+      # One agent, one configuration, one place to enforce redaction, filtering and retention.
+      - name: syslog
+        listen: 0.0.0.0
+        port: 5140
+        mode: tcp
+        parser: syslog-rfc5424
+        tag: syslog.appliance
+    filters:
+      # Fluent Bit's built-in syslog-rfc5424 parser emits host and ident; normalize them for the bounded Loki labels.
+      - name: modify
+        match: syslog.appliance
+        rename:
+          - host hostname
+          - ident app_name
+      - name: record_modifier
+        match: syslog.appliance
+        record:
+          - job fluent-bit
+          - source syslog
+          - ingest_node ${HOSTNAME}
     outputs:
       - name: loki
         alias: loki
@@ -43,6 +63,15 @@ config:
         host: loki-gateway.observability.svc.cluster.local
         port: 80
         uri: /loki/api/v1/push
-        labels: job=fluent-bit, cluster=observability
+        labels: job=fluent-bit, cluster=observability, namespace=$kubernetes['namespace_name']
         label_keys: "$kubernetes['namespace_name'],$kubernetes['pod_name'],$kubernetes['container_name']"
+        line_format: json
+      # Sensor detail stays in the JSON record, not in high-cardinality Loki labels.
+      - name: loki
+        match: syslog.appliance
+        host: loki-gateway.observability.svc.cluster.local
+        port: 80
+        uri: /loki/api/v1/push
+        labels: job=fluent-bit,source=syslog
+        label_keys: "$hostname,$app_name"
         line_format: json

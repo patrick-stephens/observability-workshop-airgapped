@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Originated in prompt 5; prompt 7 added the host Perses, port-forward, OTLP metric, and webhook assertions.
 set -euo pipefail
 
 LOG_PREFIX="[preflight]"
@@ -162,6 +161,7 @@ main() {
     }
 
     "$(dirname "${BASH_SOURCE[0]}")/break.sh" baseline >/dev/null
+    "${SCRIPT_DIR}/syslog-send-test.sh"
     log "✓ preflight passed — demo ready"
 }
 

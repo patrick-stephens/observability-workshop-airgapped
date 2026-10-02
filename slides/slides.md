@@ -30,7 +30,7 @@ layout: statement
 
 Monitoring covers the failures you predicted. Observability covers the ones you didn't.
 
-<!-- The operative distinction is not tooling; it is whether we can ask a question we did not anticipate. That requires high-cardinality data, no pre-aggregation, and signals that are causally linked. Four tools that do not talk to each other are four monitoring tools. -->
+<!-- The operative distinction is not tooling; it is whether we can ask a question we did not anticipate. That requires high-cardinality data, no pre-aggregation, and signals that are causally linked. Four tools that do not talk to each other are four monitoring tools. And the sources are not just containers. A twenty-year-old sensor array that only speaks syslog belongs in the same place as a modern service — and can be, with the same agent. -->
 
 ---
 layout: default
@@ -48,6 +48,8 @@ layout: default
     <tr><td><code>Profiles</code></td><td>Which line of code is burning CPU?</td></tr>
   </tbody>
 </table>
+
+<p class="signal-note">Container logs, host logs and appliance syslog are the same signal from three sources. They should land in the same place.</p>
 
 <!-- These signals answer different questions; the value is moving between them in one click. Metrics are cheap and always on, but cardinality-blind. Traces pinpoint a path, but cost more to retain. Logs are ground truth nobody wants to grep. Exemplars link metrics to traces, and the OpenTelemetry for Java workshop covers that workflow. We will move on before this becomes a taxonomy debate. There is a fifth thing you will see in a moment that is not on this list: an operational event. It is not a signal; it is a notification. Watch for it. -->
 
@@ -91,6 +93,7 @@ layout: default
     <tr><td>Source</td><td>Available. Auditable. Forkable.</td></tr>
     <tr><td>Transport</td><td>Nothing requires a hosted endpoint</td></tr>
     <tr><td>Data residency</td><td>Everything in-boundary</td></tr>
+    <tr><td>Ingest</td><td>One agent for containers, hosts and appliances</td></tr>
     <tr><td>Notification path</td><td>In-boundary. Alertmanager to your own receivers</td></tr>
     <tr><td>Longevity</td><td>CNCF projects, not a single-vendor bet</td></tr>
   </tbody>
@@ -341,3 +344,22 @@ layout: default
 <p class="backup-note">Application event to operator notification, six hops, all in-boundary, all observable.</p>
 
 <!-- The backend emits a business metric over OTLP. The Collector carries it to Prometheus, where the TorpedoDetected rule evaluates the rate and Alertmanager groups, routes, and fires the alert. A webhook posts to the frontend receiver, which translates the alert name into operational text and displays the red TORPEDO DETECTED banner. That is an application event becoming an operator notification in six hops, all inside the boundary and all observable. -->
+
+---
+layout: default
+---
+
+<!-- Backup B7 -->
+
+# One agent, three sources
+
+<div class="syslog-flow">
+  <div><code>containers</code><span>tail /var/log/containers/*.log</span><code>tag: kube.*</code></div>
+  <div><code>hosts</code><span>systemd / journald (not in demo)</span><code>tag: host.*</code></div>
+  <div><code>appliances</code><span>syslog RFC5424, TCP 5140</span><code>tag: syslog.appliance</code></div>
+</div>
+
+<p class="syslog-flow-summary">Same ConfigMap. Same Loki. Same query surface.</p>
+<p class="backup-note">One place to enforce redaction, filtering and retention.</p>
+
+<!-- Three sources arrive through one Fluent Bit DaemonSet and share one ConfigMap and one Loki backend. Host journald is deliberately not enabled because it requires hostPath mounts. -->

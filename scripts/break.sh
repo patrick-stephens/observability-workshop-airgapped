@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Originated in prompt 5; prompt 7 added the torpedo case and the loadgen restart in baseline.
 set -euo pipefail
 
 LOG_PREFIX="[break]"

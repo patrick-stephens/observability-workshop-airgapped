@@ -186,7 +186,7 @@ To show individual traces, switch to the Tempo tab, which lists recent traces fo
 
 **Cut table entry:** 4 min; can be cut, second in the cut order.
 
-## Beat 7 — Logs · 0:24–0:28
+## Beat 7 — Logs · 0:24–0:29
 
 **Screen:** Perses overview dashboard tab, "One incident, four layers" dashboard, panel "Logs: log volume by level".
 
@@ -203,11 +203,33 @@ The healthy app is quiet, so the ERROR lines line up with the errors beat, where
 
 To show the raw lines, switch to the Loki tab, which runs `{kubernetes_namespace_name="demo"}` in the Perses Explore view.
 
+For the appliance syslog path, run this query in the same Loki view:
+
+```logql
+{source="syslog"} |= "contact"
+```
+
+Say:
+Same pipeline.
+This is coming in over TCP syslog from a sensor appliance, the kind of kit that only speaks syslog and has been doing so since before Kubernetes existed.
+It lands in the same Loki, sits next to the container logs, and is queryable the same way.
+One agent, one configuration file, one place to enforce what gets redacted and what gets retained.
+If you have three collectors, you have three policies to prove.
+
+Then show warnings and above in the same view:
+
+```logql
+{source="syslog"} | json | pri <= 132
+```
+
+Warnings and above.
+Same syntax as the container logs.
+
 **Contingency:** If "Logs: log volume by level" shows only the zero line, run `sudo kubectl logs deploy/backend -n demo --tail 20` in the terminal and narrate from the raw lines.
 
-**Cut table entry:** 4 min; can be cut, first in the cut order.
+**Cut table entry:** 5 min; can be cut, first in the cut order.
 
-## Beat 8 — Perses · 0:28–0:32
+## Beat 8 — Perses · 0:29–0:33
 
 **Screen:** Perses overview dashboard tab, "Demo Overview", business telemetry row, then the "Network" and "One incident, four layers" dashboards.
 
@@ -226,7 +248,7 @@ The business telemetry row is the OTLP path: "Torpedo detections", "Sonar contac
 
 **Cut table entry:** 4 min; can be cut, third in the cut order.
 
-## Beat 9 — Recovery · 0:32–0:35
+## Beat 9 — Recovery · 0:33–0:36
 
 **Screen:** Perses overview dashboard tab, "Demo Overview", then the Alertmanager tab and the Frontend UI tab.
 
@@ -262,11 +284,11 @@ Cut in this order: beat 7 (Logs), then beat 6 (Traces), then beat 8 (Perses).
 | 4 Torpedo | 3 min | never cut |
 | 5 DNS | 5 min | never cut |
 | 6 Traces | 4 min | cut second |
-| 7 Logs | 4 min | cut first |
+| 7 Logs | 5 min | cut first |
 | 8 Perses | 4 min | cut third |
 | 9 Recovery | 3 min | not cut |
 
-The beats total 35 minutes, leaving 5 minutes of slack in a 40-minute slot.
+The beats total 36 minutes, leaving 4 minutes of slack in a 40-minute slot.
 
 ## Pre-demo checklist
 
@@ -294,7 +316,9 @@ That line means every assertion in `scripts/preflight.sh` held:
 - the frontend UI is served at `http://localhost:8082/index.html`;
 - `torpedoes_detected_total` is present in Prometheus at `localhost:9090`, so the OTLP metrics path works;
 - the frontend webhook receiver at `localhost:8082` accepted the synthetic `PreflightTest` alert from `scripts/preflight-test-payload.json` and showed it in `/status`; preflight then resolves it so the banner starts clear;
-- finally, preflight runs `scripts/break.sh baseline`.
+- preflight restores the baseline, sends a hand-crafted RFC5424 test event through `fluent-bit-syslog`, and finds its unique marker in Loki with `{source="syslog"}`;
+- the `sensor-sim` pod remains Running and ready as part of the demo namespace;
+- finally, preflight prints `✓ syslog path working` and `✓ preflight passed — demo ready`.
 
 Set the browser tab order before doors.
 Every URL is served by `scripts/41-perses-portforwards.sh` or `scripts/40-perses.sh`.

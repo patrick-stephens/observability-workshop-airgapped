@@ -4,13 +4,17 @@ SHELL := /bin/bash
 
 BIN_DIR ?= bin
 
-.PHONY: build test docker-build run-all
+.PHONY: build sensor-sim test docker-build run-all
 
-build:
+build: sensor-sim
 	mkdir -p "$(BIN_DIR)"
 	go build -o "$(BIN_DIR)/frontend" ./cmd/frontend
 	go build -o "$(BIN_DIR)/api" ./cmd/api
 	go build -o "$(BIN_DIR)/backend" ./cmd/backend
+
+sensor-sim:
+	mkdir -p "$(BIN_DIR)"
+	go build -o "$(BIN_DIR)/sensor-sim" ./cmd/sensor-sim
 
 test:
 	go test ./...

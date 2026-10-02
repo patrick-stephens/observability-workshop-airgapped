@@ -20,6 +20,7 @@ main() {
         "${APP_MANIFEST_DIR}/backend.yaml"
         "${APP_MANIFEST_DIR}/api.yaml"
         "${APP_MANIFEST_DIR}/frontend.yaml"
+        "${APP_MANIFEST_DIR}/sensor-sim.yaml"
         "${APP_MANIFEST_DIR}/servicemonitor.yaml"
         "${APP_MANIFEST_DIR}/l7-visibility.yaml"
         "${REPO_ROOT}/manifests/loadgen.yaml"
@@ -63,12 +64,13 @@ main() {
     kubectl --kubeconfig "$KUBECONFIG_PATH" label namespace demo alertmanagerConfig=enabled --overwrite >/dev/null
 
     log "Applying demo app services and metrics monitor"
-    for manifest in l7-visibility.yaml backend.yaml api.yaml frontend.yaml servicemonitor.yaml; do
+    for manifest in l7-visibility.yaml backend.yaml api.yaml frontend.yaml servicemonitor.yaml sensor-sim.yaml; do
         kubectl --kubeconfig "$KUBECONFIG_PATH" apply --filename "${APP_MANIFEST_DIR}/${manifest}" >/dev/null
     done
     kubectl --kubeconfig "$KUBECONFIG_PATH" --namespace demo rollout status deployment/backend --timeout=60s >/dev/null
     kubectl --kubeconfig "$KUBECONFIG_PATH" --namespace demo rollout status deployment/api --timeout=60s >/dev/null
     kubectl --kubeconfig "$KUBECONFIG_PATH" --namespace demo rollout status deployment/frontend --timeout=60s >/dev/null
+    kubectl --kubeconfig "$KUBECONFIG_PATH" --namespace demo rollout status deployment/sensor-sim --timeout=60s >/dev/null
     log "Applying alerting resources and echo sink"
     for manifest in alert-rules.yaml alertmanager-config.yaml echo-sink-config.yaml echo-sink-service.yaml echo-sink.yaml; do
         kubectl --kubeconfig "$KUBECONFIG_PATH" apply --filename "${REPO_ROOT}/manifests/${manifest}" >/dev/null

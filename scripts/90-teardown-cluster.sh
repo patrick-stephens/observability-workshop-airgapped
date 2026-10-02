@@ -50,7 +50,7 @@ main() {
         exit 1
     fi
 
-    for manifest in alertmanager-config.yaml alert-rules.yaml chaos-dns-block.yaml loadgen.yaml echo-sink.yaml echo-sink-service.yaml echo-sink-config.yaml local-registry.yaml; do
+    for manifest in fluent-bit-syslog.yaml alertmanager-config.yaml alert-rules.yaml chaos-dns-block.yaml loadgen.yaml echo-sink.yaml echo-sink-service.yaml echo-sink-config.yaml local-registry.yaml; do
         if [[ -f "${REPO_ROOT}/manifests/${manifest}" ]]; then
             log "Removing alerting resources from ${manifest}"
             kubectl --kubeconfig "$KUBECONFIG_PATH" delete --filename "${REPO_ROOT}/manifests/${manifest}" --ignore-not-found

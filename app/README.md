@@ -6,9 +6,11 @@ Each service listens on `:8080` by default, as it would in its own Kubernetes wo
 
 ## Build and Test
 
-Run `make build` to produce `bin/frontend`, `bin/api`, and `bin/backend`.
+Run `make build` to produce `bin/frontend`, `bin/api`, `bin/backend`, and `bin/sensor-sim`.
+Run `make sensor-sim` to build only the sensor simulator.
+The simulator sends RFC5424 appliance events over TCP to the address in `SYSLOG_TARGET` and retries connections forever.
 Run `make test` to execute the Go test suite.
-The `docker-build` target is intentionally unavailable until Dockerfiles are in scope.
+The `docker-build` target is intentionally unavailable; `scripts/05-capture-cluster-assets.sh` builds the pinned image reproducibly.
 
 ## Run Locally
 

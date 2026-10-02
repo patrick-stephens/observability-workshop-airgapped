@@ -8,13 +8,13 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY cmd ./cmd
 COPY internal ./internal
-RUN for service in frontend api backend; do \
+RUN for service in frontend api backend sensor-sim; do \
         go build -trimpath -ldflags=-buildid= -o "/out/${service}" "./cmd/${service}" \
         && touch --date="@${SOURCE_DATE_EPOCH}" "/out/${service}"; \
     done
 
 # One image carries all three services; each Deployment selects its binary with `command`.
 FROM scratch
-COPY --from=builder /out/frontend /out/api /out/backend /
+COPY --from=builder /out/frontend /out/api /out/backend /out/sensor-sim /
 USER 65532:65532
 EXPOSE 8080

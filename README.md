@@ -28,7 +28,7 @@ The bundle captures immutable tag-plus-digest image pins, while replay manifests
 - `images/`: source Dockerfiles for locally built offline workload images.
 - `app/`: demo application source.
 - `bundle/`: output from offline capture; generated contents are gitignored.
-- `docs/`: speaker notes and runbooks.
+- `docs/`: speaker notes, runbooks, and the appliance syslog design note.
 
 ## Local Checks
 
@@ -76,7 +76,7 @@ After Cilium is ready, it starts the locally imported registry image on `registr
 Tetragon is a separate pinned release because the official Cilium chart does not deploy the Tetragon agent.
 
 Rerun the bootstrap and verification commands to confirm the setup is idempotent.
-Run `sudo scripts/90-teardown-cluster.sh` in the guest to uninstall the observability, Tetragon, and Cilium Helm releases while leaving K3S installed.
+Run `sudo scripts/90-teardown-cluster.sh` in the guest to remove the directly applied Fluent Bit syslog Service, then uninstall the observability, Tetragon, and Cilium Helm releases while leaving K3S installed.
 Run `scripts/01-local-vm.sh stop` on the host to stop the guest without deleting its disk.
 Run `scripts/01-local-vm.sh destroy` to remove the guest overlay and generated SSH/cloud-init state while retaining the verified base image.
 
@@ -86,6 +86,9 @@ The repository contains the three-service Go demo application, local hook setup,
 The guest-side prerequisite, K3S, Cilium/Tetragon, and cluster verification scripts are present.
 The Cilium, Tetragon, and observability charts are vendored, and the build-node capture script creates the offline image bundle.
 The observability stack uses the dedicated `fluent-bit-collector` chart as a DaemonSet for node log collection and direct Loki forwarding.
+That single DaemonSet receives container logs from `/var/log/containers/*.log` and RFC5424 appliance syslog over TCP 5140, using one ConfigMap and the same Loki backend.
+The `sensor-sim` Deployment uses the existing `image.demo-app` image, so this adds no image, chart, or version to the air-gapped bundle.
+`manifests/fluent-bit-syslog.yaml` exposes the in-cluster listener as a ClusterIP; a real external appliance would require a deliberate NodePort or LoadBalancer network-policy decision.
 The separate `fluent-bit-aggregator` chart is not deployed because this topology has no Fluent Bit forward-input tier; it remains an option for a future multi-tier logging design.
 Pyroscope's v2 metastore can wedge with `non-monotonic log entries` after a disk write stall, which only a restart clears (grafana/pyroscope#5432).
 `scripts/21-observability.sh` therefore patches a `/ready` liveness probe onto the Pyroscope StatefulSet, so kubelet restarts a wedged pod after about two minutes.
@@ -107,13 +110,14 @@ The alert definition and ordered presenter steps are in `docs/alerting-runbook.m
 
 ## Demo Rehearsal
 
-After `manifests/app/` contains the frontend, API, backend, and ServiceMonitor resources, run `sudo scripts/reset.sh` followed by `sudo scripts/preflight.sh` from the repository root on the K3S node.
-`scripts/05-capture-cluster-assets.sh` builds the frontend, api, and backend binaries reproducibly into one image from `images/app/Dockerfile`, pinned as `image.demo-app` in `versions.lock`.
+After `manifests/app/` contains the frontend, API, backend, sensor simulator, and ServiceMonitor resources, run `sudo scripts/reset.sh` followed by `sudo scripts/preflight.sh` from the repository root on the K3S node.
+`scripts/05-capture-cluster-assets.sh` builds the frontend, api, backend, and sensor-sim binaries reproducibly into one image from `images/app/Dockerfile`, pinned as `image.demo-app` in `versions.lock`.
 After changing anything under `app/`, rebuild with that script and update the `image.demo-app` digest it reports.
 The frontend serves an operator status page at `/index.html`, which polls the `/status` JSON endpoint every 2 seconds.
 `manifests/app/l7-visibility.yaml` is required for Hubble HTTP and DNS metrics because Cilium 1.16 and later ignore the proxy-visibility annotation.
 The three metrics paths are explained in `docs/metrics-path.md`.
-`reset.sh` completes the demo namespace reset in under 60 seconds and refuses to delete namespace `demo` if the app, loadgen, alert, or sink manifests are missing.
+The Fluent Bit multi-source design, transport caveats, and cardinality rule are in `docs/syslog-notes.md`.
+`reset.sh` completes the demo namespace reset in under 60 seconds and refuses to delete namespace `demo` if the app, sensor-sim, loadgen, alert, or sink manifests are missing.
 `preflight.sh` checks the local registry, Cilium, Prometheus, Loki, Tempo, Perses, and demo pod readiness before establishing a clean baseline.
 Use `sudo scripts/break.sh latency`, `errors`, `dns`, `torpedo`, or `ok` to perform a named beat and its matching reset.
 `torpedo` is a signal generator rather than a failure: requests keep returning 200 while `TorpedoDetected` fires.
@@ -122,6 +126,8 @@ The DNS beat applies `manifests/chaos-dns-block.yaml` and should be demonstrated
 The app's HTTP client disables keep-alive, so every upstream call resolves DNS and the DNS beat produces real request failures.
 The load generator image is built reproducibly from `images/hey/Dockerfile` by `scripts/05-capture-cluster-assets.sh`, pinned in `versions.lock`, and included in the offline image archive.
 The official `rakyll/hey` container image is unavailable, so the connected build node builds the pinned v0.1.4 binary into a minimal scratch image.
+Run `sudo scripts/syslog-send-test.sh` to send one RFC5424 marker through the `fluent-bit-syslog` Service and confirm it is queryable in Loki.
+`scripts/preflight.sh` runs the same check after restoring the baseline.
 The run-of-show, cut order, and presenter narration are in `docs/demo-runbook.md`.
 
 ## Host-Side Perses

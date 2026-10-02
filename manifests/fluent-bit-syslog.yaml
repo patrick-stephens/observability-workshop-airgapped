@@ -1,0 +1,18 @@
+---
+# For a real appliance outside the cluster, use NodePort or LoadBalancer.
+# That is a network policy decision, not a Fluent Bit one.
+apiVersion: v1
+kind: Service
+metadata:
+  name: fluent-bit-syslog
+  namespace: observability
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: fluent-bit-collector
+    app.kubernetes.io/instance: fluent-bit
+  ports:
+    - name: syslog-tcp
+      port: 5140
+      targetPort: 5140
+      protocol: TCP

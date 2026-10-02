@@ -1,0 +1,263 @@
+Context
+-------
+Read .github/copilot-instructions.md first.
+
+Extend the Fluent Bit deployment to collect syslog from a simulated
+appliance, alongside the container-log tailing it already does.
+
+The point of this addition is architectural, not incidental. Fluent Bit
+becomes the single ingest point for three source classes:
+  containers  -> tail /var/log/containers/*.log
+  hosts       -> noted but not implemented (see below)
+  appliances  -> syslog RFC5424 over TCP
+
+Three benefits are being demonstrated, and the code should make them
+obvious:
+  1. Single configuration surface — one ConfigMap for all sources
+  2. Single downstream — everything lands in the same Loki, queryable
+     the same way
+  3. Single airgap artifact — one image, one chart, one version
+
+DO NOT split Fluent Bit into a second Deployment for network-received
+syslog. One DaemonSet with two inputs is the point. If you find
+yourself wanting to add a second Fluent Bit workload, stop and record
+the reason in docs/syslog-notes.md instead.
+
+This prompt edits files owned by earlier prompts:
+  values/fluent-bit.yaml          (from prompt 3)
+  templates/fluent-bit-configmap  (from prompt 3, if templated)
+  app/                            (from prompt 1)
+  manifests/                      (new)
+  slides/slides.md                (the Slidev deck)
+Make those edits carefully and add a comment at the top of each edited
+file naming the prompt it originated from.
+
+Part 1 — Sensor simulator
+-------------------------
+Add a new binary at app/cmd/sensor-sim. It emits RFC5424 syslog messages
+to a configurable target over TCP, every ~2 seconds, forever.
+
+Specification:
+- Target from SYSLOG_TARGET env var, e.g.
+    fluent-bit-syslog.observability.svc.cluster.local:5140
+- Each message is a single line, well-formed RFC5424:
+    <PRI>1 TIMESTAMP HOSTNAME APP-NAME PROCID MSGID STRUCTURED-DATA MSG
+- PRI values: use <134> (local0.info) for routine contacts,
+  <132> (local0.warning) for elevated, <131> (local0.err) for
+  immediate.
+- Structured data uses the example PEN 32473:
+    [demo@32473 contact="submarine" bearing="045" range_nm="12" confidence="high"]
+  Field values should vary plausibly — bearings 000-359, ranges 5-40nm,
+  confidence high|medium|low.
+- Rotate across three simulated sensors, one contact per emission:
+    sonar-buoy-1, sonar-buoy-2, radar-array-1
+- Message text should be short and plausible, e.g.
+    "Subsurface contact classified"
+    "Surface track acquired"
+    "Contact lost"
+- Connect once, send forever. On write failure, log and reconnect
+  with a short backoff. Never exit.
+- No dependencies beyond the standard library. This is a demo, not a
+  product.
+
+Build it into the same image as the other app binaries. Add a
+`make sensor-sim` target alongside the existing build targets.
+
+Part 2 — Sensor simulator manifest
+----------------------------------
+Create manifests/app/sensor-sim.yaml:
+- Deployment, namespace demo, replicas 1
+- labels: app=sensor-sim, role=syslog-source
+- image pinned by tag and digest, recorded in versions.lock
+- env SYSLOG_TARGET pointing at the Fluent Bit Service (see Part 3)
+- resource requests: 20m CPU, 32Mi memory
+- No probes needed — if it exits, restartPolicy: Always brings it back.
+
+Part 3 — Fluent Bit ConfigMap changes
+-------------------------------------
+Edit the Fluent Bit ConfigMap. The existing [INPUT] for the container
+tail and its [FILTER] kubernetes chain stay exactly as they are.
+
+Add, after the existing INPUT:
+
+  [INPUT]
+      Name        syslog
+      Listen      0.0.0.0
+      Port        5140
+      Mode        tcp
+      Parser      syslog-rfc5424
+      Tag         syslog.appliance
+
+Add, after the existing FILTER chain:
+
+  [FILTER]
+      Name    record_modifier
+      Match   syslog.appliance
+      Record  job fluent-bit
+      Record  source syslog
+      Record  ingest_node ${HOSTNAME}
+
+Add, after the existing loki OUTPUT:
+
+  [OUTPUT]
+      Name        loki
+      Match       syslog.appliance
+      Host        loki-gateway.observability.svc.cluster.local
+      Port        80
+      Labels      job=fluent-bit,source=syslog
+      Label_keys  $hostname,$app_name
+
+Add a comment block above the syslog section explaining, in the config
+itself, why it is in the same file as the container tail:
+
+  # A container log, a host log, and an appliance's syslog are the
+  # same signal from three sources. One agent, one configuration,
+  # one place to enforce redaction, filtering and retention.
+
+Cardinality note: keep Loki labels minimal. Do NOT add
+`sensor_id`, `contact`, `bearing` or similar as labels — those are
+high-cardinality and belong in the log line, not the index. The
+Label_keys above use hostname and app_name, which have small,
+bounded value sets and are safe.
+
+Part 4 — Service
+----------------
+Add a Service for the syslog listener in the observability namespace:
+- Name: fluent-bit-syslog
+- Selects the existing Fluent Bit DaemonSet pods
+- Port 5140, targetPort 5140, protocol TCP
+- ClusterIP is sufficient — the simulator is in-cluster
+- Add a comment: if a real appliance outside the cluster is used, this
+  Service needs a NodePort or a LoadBalancer, and that is a network
+  policy decision, not a Fluent Bit one.
+
+Part 5 — Verification script
+----------------------------
+Add scripts/syslog-send-test.sh:
+- Sends a single hand-crafted RFC5424 line to the Fluent Bit Service
+  over TCP, using nc or a small Go helper
+- Waits 5 seconds
+- Queries Loki for the marker it just sent
+- Exits 0 and prints "✓ syslog path working" if found, non-zero
+  otherwise
+
+Add it to preflight.sh as a final assertion.
+
+Part 6 — Documentation
+----------------------
+Create docs/syslog-notes.md covering:
+- The three source classes and why the third is the hard one
+- Why one agent beats three, specifically in an assurance context:
+  one chokepoint to demonstrate, one config to review, one lifecycle
+- The specific caveat about UDP: it is not connection-sticky across a
+  Kubernetes Service, so ordering per source is not preserved. TCP is.
+  If a real appliance only speaks UDP, that is a design constraint to
+  name, not a problem to hide.
+- The cardinality rule: fields in the log line, not in the index.
+- What you would add next for a real deployment: host logs via the
+  systemd input, and a note that this is deliberately omitted from the
+  demo because it needs hostPath mounts on the DaemonSet.
+
+Part 7 — Slide deck changes
+---------------------------
+Edit slides/slides.md (produced by the Slidev prompt). Four changes.
+
+# 7a. Slide 3 — The signals
+Below the existing four-row table, add a single muted line:
+  "Container logs, host logs and appliance syslog are the same signal
+   from three sources. They should land in the same place."
+
+# 7b. Slide 5 — Why this stack
+Add one row to the table:
+  Ingest | One agent for containers, hosts and appliances
+
+Keep the Criterion column in accent mono, consistent with the rest.
+
+# 7c. New backup slide
+Add a new backup slide after the existing last one. This makes the deck
+18 slides, not 17. Update any slide count assertion accordingly.
+
+  Title: One agent, three sources
+  A three-line flow, each line an input path with its tag:
+
+    containers   tail /var/log/containers/*.log      tag: kube.*
+    hosts        systemd / journald (not in demo)    tag: host.*
+    appliances   syslog RFC5424, TCP 5140            tag: syslog.appliance
+
+  Below the flow, a single line:
+    "Same ConfigMap. Same Loki. Same query surface."
+
+  Below that, in muted smaller text:
+    "One place to enforce redaction, filtering and retention."
+
+# 7d. Slide 2 note
+Update the speaker note for slide 2 to add one sentence at the end:
+  "And the sources are not just containers. A twenty-year-old sensor
+   array that only speaks syslog belongs in the same place as a modern
+   service — and can be, with the same agent."
+
+Part 8 — Update the speaker notes
+---------------------------------
+Regenerate slides/speaker-notes.md using the same generation rules as
+prompt 8 (read the actual repo state, do not invent names). The new
+backup slide and the slide 2 addition both need notes.
+
+Also regenerate docs/demo-runbook.md so beat 7 (Logs) reflects the new
+flourish described in Part 9.
+
+Part 9 — Beat 7 (Logs) flavour change
+-------------------------------------
+The runbook's beat 7 currently ends with an optional flourish that
+flips the Fluent Bit output to a file and back. REPLACE that flourish
+with the syslog demonstration below. The new flourish is longer
+(~60s vs ~20s) but replaces a weaker version of the same argument.
+
+Insert this as the final action in beat 7, after the container-log
+query:
+
+  Query Loki for the syslog path:
+    {source="syslog"} |= "contact"
+
+  Narration, in the presenter's voice:
+    "Same pipeline. This is coming in over TCP syslog from a sensor
+     appliance — the kind of kit that only speaks syslog and has been
+     doing so since before Kubernetes existed. It lands in the same
+     Loki, sits next to the container logs, and is queryable the same
+     way. One agent, one configuration file, one place to enforce what
+     gets redacted and what gets retained. If you have three
+     collectors, you have three policies to prove."
+
+  Then show the syslog path in the same view:
+    {source="syslog"} | json | pri <= 132
+  "Warnings and above. Same syntax as the container logs."
+
+Update the beat 7 duration from 4 to 5 minutes. The total content
+becomes 36 minutes, leaving 4 minutes of slack in the 40-minute slot.
+Cut order is unchanged: 7, then 6, then 8, with 4 (Torpedo) and
+5 (DNS) never cut.
+
+Constraints
+-----------
+- One Fluent Bit DaemonSet. Do not add a second Fluent Bit workload.
+- Do not add high-cardinality Loki labels.
+- Do not modify any part of the existing container-log path.
+- Every image pinned by tag and digest, recorded in versions.lock.
+- Everything must work with the network interface down, except the
+  initial build. A syslog sender inside the cluster is in-boundary
+  traffic and needs no special treatment.
+- The simulator must never exit on its own. If it does, that is a bug.
+
+Acceptance
+----------
+1. `./scripts/syslog-send-test.sh` exits 0 with "✓ syslog path working".
+2. A hand-sent RFC5424 line appears in Loki within 10 seconds when
+   queried with `{source="syslog"}`.
+3. The sensor-sim Deployment has been running for 60 seconds with
+   restartCount 0.
+4. The container-log path still works unchanged:
+   `{namespace="demo"}` returns application logs as before.
+5. `preflight.sh` passes clean, including the new syslog assertion.
+6. `slides/export.pdf` now has 18 pages, not 17.
+7. The BeatCounter in slides/components/BeatCounter.vue is unchanged —
+   still 10 beats. Syslog is a flavour in beat 7, not a new beat.
+Report the results of checks 1, 2 and 6.

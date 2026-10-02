@@ -1,5 +1,4 @@
 ---
-# Originated in prompt 4; prompt 7 added the frontend webhook and the business pillar route.
 apiVersion: monitoring.coreos.com/v1alpha1
 kind: AlertmanagerConfig
 metadata:

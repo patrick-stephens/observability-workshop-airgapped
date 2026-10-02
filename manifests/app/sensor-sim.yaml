@@ -1,0 +1,45 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sensor-sim
+  namespace: demo
+  labels:
+    app: sensor-sim
+    role: syslog-source
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sensor-sim
+  template:
+    metadata:
+      labels:
+        app: sensor-sim
+        role: syslog-source
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: Always
+      containers:
+        - name: sensor-sim
+          # Pinned by tag and digest in versions.lock (image.demo-app); imported locally, never pulled.
+          image: registry.lab.local:5000/demo/app:v0.1.0
+          imagePullPolicy: Never
+          command:
+            - /sensor-sim
+          env:
+            - name: SYSLOG_TARGET
+              value: fluent-bit-syslog.observability.svc.cluster.local:5140
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL

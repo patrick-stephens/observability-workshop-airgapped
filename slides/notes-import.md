@@ -25,7 +25,7 @@ Replace the comment that begins `<!-- The operative distinction is not tooling;`
 <!--
 The operative distinction is not tooling; it is whether we can ask a question we did not anticipate. Monitoring answers the questions we wrote down in advance, and in a disconnected environment there is nobody to escalate to when the question is new.
 
-Asking a new question needs high-cardinality data, no pre-aggregation, and signals that are causally linked. Four tools that do not talk to each other are four monitoring tools.
+Asking a new question needs high-cardinality data, no pre-aggregation, and signals that are causally linked. Four tools that do not talk to each other are four monitoring tools. And the sources are not just containers. A twenty-year-old sensor array that only speaks syslog belongs in the same place as a modern service — and can be, with the same agent.
 -->
 ```
 
@@ -187,4 +187,14 @@ Replace the comment that begins `<!-- The backend emits a business metric over O
 <!--
 The backend emits a business metric over OTLP, Prometheus evaluates TorpedoDetected, and Alertmanager groups the alert and posts it to the frontend's webhook receiver. The receiver translates the alert name into operational text and the operator screen shows the red TORPEDO DETECTED banner, all inside the boundary.
 -->
+
+## Slide 18 — One agent, three sources
+
+Replace the comment after the flow with:
+
+```html
+<!--
+Three sources arrive through one Fluent Bit DaemonSet and share one ConfigMap and one Loki backend. Host journald is deliberately not enabled because it requires hostPath mounts.
+-->
+```
 ```
