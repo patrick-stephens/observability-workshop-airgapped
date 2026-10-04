@@ -1,146 +1,274 @@
 Context
 -------
-Read .github/copilot-instructions.md first. Then append the following
-rules to it:
+Read .github/copilot-instructions.md first — the learner-vm
+conventions appended by prompt 10s apply (scripts are artifacts;
+execution evidence only via feedback/ transcriptions; SCRIPT_VERSION
+bumps; report block protocol).
 
-  - learner-vm scripts are ARTIFACTS. The agent never executes them on
-    the target VM; there is no AI on the airgapped network. Execution
-    evidence arrives only via feedback/airgap-run-*.md. Never claim a
-    script "works" — claim it "validates and self-diagnoses".
-  - Before any learner-vm change, read feedback/airgap-run-*.md (newest
-    first) and the SCRIPT_VERSION comments in the scripts.
-  - On every edit to a learner-vm script, bump its SCRIPT_VERSION and
-    add a one-line comment describing the change.
-  - Every learner-vm script must source scripts/lib.sh, be idempotent,
-    support --dry-run, and emit the REPORT BEGIN/END block per the
-    transcription protocol.
+NOTE: the content artifacts (content/repos, content/docs,
+content/extracted, content/bin) are produced by prompt 10s. This
+prompt does NOT create them — 00-diagnose CHECKS their presence.
+
+Environment model (fixed facts — do not re-litigate)
+----------------------------------------------------
+- Target: RHEL 8.6 MINIMAL base image. Desktop, Firefox and container
+  tooling are installed BY THESE SCRIPTS (10-80, later prompts), not
+  assumed present.
+- The base image already has: the self-signed airgap CA in the OS
+  trust store; DNF repos pointing at Artifactory (BaseOS, AppStream,
+  EPEL); fixed hostname and network configured by the image team.
+- Container runtime: PODMAN ONLY, ROOTFUL. No docker-ce repo access,
+  no docker daemon. `docker` on the VM is the podman-docker shim (RPM,
+  installed by script 20). docker-compose v2 is the vendored binary
+  from prompt 10s (installed by script 50). Compose is robustness
+  only — zero usage in any lab.
+- Auto-elevate wrappers (script 50) make plain `docker`/`podman`
+  equivalent to sudo-prefixed, so lab commands hit ONE rootful image
+  store — the one the preloaded images live in. This REQUIRES
+  passwordless sudo for the engineer user.
+- User: engineer (exists, wheel member). sudo currently prompts for a
+  password; script 50 makes it passwordless because the wrappers
+  require non-interactive sudo.
+- Pulls are ANONYMOUS — confirmed. There is no podman login step. If
+  a probe ever returns 401, that is a design change to escalate, not
+  a bug to work around.
+- Registry: all container upstreams (docker.io, ghcr.io, quay.io) are
+  proxied through ONE endpoint:
+      $DOCKER_REGISTRY = "${ART_HOST}/artifactory/docker-registry"
+  Routing is BY IMAGE PATH ONLY. Podman registries.conf MIRRORS route
+  pulls of original references here transparently and store them
+  under the ORIGINAL name. There is NO retagging and NO in-VM
+  registry anywhere in this design.
+- CA trust locations: the OS store (/etc/pki/ca-trust) — already
+  configured on the base; and /etc/containers/certs.d/$REG_HOST/
+  ca.crt — installed by script 30. /etc/docker does NOT exist in this
+  design. Any /etc/docker reference anywhere in this repo is a bug.
 
 Objective
 ---------
-Produce the foundation artifacts for the learner VM:
-  scripts/lib.sh       shared helpers: logging, steps, report block
-  scripts/00-diagnose.sh  read-only environment report
-  lab-vm.conf          all configuration variables
-  README-FIRST.md      the operator's run order and transcription guide
-
-The target VM: RHEL 8.6, minimal base image, self-signed CA already in
-the OS trust store, DNF via Artifactory (BaseOS, AppStream, EPEL,
-Docker CE), fixed hostname, ISO attachable as a file or a CD-ROM
-device. The script runs on this MINIMAL base — python3 may not be
-useful, some tools may be absent. Every check must degrade to SKIPPED
-with a reason rather than crash.
+Produce the foundation artifacts:
+  scripts/lib.sh            shared helpers (logging, steps, report)
+  scripts/00-diagnose.sh    read-only environment report
+  lab-vm.conf               operator-tunable variables
+  README-FIRST.md           operator run order + transcription guide
 
 scripts/lib.sh
 --------------
-Provide:
-  SCRIPT_NAME, SCRIPT_VERSION (each script sets these before sourcing)
-  log()          [NN-name] prefix to stdout AND /var/log/lab-setup/
-  step_ok "msg"  counts + logs ✓
-  step_skip "reason" "msg"  counts + logs → SKIPPED
-  step_fail "what" "fix-hint" ["diagnostic command"...]
-    - counts the failure as F<n>
-    - writes to the report: the failure, the fix-hint, and for each
-      diagnostic command: runs it, includes up to 15 lines of output
-      (indented), or the error if the command does not exist
-  begin_report / end_report
-    - end_report prints the REPORT BEGIN/END block: script name +
-      version, hostname, UTC timestamp, repo git SHA (best effort),
-      RESULT line (PASSED/FAILED with ok/failed/skipped counts), all
-      F<n> entries, OK summary with full-log path, SKIPPED list, and a
-      NEXT line supplied by the script
-  run()          wrapper honouring --dry-run: prints "[dry-run] WOULD:
-                 <cmd>" instead of executing
-  require_or_skip "binary" "check description"
-                 if the binary is absent, records a SKIPPED and
-                 returns 1 so the caller can branch
-  No ANSI colour inside the report block. Colour elsewhere is fine.
-  Report block must stay under 60 lines: OK steps are summarised as a
-  count; only failures, skips and diagnostics are itemised.
+Each script sets SCRIPT_NAME and SCRIPT_VERSION before sourcing.
+lib.sh provides:
 
-scripts/00-diagnose.sh
-----------------------
-Read-only. ALWAYS exits 0. No --dry-run needed (it changes nothing).
+  REPO_ROOT     derived from the sourcing script's own path (two
+                levels up from scripts/); fatal with fix-hint if not
+                found
+  REG_HOST      derived from DOCKER_REGISTRY — the host part before
+                the first '/'; validated non-empty and slash-free;
+                malformed DOCKER_REGISTRY is fatal with fix-hint
+                pointing at lab-vm.conf
+  REPOS_ROOT / DOCS_ROOT / VENDOR_BIN
+                derived as $REPO_ROOT/content/{repos,docs,bin}.
+                Content paths are NEVER operator-configured; they
+                follow the repo's own location.
+  LOG_DIR       /var/log/lab-setup; created on first write
+
+  log "msg"     "[<SCRIPT_NAME>] msg" to stdout AND
+                $LOG_DIR/<SCRIPT_NAME>.log
+  step_ok "msg" counts OK; logs with a check mark
+  step_skip "reason" "msg"
+                counts SKIPPED; logs with an arrow and the reason
+  step_fail "what" "fix-hint" ["diagnostic command", ...]
+                counts as F<n>; logs with a cross; then runs each
+                diagnostic command immediately, capturing up to 15
+                lines of combined stdout+stderr into the report entry
+                (or records "command not found" / a timeout notice).
+                fix-hint must name a file, URL or variable.
+  begin_report / end_report "NEXT: ..."
+                end_report prints:
+                  ==================== REPORT BEGIN ====================
+                  SCRIPT: <name> v<version>
+                  HOST: <hostname> <UTC timestamp> git: <sha, best effort>
+                  RESULT: PASSED|FAILED (ok=N failed=N skipped=N)
+                  F1..Fn: what / fix-hint / capped diagnostics
+                  OK: N steps — full log: <path>
+                  SKIPPED: itemised reasons
+                  NEXT: <supplied line>
+                  ==================== REPORT END ======================
+                Block must stay <=60 lines and contain NO ANSI colour.
+                Colour outside the block is permitted.
+  run "cmd..."  executes via bash -c, honouring the script's --dry-run
+                flag: in dry-run, print "[dry-run] WOULD: <cmd>" and
+                return 0 without executing
+  require_or_skip "binary" "description"
+                if the binary is absent: step_skip and return 1 so the
+                caller can branch
+
+scripts/00-diagnose.sh   SCRIPT_VERSION = 3
+------------------------------------------
+READ-ONLY. ALWAYS exits 0. Designed to run FIRST, on the just-installed
+minimal base — every check degrades to step_skip with a reason if the
+underlying tool is absent. No --dry-run needed (it changes nothing).
+
 Checks, in order:
-  1. System: /etc/redhat-release, uname -m, hostname, primary IPv4,
-     memory, disk free on / and /var/lib
-  2. ISO: ISO_PATH from lab-vm.conf — file or device?
-     If file: loop-mount test to a temp dir, check BaseOS/ and
-     AppStream/ exist, unmount. If device (/dev/cdrom or /dev/sr0):
-     try mounting, same check, unmount. Report which form.
-  3. Artifactory (curl, 10s timeouts, using the CA from the OS trust
-     store — NOT --insecure):
-       https://$ART_HOST/            (expect 200 or 302)
-       manifest probes with Accept:
-       application/vnd.docker.distribution.manifest.v2+json for:
-         /library/busybox/manifests/1.36
-         /fluent/fluent-bit/manifests/5.1.1
-         /prometheus/node-exporter/manifests/v1.12.1
-     On failure, auto-diagnostics: getent hosts $ART_HOST;
-     curl -v tail (10 lines)
-  4. Docker CE DNF candidates — fetch
-     <candidate>/repodata/repomd.xml and report the HTTP status of
-     each. Candidates (operator confirms the right one with the
-     Artifactory admin):
-       $DNF_DOCKER_CE_BASEURL (from lab-vm.conf)
-       https://$ART_HOST/artifactory/docker-ce-rhel8/
-       https://$ART_HOST/artifactory/docker-ce-centos8/
-       https://$ART_HOST/docker-ce-rhel8/
-  5. CA trust, three locations:
-       /etc/pki/ca-trust/source/anchors/ — list files
-       OS bundle contains the Artifactory CA (openssl + grep on the
-       extracted subjects, best effort)
-       /etc/docker/certs.d/$ART_HOST/ca.crt — expected absent
-       /etc/containers/certs.d/$ART_HOST/ca.crt — expected absent
-  6. Proxy env: HTTP_PROXY, HTTPS_PROXY, NO_PROXY (+ lowercase)
-  7. DNF state: dnf repolist; dnf module list container-tools;
-     dnf -q list available docker-ce (report whether it resolves; on
-     failure include dnf -v output tail)
-  8. Content: REPO_ROOT present? content/repos/<track> for all five
-     tracks with lab*.html counts; content/docs/<track> landing pages
-  9. Tools present: git, curl, podman, skopeo, docker, jq, java,
-     python3 — with versions where present
- 10. SELinux mode; firewalld state
+
+ 1. System: /etc/redhat-release, uname -m, hostname, primary IPv4
+    (hostname -I), memory (free -g), disk free on / AND on /var/lib
+    (podman storage lives under /var/lib/containers)
+ 2. User model: id engineer — exists? wheel member? sudoers state:
+    grep NOPASSWD for engineer across /etc/sudoers and
+    /etc/sudoers.d/* — expected ABSENT at this stage; report as an
+    arrow-expected line: "script 50 will configure passwordless sudo;
+    the auto-elevate wrappers require it". visudo present?
+ 3. ISO: ISO_PATH from lab-vm.conf. If a device (/dev/cdrom, /dev/sr0):
+    mount, verify BaseOS/ and AppStream/ exist, unmount. If a file:
+    loop-mount read-only to a temp dir, same check, unmount. Report
+    which form was found. SKIPPED with reason if neither works.
+ 4. Artifactory + registry probes (curl, 10s timeouts, using the OS
+    trust store — NEVER --insecure):
+      https://$ART_HOST/                       expect 200 or 302
+      https://$DOCKER_REGISTRY/v2/             report the code
+      manifest GETs with Accept:
+      application/vnd.docker.distribution.manifest.v2+json, for:
+        $DOCKER_REGISTRY/v2/library/busybox/manifests/1.36
+        $DOCKER_REGISTRY/v2/fluent/fluent-bit/manifests/5.1.1
+        $DOCKER_REGISTRY/v2/prometheus/node-exporter/manifests/v1.12.1
+      (tags per recon; the committed parse-labs output —
+      content/extracted/external-images.txt — is the final authority;
+      if it lists different tags, probe those too and note the
+      discrepancy)
+    Interpret the codes:
+      200 -> reachable
+      401 -> "registry requires authentication — pulls were confirmed
+              anonymous; escalate to the Artifactory admin; this is a
+              design change"
+      404 -> "image not cached and pull-through did not fetch, or the
+              repo path is wrong — confirm DOCKER_REGISTRY with the
+              admin; the image must be warm before script 60"
+    On any failure, auto-diagnostics: getent hosts $ART_HOST;
+    curl -v tail (10 lines); openssl s_client -connect <REG_HOST>:443
+    </dev/null 2>/dev/null | openssl x509 -noout -subject -issuer;
+    AND a fallback probe of https://$ART_HOST/v2/<same path> — the
+    root endpoint served pulls successfully in earlier testing, so a
+    root-vs-docker-registry discrepancy is diagnostic gold.
+ 5. DNF: dnf repolist; dnf module list container-tools (stream state);
+    dnf makecache timed — report duration; on failure include the last
+    20 lines of `dnf -v makecache`.
+    NOTE: docker-ce repo probing is DELIBERATELY ABSENT — docker-ce is
+    not part of this design.
+ 6. CA trust:
+      ls /etc/pki/ca-trust/source/anchors/ (count + names)
+      bundle subject count via openssl (best effort) + grep for the
+      airgap CA subject
+      /etc/containers/certs.d/$REG_HOST/ca.crt — expected ABSENT at
+      this stage (script 30 installs it); arrow-expected line, NOT a
+      failure
+ 7. Proxy env: HTTP_PROXY, HTTPS_PROXY, NO_PROXY and the lowercase
+    variants — report which are set
+ 8. Container tooling:
+      command -v docker — if present, readlink -f it. A REAL docker
+      daemon binary/server is UNEXPECTED and must be flagged loudly
+      (it would mean a second runtime).
+      rpm -q podman-docker — expected ABSENT at this stage (script 20
+      installs it)
+      podman / buildah / skopeo versions, or SKIPPED with reason
+      if podman is present: podman info exit status (stderr tail on
+      failure); head -20 of /etc/containers/registries.conf — script
+      40 replaces this file wholesale; the stock state is context
+ 9. Podman services + kernel: systemctl is-active podman.socket
+    (expected inactive now); sysctl -n vm.max_map_count (stock 65530;
+    the OpenSearch lab needs 262144 — script 40 sets it)
+10. Content:
+      REPO_ROOT exists
+      content/repos/<track> for all five tracks, with lab*.html
+      counts per track
+      content/docs/<track> landing page per track
+      content/bin/docker-compose-v2 exists AND its sha256 matches
+      content/bin/docker-compose-v2.sha256 — mismatch is a FAILURE
+      content/extracted/{commands.json, external-images.txt,
+      curated.json} present? If MISSING: arrow line "produced by
+      prompt 10s on the online side — the transfer is incomplete
+      without them; script 60 consumes commands.json"
+11. Host state: getenforce; firewalld is-active; systemctl
+    get-default; is gdm installed? (expected absent — the base is
+    minimal; script 20 installs the GUI)
+
+Output: one [00-diagnose] line per check, tick/cross/arrow convention;
+the same stream written to $LOG_DIR/00-diagnose.log.
+end_report NEXT line:
+  "transcribe this report block; provisioning scripts (10-80) are
+   finalised after this report is reviewed"
+
 Modes:
-  (default) run all checks
-  --selftest render a synthetic report block with 2 ok, 1 failed
-             (with diagnostics), 1 skipped — proves the block renders.
-             No system access. The agent runs this online.
-Validation (agent-side, online):
-  bash -n on all scripts; shellcheck with errors as failures and
-  warnings allowed; run scripts/00-diagnose.sh --selftest and confirm
-  the block renders within 60 lines and without colour codes.
-  Report all three results.
+  (default)   run all checks
+  --selftest  render a synthetic report block (2 OK, 1 FAILED WITH
+              diagnostics, 1 SKIPPED) with zero system access. This is
+              the agent's execution evidence — the agent runs it
+              online.
 
 lab-vm.conf
 -----------
-Template with defaults and a comment per variable:
+Operator-tunable values ONLY. Every path under content/ is derived by
+lib.sh from the repo's own location — do not add path variables here.
+
   HOSTNAME="o11y-lab.internal"
-  STATIC_IP=""            # empty = DHCP; set "192.168.10.10/24" if the
-                          # Windows host must reach the VM. In-VM use
-                          # does not need it.
+  STATIC_IP=""              # empty = keep the base image's network
+                            # config; set "a.b.c.d/24" only if needed
   ART_HOST="artifactory.internal"
-  ART_HOST_IP=""          # if set, 30-ca-and-trust.sh writes an
-                          # /etc/hosts entry — removes DNS as a
-                          # failure class during provisioning
+  DOCKER_REGISTRY="${ART_HOST}/artifactory/docker-registry"
+  ART_HOST_IP=""            # if set, script 30 writes an /etc/hosts
+                            # entry — removes DNS as a failure class
   CA_CERT_SOURCE="/etc/pki/ca-trust/source/anchors/airgap-ca.crt"
-  ISO_PATH="/dev/cdrom"   # file path or device
-  DNF_DOCKER_CE_BASEURL="https://artifactory.internal/artifactory/docker-ce-rhel8/"
-  DNF_EPEL_BASEURL=""     # optional
-  CONTENT_ROOT="<derived: repo root on the VM>"
-  WORKSHOPS_ROOT="$CONTENT_ROOT/content/repos"
-  DOCS_ROOT="$CONTENT_ROOT/content/docs"
+  ISO_PATH="/dev/cdrom"     # device or file path; empty = ISO
+                            # fallback disabled
+  WORKSHOP_USER="engineer"
+  PASSWORDLESS_SUDO="yes"   # REQUIRED — script 50's auto-elevate
+                            # wrappers need non-interactive sudo;
+                            # "no" is fatal there
+  AUTOLOGIN="yes"
   BROWSER="firefox"
+
+NOTE: there is NO docker-ce, daemon, or content-path variable in this
+file. If a previous version carried DNF_DOCKER_CE_BASEURL or
+CONTENT_ROOT, they are REMOVED — do not bring them forward.
 
 README-FIRST.md
 ---------------
-One page: what this repo is; transfer to VM; the run order
-(00 → 10-50 → 60 → 70 → 80 → snapshot); the transcription protocol
-with one example block; the rule "transcribe, don't improvise"; how to
-record feedback/airgap-run-00N.md on the online side.
+One page:
+- what this repo is (offline learner VM provisioning; podman runtime
+  via the podman-docker shim, rootful, auto-elevated; Artifactory
+  single-endpoint registry; fully pre-loaded guarantee — no runtime
+  pulls, ever)
+- transfer the repo to the VM; edit lab-vm.conf ONLY for values that
+  differ from the defaults
+- run order (operator, sudo):
+    00-diagnose -> 10-preflight -> 20-install-tooling ->
+    30-ca-and-trust -> 40-podman-config -> 50-user-setup ->
+    60-load-images -> 70-quickstart -> 80-verify-offline -> snapshot
+- the transcription protocol with one example REPORT block; the rule
+  "transcribe, do not improvise"; every script is idempotent — re-runs
+  are always safe; if a script fails, transcribe and STOP
+- feedback/airgap-run-00N.md naming convention for the online side
+- the snapshot instruction: once 80-verify-offline passes, shut the VM
+  down cleanly and snapshot — that snapshot is the shipped artifact
+
+Validation (agent-side, online — the ONLY execution claims allowed)
+-------------------------------------------------------------------
+- bash -n on every script; shellcheck with errors fatal, warnings
+  allowed
+- run scripts/00-diagnose.sh --selftest and paste the rendered block
+- grep audits — ALL must return zero matches across scripts/ and
+  lab-vm.conf:
+      grep -rn "docker-ce" scripts/ lab-vm.conf
+      grep -rn "/etc/docker" scripts/
+      grep -rn "daemon.json" scripts/
+      grep -rn "registry-mirrors" scripts/
+- confirm lib.sh's REG_HOST validation fails loudly on a malformed
+  DOCKER_REGISTRY (paste the failure output)
 
 Acceptance
 ----------
-1. bash -n and shellcheck pass on all new scripts.
-2. 00-diagnose.sh --selftest output pasted — block renders, ≤60 lines,
-   no colour codes, has F1 with diagnostics and one SKIPPED.
-3. lab-vm.conf and README-FIRST.md pasted for review.
+1. bash -n + shellcheck results for lib.sh and 00-diagnose.sh.
+2. The --selftest rendered block pasted: <=60 lines, no colour codes,
+   contains F1 with at least one diagnostic output and one SKIPPED.
+3. The grep audit results pasted — all zero matches.
+4. lab-vm.conf and README-FIRST.md pasted in full for review.
+5. Explicit statement: no learner-vm script was executed against the
+   VM; the only execution was 00-diagnose.sh --selftest (online).
