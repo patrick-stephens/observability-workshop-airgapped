@@ -1,0 +1,37 @@
+Third-Party Notices
+===================
+
+The Apache-2.0 license in LICENSE applies only to original material authored for this repository.
+It does not relicense third-party code, workshop content, documentation, images, chart packages, container images, or RPM packages that may be collected, mirrored, vendored, or referenced here.
+Those materials retain their respective upstream terms.
+
+Workshop repositories and documentation
+----------------------------------------
+
+The collection stage may clone and mirror these workshop projects:
+
+- OpenTelemetry workshop: https://gitlab.com/o11y-workshops/workshop-opentelemetry and https://o11y-workshops.gitlab.io/workshop-opentelemetry/
+- OpenTelemetry for Java workshop: https://gitlab.com/o11y-workshops/workshop-otel-developers and https://o11y-workshops.gitlab.io/workshop-otel-developers/
+- Prometheus workshop: https://gitlab.com/o11y-workshops/workshop-prometheus and https://o11y-workshops.gitlab.io/workshop-prometheus/
+- Fluent Bit workshop: https://gitlab.com/o11y-workshops/workshop-fluentbit and https://o11y-workshops.gitlab.io/workshop-fluentbit/
+- Perses workshop: https://gitlab.com/o11y-workshops/workshop-perses and https://o11y-workshops.gitlab.io/workshop-perses/
+
+The root LICENSE files inspected for workshop-opentelemetry, workshop-prometheus, workshop-fluentbit, and workshop-perses contain the MIT license notice for Reveal.js, copyright 2011-2022 Hakim El Hattab and Reveal.js contributors.
+That notice does not establish a license for all workshop-authored slide content or documentation.
+No root LICENSE file was found at the inspected default branch of workshop-otel-developers.
+Public availability alone is not a license grant.
+Keep the original repository history, attribution, and any per-file notices with collected copies, and confirm redistribution rights for workshop-authored content with its owner.
+
+Software, charts, images, and packages
+--------------------------------------
+
+The chart archives, image references, and captured image bundles used by the observability stack are third-party materials pinned in charts/, versions.lock, and images.txt.
+Each remains under its upstream license and any bundled NOTICE or attribution files.
+Consult the source project and image metadata for the license of a particular component and its transitive contents.
+
+The learner-vm collection stage may include Docker CE RPMs and resolved Rocky Linux 9 dependencies under learner-vm/bundle/rpms/.
+Each RPM retains its upstream license recorded in its RPM metadata; the local repository metadata does not change those terms.
+The collected workshop Git bundles and static documentation mirrors remain subject to their source repository and asset licenses.
+
+If a redistributed bundle contains a third-party NOTICE or license file, retain it with that material.
+Do not remove upstream copyright, license, trademark, or attribution notices.

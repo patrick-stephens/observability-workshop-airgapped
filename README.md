@@ -30,6 +30,11 @@ The bundle captures immutable tag-plus-digest image pins, while replay manifests
 - `bundle/`: output from offline capture; generated contents are gitignored.
 - `docs/`: speaker notes, runbooks, and the appliance syslog design note.
 
+## License
+
+Original material authored for this repository is licensed under Apache-2.0; see [LICENSE](LICENSE).
+Third-party workshop content, images, charts, container images, and packages retain their upstream terms; see [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES).
+
 ## Local Checks
 
 The pre-commit configuration uses the pinned upstream hook repositories listed in `versions.lock`.
