@@ -1,0 +1,1704 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Prometheus workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Lab 8 - Prometheus</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-PW25SPMWGG"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-PW25SPMWGG');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Instrumenting - Example Java application</h2>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						For the rest of this lab you've chosen to run your instrumenting experience from the source
+						project as a container image on your local machine.<br />
+						<br />
+						For this lab we assume you are using Podman, but you can also use Docker.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Java metrics demo project </h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						First, we'll give you a project with all the Java layout you need and a completed example of
+						the four basic metrics instrumented for an example application. To install this locally:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: x-large;">
+						<ol>
+							<li><a href="https://gitlab.com/o11y-workshops/prometheus-java-metrics-demo/-/archive/v0.5/prometheus-java-metrics-demo-v0.5.zip" target="_blank">Download and unzip the Prometheus Java Metrics Demo</a></li>
+							<li>Unzip the <code><b>prometheus-java-metrics-demo-v0.5.zip</b> file in your workshop directory</code></li>
+							<li>Open the project in your favorite IDE (examples shown here use VSCode)</li>
+						</ol>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Download and unzip project</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Once you have downloaded the project using the link provided previously, just unzip into its
+						own directory as shown (Note: examples shown are on Mac OS X system):
+					</div>
+					<div style="height: 150px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ unzip workshop-prometheus/prometheus-java-metrics-demo-v0.5.zip
+
+								Archive:  /Users/erics/Downloads/prometheus-java-metrics-demo-v0.5.zip
+								a66e4ea8ea9d1313b257fcf3b3321d9ce47a86e8
+								creating: prometheus-java-metrics-demo-v0.5/
+								extracting: prometheus-java-metrics-demo-v0.5/.gitignore
+								inflating: prometheus-java-metrics-demo-v0.5/README.md
+								inflating: prometheus-java-metrics-demo-v0.5/mybasic-pom.xml
+								inflating: prometheus-java-metrics-demo-v0.5/pom.xml
+								creating: prometheus-java-metrics-demo-v0.5/src/
+								creating: prometheus-java-metrics-demo-v0.5/src/main/
+								creating: prometheus-java-metrics-demo-v0.5/src/main/java/
+								creating: prometheus-java-metrics-demo-v0.5/src/main/java/io/
+								creating: prometheus-java-metrics-demo-v0.5/src/main/java/io/chronosphere/
+								creating: prometheus-java-metrics-demo-v0.5/src/main/java/io/chronosphere/java_apps/
+								inflating: prometheus-java-metrics-demo-v0.5/src/main/java/io/chronosphere/java_apps/BasicJavaMetrics.java
+								inflating: prometheus-java-metrics-demo-v0.5/src/main/java/io/chronosphere/java_apps/MyBasicJavaMetrics.java
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Opening project in your IDE</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Here you see the project opened in VSCode (use any tooling you like), which allows you to explore
+						the project single class file with a fully instrumented example Basic Java Metric application:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab08-3.png" alt="vscode"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Running the Java example</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						You have to build the <code><b>BasicJavaMetrics</b></code> application from the command line
+						in the project root directory, before you can build your container image. First build your
+						Java using Maven as shown here:
+					</div>
+					<div style="height: 200px;">
+						<pre>
+							<code data-trim data-noescape>
+								$ cd prometheus-java-metrics-demo-v0.5/
+
+								$ mvn clean install  (watch for BUILD SUCCESS)
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Building Java container</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Now you need to use the provided <code><b>Buildfile</b></code> and podman tooling to build your
+						container image as shown:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t basic-java-metrics -f Buildfile
+
+								STEP 1/4: FROM eclipse-temurin:21
+								STEP 2/4: ADD target/java_metrics-1.0-xxxx.jar java_metrics-1.0-SNAPSHOT-jar-with-dependencies.jar
+								--> 622fb698bbab
+								STEP 3/4: ENTRYPOINT ["java", "-jar","java_metrics-1.0-SNAPSHOT-jar-with-dependencies.jar"]
+								--> ff4ac83c2ac0
+								STEP 4/4: EXPOSE 7777
+								COMMIT basic-java-metrics
+								--> 21d6c8d06793
+								Successfully tagged localhost/basic-java-metrics:latest
+								21d6c8d06793f854f798f0c5ffd8ad3cd1a4960575ec8c83ef23d04702047f43
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Running Java container</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Now run the container image as shown, noting it's going to be found on port 7777:
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run -p 7777:7777 basic-java-metrics
+
+								HTTPServer listening on port http://localhost:7777/metrics
+
+								Basic Java metrics setup successful...
+
+								My application or service started...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Validating Java metrics setup</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Make sure the Java metrics endpoint is working by opening the endpoint to be scraped by a
+						Prometheus instance on <code><b>http://localhost:7777/metrics</b></code>, showing something
+						like this (note the classic histogram format with <code>le</code> bucket labels):
+					</div>
+					<div style="height: 200px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# HELP java_app_c_total example counter
+								# TYPE java_app_c_total counter
+								java_app_c_total{status="error"} 239.0
+								java_app_c_total{status="ok"} 478.0
+								# HELP java_app_g_seconds is a gauge metric
+								# TYPE java_app_g_seconds gauge
+								java_app_g_seconds{value="value"} 7.29573889110867
+								# HELP java_app_h_seconds is a classic histogram metric
+								# TYPE java_app_h_seconds histogram
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="0.005"} 0
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="0.01"} 0
+								...
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="10.0"} 10
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="+Inf"} 239
+								java_app_h_seconds_count{method="GET",path="/",status_code="200"} 239
+								java_app_h_seconds_sum{method="GET",path="/",status_code="200"} 28475.853574282995
+								# HELP java_app_s_seconds is summary metric (request latency in seconds)
+								# TYPE java_app_s_seconds summary
+								java_app_s_seconds{status="ok",quantile="0.5"} 2.870230936180606
+								java_app_s_seconds{status="ok",quantile="0.95"} 4.888056778494996
+								java_app_s_seconds{status="ok",quantile="0.99"} 4.903344773262025
+								java_app_s_seconds_count{status="ok"} 239
+								java_app_s_seconds_sum{status="ok"} 607.9779550254922
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Prometheus configuration new metrics</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						While the metrics are exposed in this example on <code><b>localhost:7777</b></code>, they will
+						not be scraped by Prometheus until you have updated its configuration to add this new end point.
+						Let's update our <code><b>workshop-prometheus.yml</b></code> file to add the java application job as
+						shown along with comments for clarity (this is the minimum needed, with a few custom labels for
+						fun):
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								scrape_configs:
+
+								  # Scraping Prometheus.
+								  - job_name: "prometheus"
+								    static_configs:
+								      - targets: ["localhost:9090"]
+
+								  # Scraping java metrics.
+								  - job_name: "java_app"
+								    static_configs:
+								      - targets: ["localhost:7777"]
+								        labels:
+								          job: "java_app"
+								          env: "workshop-lab8"
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Start Prometheus instance</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Start the Prometheus instance by rebuilding the container image and then running it. Validate in
+						your Prometheus console using the query console and <code><b>up</b></code> to validate the
+						endpoint is being scraped:
+					</div>
+					<div style="height: 200px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-prometheus:v3.13 -f Buildfile
+
+								STEP 1/2: FROM prom/prometheus:v3.13.1
+								STEP 2/2: ADD workshop-prometheus.yml /etc/prometheus
+								COMMIT workshop-prometheus:v3.13
+								--> 9fe643412975
+								Successfully tagged localhost/workshop-prometheus:v3.13
+								9fe6434129753c0248f068af3739bd4f01dd3d3a36dafaa130f1c3b794a279df
+
+								$ podman run -p 9090:9090 workshop-prometheus:v3.13 --config.file=/etc/prometheus/workshop-prometheus.yml
+
+								...
+								ts=2024-05-30T07:36:27.291Z level=info msg="TSDB started"
+								ts=2024-05-30T07:36:27.291Z level=info msg="Loading configuration file" filename=/etc/prometheus/workshop-prometheus.yml
+								ts=2024-05-30T07:36:27.293Z level=info msg="Completed loading configuration file" filename=/etc/prometheus/workshop-prometheus.yml
+								ts=2024-05-30T07:36:27.293Z level=info msg="Server is ready to receive web requests."
+								ts=2024-05-30T07:36:27.293Z level=info component="rule manager" msg="Starting rule manager..."
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Prometheus container issues?</h3>
+					</div>
+					<div style="height: 230px; text-align: left; font-size: x-large;">
+						When you try to view the Java metrics from Prometheus, you'll notice that the current
+						configuration does not work. The target is shown <code><b>DOWN</b></code> and unreachable, why?<br />
+						<br />
+						The container version of Prometheus can't find the locally running Java metrics example when
+						listed as <code><b>localhost</b></code> because that is local to the Prometheus container. We
+						need to find out what the IP address is on your local machine for these containers as follows
+						(if following the workshop, you've seen this earlier). Using the container variable we can
+						update our Prometheus configuration file as follows:
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								scrape_configs:
+
+								  # Scraping Prometheus.
+								  - job_name: "prometheus"
+								    static_configs:
+								      - targets: ["localhost:9090"]
+
+								  # Scraping java metrics.
+								    - job_name: "java_app"
+								      static_configs:
+								        - targets: ["<mark>host.containers.internal</mark>:7777"]
+								          labels:
+								            job: "java_app"
+								            env: "workshop-lab8"
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Restart Prometheus instance</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Restart the Prometheus instance by rebuilding the container image and then running it. Validate in
+						your Prometheus console using the query console and <code><b>up</b></code> to validate the
+						endpoint is being scraped:
+					</div>
+					<div style="height: 200px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-prometheus:v3.13 -f Buildfile
+
+								STEP 1/2: FROM prom/prometheus:v3.13.1
+								STEP 2/2: ADD workshop-prometheus.yml /etc/prometheus
+								COMMIT workshop-prometheus:v3.13
+								--> 9fe643412975
+								Successfully tagged localhost/workshop-prometheus:v3.13
+								9fe6434129753c0248f068af3739bd4f01dd3d3a36dafaa130f1c3b794a279df
+
+								$ podman run -p 9090:9090 workshop-prometheus:v3.13 --config.file=/etc/prometheus/workshop-prometheus.yml
+
+								...
+								ts=2024-05-30T07:36:27.291Z level=info msg="TSDB started"
+								ts=2024-05-30T07:36:27.291Z level=info msg="Loading configuration file" filename=/etc/prometheus/workshop-prometheus.yml
+								ts=2024-05-30T07:36:27.293Z level=info msg="Completed loading configuration file" filename=/etc/prometheus/workshop-prometheus.yml
+								ts=2024-05-30T07:36:27.293Z level=info msg="Server is ready to receive web requests."
+								ts=2024-05-30T07:36:27.293Z level=info component="rule manager" msg="Starting rule manager..."
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Starting my Java metrics</h3>
+					</div>
+					<div style="height: 330px; text-align: left; font-size: xx-large;">
+						Now stop the running Java metrics example (from the console just hit CTRL + C).<br />
+						<br />
+						Let's start by creating your own Java metrics application starting with the minimal setup needed
+						to get your Java application running and exposing it's <code><b>/metrics</b></code>. Instead of
+						coding it all by hand, we've put a starting point in the file
+						<code><b>MyBasicJavaMetrics.java</b></code> found in the same directory, so open this file in your
+						IDE:
+					</div>
+					<div style="height: 70px;">
+						<pre>
+							<code data-trim data-noescape>
+								src/main/java/io/chronosphere/java_apps/MyBasicJavaMetrics.java
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Exploring MyBasicJavaMetrics</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						This class has a few basic imports, then a variable you can use to set the port you want your
+						metrics to be exposed on. The main method has two parts, first you instrument this class with
+						metrics, currently commented out as placeholders:
+					</div>
+					<div style="height: 70px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								public static void main(String[] args) throws InterruptedException, IOException {
+
+									// Set up and default Java metrics.
+									//JvmMetrics.builder().register();
+
+									// Initialize Counter.
+									// TODO: counter init
+
+									// Initialize Gauge.
+									// TODO: gauge init
+
+									// Initialize Histogram.
+									// TODO: histogram init
+
+									// Initialize Summary.
+									// TODO: summary init
+
+									// Start thread and apply values to metrics.
+									// TODO: set up this thread and populate metrics.
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Exploring more MyBasicJavaMetrics</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						The second half of the main method is used to set up a simple web server to serve the metrics
+						up for scraping by Prometheus and then a few print statements to notify you that instrumentation
+						has completed and that your application or service has started:
+					</div>
+					<div style="height: 70px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+									HTTPServer server = HTTPServer.builder().port(METRICS_PORT).buildAndStart();
+
+									System.out.println("HTTPServer listening on port http://localhost:" + server.getPort() + "/metrics");
+									System.out.println("");
+									System.out.println("Basic Java metrics setup successful...");
+									System.out.println("");
+
+									// Insert your code here for application or microservice.
+									System.out.println("My application or service started...");
+									System.out.println("");
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Building and running my metrics</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						To help you run this <code><b>MyBasicJavaMetrics.java</b></code> class file you are given a
+						separate <code><b>mybasic-pom.xml</b></code> file, so either point your IDE build process at this
+						new pom file, or follow the command line example shown below:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ cd prometheus-java-metrics-demo-v0.5/
+
+								$ mvn -f mybasic-pom.xml clean install  (watch for BUILD SUCCESS)
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Editing container build file</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Now you need to use the provided <code><b>Buildfile</b></code> but you need to edit this to
+						pull the new jar file into your container image, so open your Buildfile, edit as shown to use
+						your newly built jar file:
+					</div>
+					<div style="height: 200px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								FROM eclipse-temurin:21
+								ADD target/mybasic_java_metrics-1.0-SNAPSHOT-jar-with-dependencies.jar java_metrics-1.0-SNAPSHOT-jar-with-dependencies.jar
+								ENTRYPOINT ["java", "-jar","java_metrics-1.0-SNAPSHOT-jar-with-dependencies.jar"]
+								EXPOSE 9999
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Building new container</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Build your new container image pulling the new jar file as shown:
+					</div>
+					<div style="height: 200px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t basic-java-metrics -f Buildfile
+
+								STEP 1/4: FROM eclipse-temurin:21
+								STEP 2/4: ADD target/mybasic_java_metrics-1.0-xxxx.jar java_metrics-1.0-SNAPSHOT-jar-with-dependencies.jar
+								--> 622fb698bbab
+								STEP 3/4: ENTRYPOINT ["java", "-jar","java_metrics-1.0-SNAPSHOT-jar-with-dependencies.jar"]
+								--> ff4ac83c2ac0
+								STEP 4/4: EXPOSE 9999
+								COMMIT basic-java-metrics
+								--> 21d6c8d06793
+								Successfully tagged localhost/basic-java-metrics:latest
+								21d6c8d06793f854f798f0c5ffd8ad3cd1a4960575ec8c83ef23d04702047f43
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Running new container</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Now run the new container image as shown, noting it's going to be found on port 9999 for the
+						<code><b>MyBasicJavaMetrics</b> class</code>:
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run -p 9999:9999 basic-java-metrics
+
+								HTTPServer listening on port http://localhost:9999/metrics
+
+								Basic Java metrics setup successful...
+
+								My application or service started...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Validating basic metrics setup</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Make sure the basic metrics endpoint is working by opening the endpoint to be scraped by a
+						Prometheus instance on <code><b>localhost:9999/metrics</b></code>.<br />
+						<br />But wait, it's showing a blank screen???
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Uncommenting default Java metrics</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						If you were looking closely at the main method, you might have noticed that there was a
+						commented out line <code><b>//JvmMetrics.builder().register();</b></code> that can be uncommented
+						to initialize all the default Java metrics:
+					</div>
+					<div style="height: 70px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+									// Set up and default Java metrics.
+									<b style="font-size: x-large; color: yellow;">//JvmMetrics.builder().register();    <<<<< UNCOMMENT THIS LINE</b>
+
+									// Initialize Counter.
+									// TODO: counter init
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Rebuilding and running container</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						After editing the default metrics initialization line, you have to rebuild the Java executable
+						jar file and run the new container image:
+					</div>
+					<div style="height: 200px;font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Build a new jar with your changes
+								#
+								$ mvn -f mybasic-pom.xml clean install  (watch for BUILD SUCCESS)
+
+								# Stop the running container, rebuild a new image with jar file changes
+								#
+								$ podman build -t basic-java-metrics -f Buildfile
+
+								# Run the new container image
+								#
+								$ podman run -p 9999:9999 basic-java-metrics
+
+								HTTPServer listening on port http://localhost:9999/metrics
+
+								Basic Java metrics setup successful...
+
+								My application or service started...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Trying validating again</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						This time when you check the endpoint at <code><b>localhost:9999/metrics</b></code> you're going
+						to find all kinds of Java metrics listed such as:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# HELP jvm_classes_loaded The number of classes that are currently loaded in the JVM
+								# TYPE jvm_classes_loaded gauge
+								jvm_classes_loaded 1498.0
+								# HELP jvm_classes_loaded_total The total number of classes loaded since JVM started
+								# TYPE jvm_classes_loaded_total counter
+								jvm_classes_loaded_total 1498.0
+								# HELP jvm_classes_unloaded_total The total number of classes unloaded since JVM started
+								# TYPE jvm_classes_unloaded_total counter
+								jvm_classes_unloaded_total 0.0
+								# HELP jvm_buffer_pool_used_bytes Used bytes of a given JVM buffer pool.
+								# TYPE jvm_buffer_pool_used_bytes gauge
+								jvm_buffer_pool_used_bytes{pool="mapped",} 0.0
+								jvm_buffer_pool_used_bytes{pool="direct",} 8192.0
+								jvm_buffer_pool_used_bytes{pool="mapped - 'non-volatile memory'",} 0.0
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Adding a counter metric</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Now that you have a working setup, you'll start with defining your first real instrumented
+						metric, a counter. To do this you will adjust the existing main class to add a method to
+						initialize a counter and create a private method defining your counter. In the next slide you'll
+						see the updated main method with the default initialized metrics method removed.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Initializing the counter</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Note the larger and bold printed line is what you need to initialize a counter. Next you need
+						to add the private method below the main method where you define how the counter is initialized:
+					</div>
+					<div style="height: 70px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+									// Set up and default Java metrics.
+									JvmMetrics.builder().register();
+
+									// Initialize Counter.
+									<b style="font-size: xx-large;">Counter counter = counter();</b>
+
+									// Initialized Gauge.
+									// TODO: gauge init
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Private counter method</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						This is the method to initialize the counter:
+					</div>
+					<div style="height: 70px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								// Creating a counter.
+								private static Counter counter() {
+									Counter counter = Counter.builder()
+										.name("java_app_c")
+										.help("example counter")
+										.labelNames("status")
+										.register();
+
+									return counter;
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Updating your import statements</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						At the top of your basic metrics file you'll find the client library imports. One new line as
+						appeared if your IDE automatically imports for you, otherwise make sure it's there:
+					</div>
+					<div style="height: 50px;">
+						<pre>
+							<code data-trim data-noescape>
+								import io.prometheus.metrics.core.metrics.Counter;
+							</code>
+						</pre>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Note that now you are developing your own instrumented metrics, you can comment out the default
+						JVM metrics line and remove its corresponding import statement.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Populating your metrics</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						The last TODO marker in the main method asks you to start a thread and populate your metrics.
+						This is only for this workshop that we are going to populate our metrics with data, some of it
+						random numbers. Feel free to cut and paste the code below that refreshes the metrics values
+						every second:
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								// Start thread and apply values to metrics.
+								Thread bgThread = new Thread(() -> {
+									while (true) {
+										try {
+											// TODO: set up populate metrics.
+
+											counter.labelValues("ok").inc();
+											counter.labelValues("ok").inc();
+											counter.labelValues("error").inc();
+											TimeUnit.SECONDS.sleep(1);
+										} catch (InterruptedException e) {
+											e.printStackTrace();
+										}
+									}
+								});
+								bgThread.start();
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Rebuilding for counter metric</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						After defining the counter metric, you have to rebuild the Java executable jar file and run it
+						again:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Build a new jar with your changes
+								#
+								$ mvn -f mybasic-pom.xml clean install  (watch for BUILD SUCCESS)
+
+								# Stop the running container, rebuild image with jar file changes
+								#
+								$ podman build -t basic-java-metrics -f Buildfile
+
+								# Run the new container image
+								#
+								$ podman run -p 9999:9999 basic-java-metrics
+
+								HTTPServer listening on port http://localhost:9999/metrics
+
+								Basic Java metrics setup successful...
+
+								My application or service started...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Validating your counter metric</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Check the endpoint at <code><b>localhost:9999/metrics</b></code> you're going to find the
+						counter metric as shown below:
+					</div>
+					<div style="height: 200px;">
+						<pre>
+							<code data-trim data-noescape>
+								# HELP java_app_c_total example counter
+								# TYPE java_app_c_total counter
+								java_app_c_total{status="error"} 8.0
+								java_app_c_total{status="ok"} 16.0
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Adding a gauge metric</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Next up we can add a gauge metric, and you'll do that by initializing a gauge, and then creating
+						a private method to create the gauge. In the next slide you'll see the
+						updated main method.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Initializing a gauge</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Note the larger and bold printed line is what you need to initialize a gauge. On the next
+						slide you'll add the private method below the main method defining how this gauge is initialized:
+					</div>
+					<div style="height: 70px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								// Set up and default Java metrics.
+								//JvmMetrics.builder().register();
+
+								// Initialize Counter.
+								Counter counter = counter();
+
+								// Initialized Gauge.
+								<b style="font-size: xx-large;">Gauge gauge = gauge();</b>
+
+								// Initialize Histogram.
+								// TODO: histogram init
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Private gauge method</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						This is the method to initialize the gauge:
+					</div>
+					<div style="height: 70px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								// Creating a gauge.
+								private static Gauge gauge() {
+									Gauge gauge = Gauge.builder()
+											.name("java_app_g")
+											.help("is a gauge metric")
+											.labelNames("value")
+											.unit(Unit.SECONDS)
+											.register();
+
+									return gauge;
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Updating your import statements</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						At the top of the basic metrics file you'll find the client library imports. You can add the
+						<code><b>Gauge</b></code> import as follows:
+					</div>
+					<div style="height: 70px;">
+						<pre>
+							<code data-trim data-noescape>
+								import io.prometheus.metrics.core.metrics.Gauge;
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Populating your gauge metric</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						You're now going to expand the thread initialization in the main method to populate the gauge
+						metric. Feel free to cut and paste the gauge definition below:
+					</div>
+					<div style="height: 200px;">
+						<pre>
+							<code data-trim data-noescape>
+								// Start thread and apply values to metrics.
+								Thread bgThread = new Thread(() -> {
+									while (true) {
+										try {
+											counter.labelValues("ok").inc();
+											counter.labelValues("ok").inc();
+											counter.labelValues("error").inc();
+											gauge.labelValues("value").set(rand(-5, 10));
+											TimeUnit.SECONDS.sleep(1);
+										} catch (InterruptedException e) {
+											e.printStackTrace();
+										}
+									}
+								});
+								bgThread.start();
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Random number generating method</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Notice that you are using a random <code><b>rand()</b></code> method call in the population of
+						the gauge to grab random numbers, so make sure you add this method below to the bottom of this
+						class:
+					</div>
+					<div style="height: 200px;">
+						<pre>
+							<code data-trim data-noescape>
+								// Creating a more random number.
+								private static double rand(double min, double max) {
+									return min + (Math.random() * (max - min));
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Rebuilding for gauge metric</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						After defining the gauge metric, you have to rebuild the Java executable jar file and run it
+						again:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Build a new jar with your changes
+								#
+								$ mvn -f mybasic-pom.xml clean install  (watch for BUILD SUCCESS)
+
+								# Stop the running container, rebuild image with jar file changes
+								#
+								$ podman build -t basic-java-metrics -f Buildfile
+
+								# Run the new container image
+								#
+								$ podman run -p 9999:9999 basic-java-metrics
+
+								HTTPServer listening on port http://localhost:9999/metrics
+
+								Basic Java metrics setup successful...
+
+								My application or service started...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Validating your gauge metric</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Check the endpoint at <code><b>localhost:9999/metrics</b></code> you're going to find the
+						gauge metric as shown below with a random number that changes every couple of seconds:
+					</div>
+					<div style="height: 200px;">
+						<pre>
+							<code data-trim data-noescape>
+								# HELP java_app_c_total example counter
+								# TYPE java_app_c_total counter
+								java_app_c_total{status="error"} 6.0
+								java_app_c_total{status="ok"} 12.0
+								# HELP java_app_g_seconds is a gauge metric
+								# TYPE java_app_g_seconds gauge
+								java_app_g_seconds{value="value"} -2.051171083831968
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Adding a classic histogram metric</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Next up we can add a classic histogram metric, and you'll do that by initializing it before creating
+						a private method to create the histogram. In the next slide you'll see the updated main method.
+						<b>Note:</b> Prometheus also supports native histograms with dynamic buckets, but this lab
+						uses classic histograms with predefined buckets.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Initializing a classic histogram</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Note the larger and bold printed line is what you need to initialize a classic histogram. On the next
+						slide you'll add the private method below the main method defining how this histogram is
+						initialized:
+					</div>
+					<div style="height: 70px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								// Initialize Counter.
+								Counter counter = counter();
+
+								// Initialized Gauge.
+								Gauge gauge = gauge();
+
+								// Initialize Histogram.
+								<b style="font-size: xx-large;">Histogram histogram = histogram();</b>
+								<b style="font-size: xx-large;">long start = System.nanoTime();</b>
+
+								// Initialized Summary.
+								// TODO: summary init
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Private classic histogram method</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						This is the method to initialize the classic histogram (uses default bucket boundaries):
+					</div>
+					<div style="height: 70px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								// Creating a histogram.
+								private static Histogram histogram() {
+									Histogram histogram = Histogram.builder()
+										.name("java_app_h")
+										.help("is a histogram metric")
+										.unit(Unit.SECONDS)
+										.labelNames("method", "path", "status_code")
+										.register();
+
+									return histogram;
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Updating your import statements</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						At the top of the basic metrics file you'll find the client library imports. You can add the
+						<code><b>Histogram</b></code> import as follows (creates classic histograms by default, but note
+						that Prometheus also supports native histograms):
+					</div>
+					<div style="height: 70px;">
+						<pre>
+							<code data-trim data-noescape>
+								import io.prometheus.metrics.core.metrics.Histogram;
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Populating classic histogram metric</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						You're now going to expand the thread initialization in the main method to populate the classic histogram
+						metric. Feel free to cut and paste the histogram definition below:
+					</div>
+					<div style="height: 200px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								// Start thread and apply values to metrics.
+								Thread bgThread = new Thread(() -> {
+									while (true) {
+										try {
+											counter.labelValues("ok").inc();
+											counter.labelValues("ok").inc();
+											counter.labelValues("error").inc();
+											gauge.labelValues("value").set(rand(-5, 10));
+											histogram.labelValues("GET", "/", "200").observe(Unit.nanosToSeconds(System.nanoTime() - start));
+											TimeUnit.SECONDS.sleep(1);
+										} catch (InterruptedException e) {
+											e.printStackTrace();
+										}
+									}
+								});
+								bgThread.start();
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Rebuilding for classic histogram metric</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						After defining the classic histogram metric, you have to rebuild the Java executable jar file and run it
+						again:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Build a new jar with your changes
+								#
+								$ mvn -f mybasic-pom.xml clean install  (watch for BUILD SUCCESS)
+
+								# Stop the running container, rebuild image with jar file changes
+								#
+								$ podman build -t basic-java-metrics -f Buildfile
+
+								# Run the new container image
+								#
+								$ podman run -p 9999:9999 basic-java-metrics
+
+								HTTPServer listening on port http://localhost:9999/metrics
+
+								Basic Java metrics setup successful...
+
+								My application or service started...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Validating your classic histogram metric</h3>
+					</div>
+					<div style="height:50px; text-align: left; font-size: x-large;">
+						Check the endpoint at <code><b>localhost:9999/metrics</b></code> for the classic histogram metric as
+						shown below (note the predefined bucket boundaries with <code>le</code> labels):
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# HELP java_app_c_total example counter
+								# TYPE java_app_c_total counter
+								java_app_c_total{status="error"} 6.0
+								java_app_c_total{status="ok"} 12.0
+								# HELP java_app_g_seconds is a gauge metric
+								# TYPE java_app_g_seconds gauge
+								java_app_g_seconds{value="value"} 9.56286725499423
+								# HELP java_app_h_seconds is a classic histogram metric
+								# TYPE java_app_h_seconds histogram
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="0.005"} 0
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="0.01"} 1
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="0.025"} 1
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="0.05"} 1
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="0.1"} 1
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="0.25"} 1
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="0.5"} 1
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="1.0"} 1
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="2.5"} 3
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="5.0"} 5
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="10.0"} 6
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="+Inf"} 6
+								java_app_h_seconds_count{method="GET",path="/",status_code="200"} 6
+								java_app_h_seconds_sum{method="GET",path="/",status_code="200"} 15.072195015999998
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Native histogram alternative</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						As an alternative to classic histograms, Prometheus introduced <b>native histograms</b>
+						with dynamic, exponentially-spaced buckets. Benefits include:<br />
+						<br />
+						<ul>
+							<li><b>Higher resolution</b>: More precise percentile calculations without predefined buckets</li>
+							<li><b>Lower cardinality</b>: Stored as a single time series instead of multiple bucket series</li>
+							<li><b>Reduced storage</b>: More efficient encoding compared to classic histograms</li>
+						</ul>
+						<br />
+						<br />
+						The Prometheus Java client library supports exposing both classic and native histogram formats
+						simultaneously, allowing a smooth migration path.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Enabling native histograms</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						To enable native histogram support in your Java application, you need to configure the histogram
+						builder with native histogram settings. Update your histogram method as follows:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								// Creating a histogram with native histogram support.
+								private static Histogram histogram() {
+									Histogram histogram = Histogram.builder()
+										.name("java_app_h")
+										.help("is a histogram metric")
+										.unit(Unit.SECONDS)
+										.labelNames("method", "path", "status_code")
+										.nativeOnly()  // Use native histograms only
+										// Or use .classicOnly() for classic only
+										// Or omit both to expose both formats
+										.register();
+
+									return histogram;
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Native histogram Prometheus config</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						To scrape native histograms, you must enable native histogram ingestion in your Prometheus
+						configuration by adding <code><b>scrape_native_histograms: true</b></code> to your job:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								scrape_configs:
+
+								  # Scraping java metrics with native histogram support.
+								  - job_name: "java_app"
+								    scrape_native_histograms: true
+								    static_configs:
+								      - targets: ["host.containers.internal:9999"]
+								        labels:
+								          job: "java_app"
+								          env: "workshop-lab8"
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Populating native histogram metric</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Populating a native histogram works exactly the same as a classic histogram. The
+						<code><b>.observe()</b></code> method records values that are automatically distributed into
+						dynamic buckets:
+					</div>
+					<div style="height: 200px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								// Start thread and apply values to metrics.
+								Thread bgThread = new Thread(() -> {
+								  while (true) {
+								    try {
+								      counter.labelValues("ok").inc();
+								      counter.labelValues("ok").inc();
+								      counter.labelValues("error").inc();
+								      gauge.labelValues("value").set(rand(-5, 10));
+								      // Native histogram observation - same API as classic!
+								      histogram.labelValues("GET", "/", "200").observe(Unit.nanosToSeconds(System.nanoTime() - start));
+								      TimeUnit.SECONDS.sleep(1);
+								    } catch (InterruptedException e) {
+								      e.printStackTrace();
+								    }
+								  }
+								});
+								bgThread.start();
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Rebuilding for native histogram metric</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						After updating your histogram to use native format, rebuild the container and run it again:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Build a new jar with your changes
+								#
+								$ mvn -f mybasic-pom.xml clean install  (watch for BUILD SUCCESS)
+
+								# Stop the running container, rebuild image with jar file changes
+								#
+								$ podman build -t basic-java-metrics -f Buildfile
+
+								# Run the new container image
+								#
+								$ podman run -p 9999:9999 basic-java-metrics
+
+								HTTPServer listening on port http://localhost:9999/metrics
+
+								Basic Java metrics setup successful...
+
+								My application or service started...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Validating your native histogram metric</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						Check the endpoint at <code><b>localhost:9999/metrics</b></code>. Native histograms use a
+						compact binary format in the OpenMetrics exposition, but you'll see the count and sum. The
+						actual bucket data is encoded and only visible when scraped by Prometheus with native histogram
+						support enabled:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# HELP java_app_h_seconds is a histogram metric
+								# TYPE java_app_h_seconds histogram
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="+Inf"} 7
+								java_app_h_seconds_count{method="GET",path="/",status_code="200"} 7
+								java_app_h_seconds_sum{method="GET",path="/",status_code="200"} 21.096521994
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Querying native histograms</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						Native histograms are queried differently in PromQL. Instead of using
+						<code><b>histogram_quantile()</b></code> with bucket series, you use native histogram
+						functions:<br />
+						<br />
+						<ul>
+							<li><code><b>histogram_quantile(0.95, java_app_h_seconds)</b></code> - works with native histograms directly</li>
+							<li><code><b>histogram_avg(java_app_h_seconds)</b></code> - average of observed values</li>
+							<li><code><b>histogram_count(java_app_h_seconds)</b></code> - total count of observations</li>
+							<li><code><b>histogram_sum(java_app_h_seconds)</b></code> - sum of observed values</li>
+							<li><code><b>histogram_fraction(lower, upper, java_app_h_seconds)</b></code> - fraction of observations in range</li>
+						</ul>
+						<br />
+						<br />
+						Now that you've seen both classic and native histograms, let's continue with the summary metric!
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Adding a summary metric</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Finally, you're adding a summary metric, and you'll do that by initializing it before creating
+						a private method to create the summary. In the next slide you'll see the updated main method.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Initializing a summary</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Note the larger and bold printed line is what you need to initialize a summary. On the next
+						slide you'll add the private method below the main method defining how this summary is
+						initialized:
+					</div>
+					<div style="height: 70px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								// Initialize Histogram.
+								Histogram histogram = histogram();
+								long start = System.nanoTime();
+
+								// Initialized Summary.
+								<b style="font-size: xx-large;">Summary summary = summary();</b>
+
+								// Start thread and apply values to metrics.
+								Thread bgThread = new Thread(() -> {
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Private summary method</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						This is the method to initialize the summary:
+					</div>
+					<div style="height: 70px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								// Creating a summary.
+								private static Summary summary() {
+								  Summary summary = Summary.builder()
+								    .name("java_app_s")
+								    .help("is summary metric (request latency in seconds)")
+								    .unit(Unit.SECONDS)
+								    .quantile(0.5, 0.01)
+								    .quantile(0.95, 0.005)
+								    .quantile(0.99, 0.005)
+								    .labelNames("status")
+								    .register();
+
+								  return summary;
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Updating your import statements</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						At the top of the basic metrics file you'll find the client library imports. You can add the
+						<code><b>Summary</b></code> import as follows:
+					</div>
+					<div style="height: 70px;">
+						<pre>
+							<code data-trim data-noescape>
+								import io.prometheus.metrics.core.metrics.Summary;
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Populating summary metric</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						You're now going to expand the thread initialization in the main method to populate the summary
+						metric. Feel free to cut and paste the gauge definition below:
+					</div>
+					<div style="height: 200px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								// Start thread and apply values to metrics.
+								Thread bgThread = new Thread(() -> {
+									while (true) {
+										try {
+											counter.labelValues("ok").inc();
+											counter.labelValues("ok").inc();
+											counter.labelValues("error").inc();
+											gauge.labelValues("value").set(rand(-5, 10));
+											histogram.labelValues("GET", "/", "200").observe(Unit.nanosToSeconds(System.nanoTime() - start));
+											summary.labelValues("ok").observe(rand(0, 5));
+											TimeUnit.SECONDS.sleep(1);
+										} catch (InterruptedException e) {
+											e.printStackTrace();
+										}
+									}
+								});
+								bgThread.start();
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Rebuilding for summary metric</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						After defining the summary metric, you have to rebuild the Java executable jar file and run it
+						again:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Build a new jar with your changes
+								#
+								$ mvn -f mybasic-pom.xml clean install  (watch for BUILD SUCCESS)
+
+								# Stop the running container, rebuild image with jar file changes
+								#
+								$ podman build -t basic-java-metrics -f Buildfile
+
+								# Run the new container image
+								#
+								$ podman run -p 9999:9999 basic-java-metrics
+
+								HTTPServer listening on port http://localhost:9999/metrics
+
+								Basic Java metrics setup successful...
+
+								My application or service started...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Validating your summary metric</h3>
+					</div>
+					<div style="height:50px; text-align: left; font-size: x-large;">
+						Check the endpoint at <code><b>localhost:9999/metrics</b></code> for the summary metric as
+						shown below with a random number that changes every couple of seconds:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# HELP java_app_c_total example counter
+								# TYPE java_app_c_total counter
+								java_app_c_total{status="error"} 6.0
+								java_app_c_total{status="ok"} 12.0
+								# HELP java_app_g_seconds is a gauge metric
+								# TYPE java_app_g_seconds gauge
+								java_app_g_seconds{value="value"} 9.56286725499423
+								# HELP java_app_h_seconds is a classic histogram metric
+								# TYPE java_app_h_seconds histogram
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="0.005"} 0
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="0.01"} 1
+								...
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="10.0"} 6
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="+Inf"} 6
+								java_app_h_seconds_count{method="GET",path="/",status_code="200"} 6
+								java_app_h_seconds_sum{method="GET",path="/",status_code="200"} 15.072195015999998
+								# HELP java_app_s_seconds is summary metric (request latency in seconds)
+								# TYPE java_app_s_seconds summary
+								java_app_s_seconds{status="ok",quantile="0.5"} 3.0098277118187493
+								java_app_s_seconds{status="ok",quantile="0.95"} 4.617804632747773
+								java_app_s_seconds{status="ok",quantile="0.99"} 4.617804632747773
+								java_app_s_seconds_count{status="ok"} 5
+								java_app_s_seconds_sum{status="ok"} 14.307305756153882
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Prometheus configuration adjustment</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						While the metrics are exposed in this example on <code><b>localhost:9999</b></code>, they will
+						not be scraped by Prometheus until you have updated <code><b>workshop-prometheus.yml</b></code> file
+						by adding the java application job as shown. <b>Tip:</b> For native histogram support
+						(Prometheus 3.11.1+), add <code><b>scrape_native_histograms: true</b></code> to your job config:
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								scrape_configs:
+
+									# Scraping Prometheus.
+									- job_name: "prometheus"
+									static_configs:
+										- targets: ["localhost:9090"]
+
+									# Scraping java metrics.
+									- job_name: "java_app"
+									static_configs:
+										- targets: ["<mark>host.containers.internal:9999</mark>"]
+								          labels:
+								            job: "java_app"
+								            env: "workshop-lab8"
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Start Prometheus instance</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Start your Prometheus instance by rebuilding and running the container image. Verify the
+						metrics are scraped in the Prometheus console (by querying <code><b>UP</b></code> for example):
+					</div>
+					<div style="height: 200px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-prometheus:v3.13 -f Buildfile
+
+								STEP 1/2: FROM prom/prometheus:v3.13.1
+								STEP 2/2: ADD workshop-prometheus.yml /etc/prometheus
+								COMMIT workshop-prometheus:v3.13
+								--> 9fe643412975
+								Successfully tagged localhost/workshop-prometheus:v3.13
+								9fe6434129753c0248f068af3739bd4f01dd3d3a36dafaa130f1c3b794a279df
+
+								$ podman run -p 9090:9090 workshop-prometheus:v3.13 --config.file=/etc/prometheus/workshop-prometheus.yml
+
+								...
+								ts=2024-05-30T07:36:27.291Z level=info msg="TSDB started"
+								ts=2024-05-30T07:36:27.291Z level=info msg="Loading configuration file" filename=/etc/prometheus/workshop-prometheus.yml
+								ts=2024-05-30T07:36:27.293Z level=info msg="Completed loading configuration file" filename=/etc/prometheus/workshop-prometheus.yml
+								ts=2024-05-30T07:36:27.293Z level=info msg="Server is ready to receive web requests."
+								ts=2024-05-30T07:36:27.293Z level=info component="rule manager" msg="Starting rule manager..."
+
+								===========Query results for UP:===============
+
+								up{env="workshop-lab8", instance="192.168.1.4:9999", job="java_app"}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Instrumenting - Scraping Java metrics</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						You can validate that the Java metrics you just instrumented in your application are available
+						in the Prometheus console <code><b>localhost:9090</b></code> as shown. Feel free to query and
+						explore:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab08-4.png" alt="java metrics"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 400px; font-size: xx-large">
+						<img src="images/lab08-4.png" alt="java metrics">
+						<br />
+						Next up, metrics monitoring at scale...
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://youtu.be/KJvUyP4c1NQ" target="_blank">Video introduction to workshop (Open Source Edinburgh meetup)</a></li>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-prometheus" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://prometheus.io" target="_blank">Prometheus project</a></li>
+							<li><a href="https://github.com/prometheus/promlens" target="_blank">PromLens project (archived, now the Prometheus EXPLAIN tab)</a></li>
+							<li><a href="https://github.com/perses/perses" target="_blank">Perses project</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-prometheus/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Director Evangelism<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 200px;">
+						<h2 class="r-fit-text">Up next in workshop... </h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab-conclusion.html" target="_blank">Conclusion - Metrics Monitoring at Scale</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMenu, RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+	</body>
+</html>

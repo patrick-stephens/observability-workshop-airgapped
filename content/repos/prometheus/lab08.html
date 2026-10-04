@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Prometheus workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Lab 8 - Prometheus</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-PW25SPMWGG"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-PW25SPMWGG');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 8 - Instrumenting Applications</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>This lab introduces client libraries and shows you how to use them to add Prometheus
+							metrics to applications and services. You'll get hands-on and instrument a sample application
+							to start collecting metrics.</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Instrumenting - Generalized or specific metrics</h2>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: x-large;">
+						In this workshop you've been given pre-instrumented demo applications (such as the services demo)
+						that leverage generalized auto instrumentation. These leverage exporters to provide general
+						observability metrics, but not specific business guided data. To be able to specifically
+						instrument your applications and services, you'll use language specific Prometheus client
+						libraries to track for the insights you want.<br />
+						<br />
+						Let's start with <b>a review of the metrics types in Prometheus</b>, look at <b>using the
+						Prometheus client libraries</b>, and finally <b>instrumenting an example Java application</b>
+						using the Prometheus Java client library.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Instrumenting - Requirements for lab</h2>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						This lab concludes with an example exercise where you instrument a simple Java application with
+						the four Prometheus metric types and collect them with a running Prometheus instance. The focus
+						is coding instrumentation, so let's assume you have the following:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						<ol>
+							<li><b>working Prometheus instance</b>, such as you used in previous labs in this workshop</li>
+							<li>
+								<b>a basic understanding of coding</b>, Java skills are not needed (but nice) for this
+								lab as you'll be walked through all you need to do and provided a working Java project to
+								start with.
+							</li>
+						</ol>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Intermezzo - Reviewing Prometheus metrics collection</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						The basics of how Prometheus collects metrics from target systems and applications is to scrape
+						using a pull mechanism as follows:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<ol>
+							<li>Targets are scraped over the HTTP protocol, standard is <code><b>/metrics</b></code> path.</li>
+							<li>Targets provide <code>current states</code> for each metric, sending:</li>
+							<ul>
+								<li>single sample for each tracked time series</li>
+								<li>metric name</li>
+								<li>label set</li>
+								<li>sample value</li>
+							</ul>
+							<li>Each scraped sample is stored with a server-side timestamp added, building a set of
+							time series.</li>
+						</ol>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Intermezzo - Exposing target metrics</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						For Prometheus to be able to scrape a target, that target must expose metrics in the proper
+						format over HTTP. An example taken from the example service used later in this lab shows the
+						format you can manually verify in your browser on the path
+						<code><b>http://localhost:7777/metrics</b></code>:
+					</div>
+					<div style="height: 50px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# HELP java_app_c_total example counter
+								# TYPE java_app_c_total counter
+								java_app_c_total{status="error"} 239.0
+								java_app_c_total{status="ok"} 478.0
+								# HELP java_app_g_seconds is a gauge metric
+								# TYPE java_app_g_seconds gauge
+								java_app_g_seconds{value="value"} 7.29573889110867
+								# HELP java_app_h_seconds is a histogram metric
+								# TYPE java_app_h_seconds histogram
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="0.005"} 0
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="0.01"} 0
+								...
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="10.0"} 10
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="+Inf"} 239
+								java_app_h_seconds_count{method="GET",path="/",status_code="200"} 239
+								java_app_h_seconds_sum{method="GET",path="/",status_code="200"} 28475.853574282995
+								# HELP java_app_s_seconds is summary metric (request latency in seconds)
+								# TYPE java_app_s_seconds summary
+								java_app_s_seconds{status="ok",quantile="0.5"} 2.870230936180606
+								java_app_s_seconds{status="ok",quantile="0.95"} 4.888056778494996
+								java_app_s_seconds{status="ok",quantile="0.99"} 4.903344773262025
+								java_app_s_seconds_count{status="ok"} 239
+								java_app_s_seconds_sum{status="ok"} 607.9779550254922
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Intermezzo - Instrumenting target for metrics</h2>
+					</div>
+					<div style="height:300px; text-align: left; font-size: x-large;">
+						Because a target provides only the current values for the previously shared metrics, Prometheus
+						is responsible for collecting these individual values over time and creating time series. The
+						important part to remember is that the individual target application or service is only
+						instrumented to keep track of the current state of its metrics and does not ever buffer any
+						historical metrics states.<br />
+						<br />
+						The various implementation details can be found in
+						<a href="https://prometheus.io/docs/instrumenting/exposition_formats/" target="_blank">
+							Prometheus exposition formats documentation.
+						</a> Instead of serialize the exposition format yourself, there are various client libraries to
+						assist you with the protocol serialization and more. Let's look closer at how they can help.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Instrumenting - Prometheus client libraries</h2>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						The provided Prometheus
+						<a href="https://prometheus.io/docs/instrumenting/clientlibs/" target="_blank">client libraries</a>
+						assist with instrumenting your application code. From application code you're creating a metrics
+						registry to track all metrics objects, creating and updating metrics objects (counters, gauges,
+						histograms, and summaries), and exposing the results to Prometheus over HTTP. The client library
+						architecture:
+					</div>
+					<div style="height: 250px; text-align: right;">
+						<img src="images/lab08-1.png" alt="client library">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Instrumenting - Using a client library</h2>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Using a client library from your application code is laid out in the following overview, numbered
+						in the order that each step would be implemented and used. The final piece of the puzzle is
+						Prometheus scraping the <code><b>/metrics</b></code> endpoint:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab08-2.png" alt="instrumenting">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Intermezzo - Reviewing metrics types: Counters</h2>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						There are four core metrics types you'll be exploring in Prometheus for this lab: <b>Counter</b>,
+						<b>Gauge</b>, <b>Histogram</b>, and <b>Summary</b>. <b>Note that as of Prometheus 3.11.1</b>, histograms
+						can be either classic (predefined buckets) or native (dynamic buckets).<br />
+						<br />
+						The first is a <code><b>Counter</b></code>. Counters track cumulative totals over time, such as
+						the total number of seconds spent handling requests. Counters may only decrease in value when the
+						process that exposes them restarts, in which case their last value is forgotten, and it's reset
+						to zero. A counter metric is serialized like this:
+					</div>
+					<div style="height: 100px;">
+						<pre>
+							<code data-trim data-noescape>
+								# HELP java_app_c_total example counter
+								# TYPE java_app_c_total counter
+								java_app_c_total{status="error"} 239.0
+								java_app_c_total{status="ok"} 478.0
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Intermezzo - Reviewing metrics types: Gauges</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						<code><b>Gauges</b></code> track current tallies, things that increase or decrease over time,
+						such as memory usage or a temperature. A gauge metric is serialized like this:
+					</div>
+					<div style="height: 100px;">
+						<pre>
+							<code data-trim data-noescape>
+								# HELP java_app_g_seconds is a gauge metric
+								# TYPE java_app_g_seconds gauge
+								java_app_g_seconds{value="value"} 7.29573889110867
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Intermezzo - Reviewing metrics types: Classic Histograms</h2>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						<code><b>Classic Histograms</b></code> allow you to track the distribution of a set of observed
+						values, such as request latencies, across a set of predefined buckets. They also track the total number of
+						observed values, and the cumulative sum of the observed values. A classic histogram metric is serialized
+						as a list of counter series, with one per bucket, and an <code><b>le</b></code> label indicating the
+						latency upper bound of each bucket counter:
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# HELP java_app_h_seconds is a histogram metric
+								# TYPE java_app_h_seconds histogram
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="0.005"} 0
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="0.01"} 1
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="0.025"} 1
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="0.05"} 1
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="0.1"} 1
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="0.25"} 1
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="0.5"} 1
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="1.0"} 1
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="2.5"} 3
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="5.0"} 5
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="10.0"} 10
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="+Inf"} 312
+								java_app_h_seconds_count{method="GET",path="/",status_code="200"} 312
+								java_app_h_seconds_sum{method="GET",path="/",status_code="200"} 48719.75198531
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Intermezzo - Reviewing metrics types: Native Histograms</h2>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						Unlike classic histograms that require you to predefine fixed bucket boundaries,
+						<code><b>Native Histograms</b></code> use dynamic, exponentially-spaced buckets that
+						automatically adjust to your data distribution. Benefits include:<br />
+						<br />
+						<ul>
+							<li><b>Higher resolution</b>: More precise percentile calculations without predefined buckets</li>
+							<li><b>Lower cardinality</b>: Stored as a single time series instead of multiple bucket series</li>
+							<li><b>Reduced storage</b>: More efficient encoding compared to classic histograms</li>
+						</ul>
+						<br />
+						<br />
+						To enable native histogram scraping in Prometheus 3.11.1, set <code><b>scrape_native_histograms: true</b></code>
+						in your scrape configuration. Client libraries that support native histograms can expose both
+						classic and native formats simultaneously.
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# HELP java_app_h_seconds is a histogram metric
+								# TYPE java_app_h_seconds histogram
+								java_app_h_seconds_bucket{method="GET",path="/",status_code="200",le="+Inf"} 7
+								java_app_h_seconds_count{method="GET",path="/",status_code="200"} 7
+								java_app_h_seconds_sum{method="GET",path="/",status_code="200"} 21.096521994
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Intermezzo - Reviewing metrics types: Summaries</h2>
+					</div>
+					<div style="height: 280px; text-align: left; font-size: xx-large;">
+						<code><b>Summaries</b></code> are tracking the distribution of a set of values, such as request
+						latencies, as a set of quantiles. A quantile, is like a percentile, but indicated with a range
+						from 0 to 1 instead of 0 to 100. For example, a quantile 0.5 is the 50th percentile. Like a
+						histogram, summaries also track the totals and cumulative sums of the observed values. A summary
+						metric is serialized with the quantile label indicating the quantile:
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# HELP java_app_s_seconds is summary metric (request latency in seconds)
+								# TYPE java_app_s_seconds summary
+								java_app_s_seconds{status="ok",quantile="0.5"} 2.209168597209208
+								java_app_s_seconds{status="ok",quantile="0.95"} 4.270739610746089
+								java_app_s_seconds{status="ok",quantile="0.99"} 4.270739610746089
+								java_app_s_seconds_count{status="ok"} 312
+								java_app_s_seconds_sum{status="ok"} 729.9408091814233
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Instrumenting - Some library coding details to consider</h2>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						Client libraries provide interfaces for creating and using metrics and each library can be
+						slightly different for each type of metric.<br />
+						<br />
+						Depending on the type of metric, <code><b>constructors</b></code> will require different options.
+						For example, creating a histogram will require specifying a bucket configuration and a counter
+						would not need any parameters.<br />
+						<br />
+						Metric objects also expose distinct state update methods for each type of metric. For example,
+						counters provide methods to increment the current value but never provide a method to set the
+						counter to an arbitrary value. Gauges on the other hand can be set to an absolute value and also
+						provide methods to decrease the current value.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Instrumenting - Worried about library efficiency?</h2>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						Don't worry, be happy!<br />
+						<br />
+						All official Prometheus
+						<a href="https://prometheus.io/docs/instrumenting/clientlibs/" target="_blank">client libraries</a>
+						are implemented with efficiency and concurrency safety in mind. State updates are highly optimized
+						such that incrementing a counter millions of times a second will still perform well. Also, state
+						updates and reads from metric states are fully concurrency-safe. This means you can update metric
+						values from multiple threads without locking issues. Applications are able to handle multiple
+						scrapes safely at the same time.<br />
+						<br />
+						Note: Client libraries with native histogram support (stable in Prometheus 3.11.1) can expose both
+						classic and native formats simultaneously, allowing a smooth migration path.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Instrumenting - What metrics to track: USE</h2>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						When you are just getting started and are unsure of what metrics you want to track, a good starting
+						point can be the <a href="https://www.brendangregg.com/usemethod.html" target="_blank">USE Method</a>.
+						It's summarized as follows:<br />
+						<br />
+						<code><b>For every resource, check utilization, saturation, and errors.</b></code><br />
+						<br />
+						These are a set of metrics useful for measuring things that behave like <b>resources</b>, used
+						or unused (queues, CPUs, memory, etc.)<br />
+						<br />
+						<ul>
+							<li><b>Utilization</b>: the average time that the resource was busy servicing work</li>
+							<li><b>Saturation</b>: the degree to which the resource has extra work which it can't service, often queued</li>
+							<li><b>Errors</b>: the count of error events</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Instrumenting - What metrics to track: RED</h2>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						The goal of the
+						<a href="https://www.infoworld.com/article/3638693/the-red-method-a-new-strategy-for-monitoring-microservices.html" target="_blank">
+							Red Method
+						</a> is to ensure that the software application functions properly for the end-users above all
+						else. These are the three key metrics you want to monitor for each service in your architecture:<br />
+						<br />
+						<ul>
+							<li><b>Rate</b>: request counters</li>
+							<li><b>Error</b>: error counters</li>
+							<li><b>Duration</b>: distributions of time each request takes (histograms or summaries)</li>
+						</ul><br />
+						<br />
+						See also, the
+						<a href="https://prometheus.io/docs/practices/instrumentation/" target="_blank">
+							Prometheus documentation on instrumentation
+						</a> for best practices for instrumenting different types of systems.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Instrumenting - Best practices metric names</h2>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Metric name of time series describes an aspect of the system being monitored. They are not
+						interpreted by Prometheus in any meaningful way, so here are a few best practices for metric
+						names:
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						<ul>
+							<li>ensure human readability</li>
+							<li>ensure valid, matching regular expression <code><b>[a-zA-Z_:][a-zA-Z0-9_:]*</b></code></li>
+							<li>
+								ensure clarity of origin with prefix, such as <code><b>prometheus_</b></code> or
+								<code><b>java_app_</b></code>
+							</li>
+							<li>
+								ensure unit suffix adhering to
+								<a href="https://prometheus.io/docs/practices/naming/#base-units" target="_blank">base units</a>,
+								such as <code><b>prometheus_tsdb_storage_blocks_bytes</b></code> or
+								<code><b>prometheus_engine_query_duration_seconds</b></code>
+							</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Instrumenting - Best practices metric names</h2>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						Naming the basic metric types of <code>counters, gauges, histograms and summaries</code> have their own best
+						practices as follows:
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						<ul>
+							<li>counters named with suffix <code><b>_total</b></code>, such as <code><b>prometheus_http_requests_total</b></code></li>
+							<li>gauges are exposing the current number of queries, so something like <code><b>prometheus_engine_queries</b></code></li>
+							<li>
+								Classic histograms and summaries produce counter time series with auto-appended suffixes:
+							</li>
+							<ul>
+								<li><code><b>java_app_h_sum</b></code> for total sum of observations</li>
+								<li><code><b>java_app_h_count</b></code> for total count of observations</li>
+								<li><code><b>java_app_h_bucket</b></code> for individual buckets of classic histogram</li>
+							</ul>
+							<li>Native histograms (Prometheus 3.11.1+) are stored as a single time series without bucket suffixes</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Instrumenting - Metric label dangers!</h2>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: x-large;">
+						Carving up your metrics with labels might feel very useful in the beginning, but be aware that
+						each label creates a new dimension. This means that each unique set of labels creates a unique
+						time series to be tracked, stored, and handled during queries by Prometheus. The number of
+						concurrently active time series is a bottleneck for Prometheus at scale (a few million is a
+						guideline for a large server).<br />
+						<br />
+						Label dimensions for metrics are multiplicative, so if you add a <code><b>status_code</b></code>
+						and <code><b>method</b></code> labels to your metric the total series number is the product of
+						the number of different status codes and methods (all valid combinations). Then multiply that
+						cardinality by the number of targets for the overall time series cost.<br />
+						<br />
+						<b>Tip:</b> Native histograms (Prometheus 3.11.1+) help reduce cardinality since they're stored
+						as a single time series instead of multiple bucket series.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Instrumenting - Avoiding metric cardinality explosions</h2>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						To avoid time series explosions, also known as <code><b>cardinality bombs</b></code>, consider
+						keeping the number of possible values well bounded for labels. Several terrible examples:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						<ul>
+							<li>storing IP addresses in a label value</li>
+							<li>storing email addresses in a label value</li>
+							<li>storing full HTTP paths in a label value</li>
+							<ul>
+								<li>especially if they contain IDs or other unbounded cardinality information</li>
+							</ul>
+						</ul>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						These examples create rapidly ever-increasing numbers of series that will overload your
+						Prometheus server quickly.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Instrumenting - Example Java application</h2>
+					</div>
+					<div style="height: 230px; text-align: left; font-size: xx-large;">
+						For the rest of this lab you'll be working on exercises that walk you through instrumenting
+						a simple Java application using the
+						<a href="https://github.com/prometheus/client_java" target="_blank">Prometheus Java client library.</a>
+						Below you can choose to run the rest of this lab from the source project on your local machine,
+						or generating a container image to run your instrumentation project:
+					</div>
+					<div style="height: 100px; text-align: center;">
+						<ul>
+							<li><a href="lab08-source.html" target="_blank">Instrumenting with the source project</a></li>
+							<li><a href="lab08-podman.html" target="_blank">Instrumenting with a container</a></li>
+							<li><a href="lab08-rancher.html" target="_blank">Instrumenting on Kubernetes (k3s) with Helm</a></li>
+						</ul>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMenu, RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+	</body>
+</html>

@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Perses workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Visualization Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-BGV1XYZ1ND"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-BGV1XYZ1ND');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 7 - Building advanced++ dashboards</h3>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>This lab shows you how to build and extend your advanced dashboard, sprucing it up
+							with a few more important components until you have an advanced++ dashboard you can be
+							proud of.</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced++ dashboard - Previous advanced dashboard</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						In the previous lab you started with a basic dashboard and created more advanced panels with
+						line charts in a new row. This workshop builds on the work you did on the last lab, so your
+						starting dashboard should look lik this (see next slide to jump to this point):
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-29.png" alt="starting point">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Jumping to the starting point</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						If you have not completed the previous labs and just want to upload a fully completed dashboard,
+						just apply the file <code><b>support/dashboard-lab6.json</b></code> found in the
+						<a href="https://gitlab.com/o11y-workshops/perses-install-demo" target="_blank">
+							Perses Easy Install project.
+						</a>. It's a resource defining a dashboard as worked out in previous labs and can be applied as
+						follows:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./support/bin/percli apply -f support/dashboard-lab6.json
+
+								object "Dashboard" "MyFirstDashboard"
+								     has been applied in the
+								    project "workshopproject"
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Evaluating the end results</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						If you want to just upload a fully completed lab result (basically cheating!) to see what the
+						final dashboard looks like without completing the lab work, just apply the file
+						<code><b>support/dashboard-lab7.json</b></code> found in the
+						<a href="https://gitlab.com/o11y-workshops/perses-install-demo" target="_blank">
+							Perses Easy Install project.
+						</a>. It's a resource defining a dashboard as worked out in this lab and can be applied as
+						follows:
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./support/bin/percli apply -f support/dashboard-lab7.json
+
+								object "Dashboard" "MyFirstDashboard"
+								     has been applied in the
+								    project "workshopproject"
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced++ dashboard - Adding a new row</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Time to add another row to your dashboard, where you'll be putting team status information. Add
+						a new <code><b>Panel Group</b></code> by editing the dashboard, adding a new panel group,
+						<code><b>Team Status</b></code> and naming it as shown (don't forget to save the results):
+					</div>
+					<div style="height: 420px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-1.png" alt="third row">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced++ dashboard - Creating docs panel</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Let's help our team out and create a handy documentation panel to help the on-call teammate
+						when they first land on our dashboard. This is a <code><b>Markdown</b></code> panel and will
+						look like this when finished:
+					</div>
+					<div style="height: 320px; text-align: right;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-2.png" alt="docs example">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced+++ dashboard - Adding team docs</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Let's add your first <code><b>Markdown</b></code> panel for the team using this dashboard. This
+						component can host anything you like as it's just a Markdown document inside. To add a new panel,
+						<code><b>EDIT</b></code> the dashboard, add a panel to the new row, and add details as shown:
+					</div>
+					<div style="height: 300px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-3.png" alt="memory example">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced++ dashboard - Adding Markdown text</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						Scroll down to the <code><b>Markdown</b></code> tab and add the following text, and note for
+						help you can use the <code><b>Markdown Guide</b></code> link:
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								## Troubleshooting starts here:
+
+								On this page, you'll find the help you need for this team.
+
+								Who you gonna call? [Ghostbusters direct hotline](https://perses.dev)
+
+								| Dashboard   | Link |
+								| ---------   | ---- |
+								| Dashboard 1 | [link](https://perses.dev) |
+								| Dashboard 2 | [link](https://perses.dev) |
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced++ dashboard - Using Markdown editor</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						The editor pane should look like this after you enter the Markdown:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-4.png" alt="editor">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced++ dashboard - Previewing docs panel</h3>
+					</div>
+					<div style="height:70px; text-align: left; font-size: xx-large;">
+						Preview the team documentation panel and ensure you like what you see:
+					</div>
+					<div style="height: 350px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-5.png" alt="docs preview">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced++ dashboard - Adjusting docs panel</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						To apply all the changes to this new panel and add it to the existing dashboard group, click
+						on the <code><b>ADD</b></code> button at the top. Adjust the panel size until it displays the
+						team documentation as shown:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-6.png" alt="saving docs">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced++ dashboard - Finalizing the dashboard</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Now save the dashboard and your finalized Markdown documentation panel should look like this,
+						with the two other rows collapsed to save space:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-7.png" alt="final docs">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced++ dashboard - Creating stat chart panel</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						The team would like to have an instant visual of each service they are responsible for. To show
+						an overview like this of their systems, lets create stat charts for each one with a green bar
+						if it's up and running. Add the first <code><b>stat chart</b></code> panel to visualize the
+						status of the <code><b>Node</b></code> instance, which will look like this when done:
+					</div>
+					<div style="height: 300px; text-align: right;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-8.png" alt="stat chart example">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced+++ dashboard - Adding stat chart details</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						This panel will use a simple query to fill the first panel. To add a new stat chart panel,
+						<code><b>EDIT</b></code> the dashboard, add a panel to the new row, and add details as shown:
+					</div>
+					<div style="height: 250px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-9.png" alt="adding stat chart">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced++ dashboard - Adding node query</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Scroll down to the <code><b>Query</b></code> tab and add the following PromQL query which will
+						target the Node status:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								up{job="node"}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 300px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-10.png" alt="stat chart query">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced++ dashboard - Previewing node status</h3>
+					</div>
+					<div style="height:50px; text-align: left; font-size: xx-large;">
+						Preview the status panel and ensure you like what you see:
+					</div>
+					<div style="height: 350px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-11.png" alt="node preview">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced++ dashboard - Adding node status</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						To apply all the changes to this new panel and add it to the existing dashboard group, click
+						on the <code><b>ADD</b></code> button at the top. Adjust the panel size until it displays as
+						shown:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-12.png" alt="adding status">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced++ dashboard - Finalizing the dashboard</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Now save the dashboard and your finalized node status panel should look like this:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-13.png" alt="final docs">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced++ dashboard - Adding another stat chart</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Now create another <code><b>stat chart</b></code> panel for the <code><b>Prometheus</b></code>
+						instance (hint: found under the PromQL job syntax). Save and finalize the team status dashboard
+						to look something like the following:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-14.png" alt="extra stat charts">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced++ dashboard - Creating multi-gauge panel</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						It would be nice to have an overview of our system, each node with its own gauge to indicate
+						status. Let's add a <code><b>multi-gauge</b></code> panel that provides a current system
+						overview, which should eventually look something like this:
+					</div>
+					<div style="height: 300px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-15.png" alt="multi-gauge example">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced+++ dashboard - Adding overview details</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						This panel will use a more complex query to fill multiple gauges. To add a new multi-gauge panel,
+						<code><b>EDIT</b></code> the dashboard, add a panel to the new row, and add details as shown:
+					</div>
+					<div style="height: 250px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-16.png" alt="adding multi-gauge">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced++ dashboard - Adding overview query</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Scroll down to the <code><b>Query</b></code> tab and add the following PromQL query which will
+						fill multiple gauges with node statuses:
+					</div>
+					<div style="height: 50px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								avg without (cpu)(
+									rate(node_cpu_seconds_total{job='$job',instance=~'$instance',mode!="nice",mode!="steal",mode!="irq"}[3m])
+								)
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced++ dashboard - Adjusting overview settings</h3>
+					</div>
+					<div style="height:80px; text-align: left; font-size: xx-large;">
+						Adjust the settings for your system overview multi-gauge panel as shown to adjust the unit,
+						decimals, and thresholds (including the colors):
+					</div>
+					<div style="height: 350px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-17.png" alt="settings overview">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced++ dashboard - Previewing system overview</h3>
+					</div>
+					<div style="height:70px; text-align: left; font-size: xx-large;">
+						Click on <code><b>RUN QUERY</b></code> and preview the system overview panel and ensure you
+						like what you see:
+					</div>
+					<div style="height: 350px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-18.png" alt="overview preview">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced++ dashboard - Adding system overview</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						To apply all the changes to this new panel and add it to the existing dashboard group, click
+						on the <code><b>ADD</b></code> button at the top. Adjust the panel size until it displays as
+						shown:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-19.png" alt="adding overview">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced++ dashboard - Finalizing the dashboard</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Now save the dashboard and your finalized multi-gauge panel with system overview should look
+						like this:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-20.png" alt="final docs">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced++ dashboard - Finishing touches</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						The last thing to do here is to determine how this dashboard presents when opened by your team
+						when on call. Reopen the WorkshopProject dashboard you just created (hint: try using home page
+						and the <code><b>Projects & Dashboards</b></code> entry) you'll see each row is open showing
+						everything:
+					</div>
+					<div style="height: 400px; text-align: center;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-21.png" alt="open rows">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced++ dashboard - Auto close rows</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Let's change the last two rows group settings by editing the dashboard, then clicking on the
+						pencil icons in each row to edit that group, and using the pop-ups to set defaults to close the
+						rows as shown:
+					</div>
+					<div style="height: 250px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-22.png" alt="close row2">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-23.png" alt="close rows3">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced++ dashboard - Rearrange the row order</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Finally, let's change the row order by moving the second row to the bottom using the arrows
+						to move the bottom row one level up as shown:
+					</div>
+					<div style="height: 200px; text-align: right;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-24.png" alt="move rows">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced++ dashboard - Well done!</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Now double-check your team's on-call dashboard is done by reopening it and see if only the first
+						row is open (hint: try it by refreshing your browser tab):
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-25.png" alt="final test">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 450px; font-size: xx-large">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab07-25.png" alt="dashboard">
+						<br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Look what you've created!</h2>
+					</div>
+					<div style="height: 500px; font-size: xx-large">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/final-dashboard-results.png" alt="wow">
+						<br />
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="reference">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://github.com/perses/perses" target="_blank">Perses project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-perses" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-perses/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Director Evangelism<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Lab and workshop completed!</h2>
+					</div>
+					<div style="height: 450px; font-size: large">
+						<img src="images/done.jpg" alt="done">
+						<br/>
+						<a href="index.html" target="_blank" style="font-size: xx-large">Return to start</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

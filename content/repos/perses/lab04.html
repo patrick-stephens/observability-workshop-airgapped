@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Perses workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Visualization Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-BGV1XYZ1ND"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-BGV1XYZ1ND');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 4 - Exploring Perses dashboards</h3>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>To understand what the basic data model is for building dashboards with the Perses project.</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data model - The Perses data model</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						In the previous lab you explored and made use of the Perses tooling and API. You learned that
+						you can manage your resources on the Perses platform. These resources have a structure and that
+						structure is captured in a data model. In this lab you will explore the dashboard resource
+						data model, learning what is required for a basic dashboard, which will be the foundation to
+						adding your first visual metrics in the following labs.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data model - True to Kubernetes (k8s)</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						The basic data model for a resource is supported in either YAML or JSON formats, keeping in line
+						with the way we expect to interact with a Kubernetes platform. For this lab we will be working
+						exclusively with JSON based files and examples, but nothing prevents you from using YAML if you
+						like.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data model - The specification layout</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						The Perses dashboard specification is the standard for creating any resource within
+						Perses. There are three high level attributes:<br />
+						<br />
+						<ul>
+							<li><code>Kind</code></li>
+							<li><code>Metadata</code></li>
+							<li><code>Spec</code></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data model - Kind attribute explained</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						This attribute is used to state the type of object this resource will be, such as one of
+						the following:<br />
+						<br />
+						<ul>
+							<li><code>Project</code></li>
+							<li><code>Dashboard</code></li>
+							<li><code>Datasource</code></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data model - Metadata attribute explained</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						This attribute is used to identify this resource document and as such has the following
+						available sub-attributes:<br />
+						<br />
+						<ul>
+							<li><code><b>Name</b></code> - The unique name for this resource document</li>
+							<li><code><b>Project</b></code> - A name of a project that this resource belongs to</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data model - Specification attribute explained</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						This attribute defines the specification section where, for example, one of the following
+						resources would be defined:<br />
+						<br />
+						<ul>
+							<li><code><b>Datasource spec</b></code> - Defining a local datasource</li>
+							<li><code><b>Dashboard spec</b></code> - Defining all aspects of a dashboard</li>
+						</ul>
+						<br /><br />
+						Let's dive into the dashboard specification.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data model - Exploring the dashboard specification</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Dashboard <code><b>spec</b></code> definitions include the following elements:<br />
+						<br />
+						<ul>
+							<li><code><b>Display</b></code> - defining a component <code>name</code> and <code>description</code></li>
+							<li><code><b>Duration</b></code> - defining a default time to look in the past for data (not for
+								all specifications)</li>
+							<li><code><b>Variables</b></code> - defining a list of variables for use in components</li>
+							<li><code><b>Panels</b></code> - defining a component to gather data for visualizing on a dashboard
+							using a query of metrics data
+							<li><code><b>Layouts</b></code> - defining the look, feel, and location of a panel in the dashboard</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data model - Dashboard display section</h3>
+					</div>
+					<div style="height: 230px; text-align: left; font-size: xx-large;">
+						The <code><b>display</b></code> section defines what you will see (visualization) for a component on
+						a dashboard and uses the following attributes:<br />
+						<br />
+						<ul>
+							<li><code><b>Name</b></code> - defining a component displayed name</li>
+							<li><code><b>Description</b></code> - a description of the component</li>
+						</ul>
+					</div>
+					<div style="height: 100px;">
+						<pre>
+							<code data-trim data-noescape>
+								"display": {
+									"name": "Memory usage",
+									"description": "My first stat chart!"
+								},
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data model - Dashboard duration section</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						The <code><b>duration</b></code> section defines how long in the past data will be gathered for
+						this item, often used with a variable definition:
+					</div>
+					<div style="height: 100px;">
+						<pre>
+							<code data-trim data-noescape>
+								"spec": {
+									(OTHER-DASHBOARD-SPECIFICATIONS)
+									"duration": "1h"
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data model - Dashboard variables section</h3>
+					</div>
+					<div style="height: 40px; text-align: left; font-size: xx-large;">
+						The <code><b>variable</b></code> section defines a (list) of values used later:
+					</div>
+					<div style="height: 200px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								"variables": [
+									{
+										"kind": "ListVariable",
+										"spec": {
+											"display": {
+												"name": "instance",
+												"hidden": false
+											},
+										"plugin": {
+											"kind": "StaticListVariable",
+											"spec": {
+												"values": [
+													{
+													  "label": "localhost:9090",
+													  "value": "localhost:9090"
+													},
+													{
+													  "label": "localhost:9100",
+													  "value": "localhost:9100"
+													}
+												]
+											}
+										},
+										"name": "instance"
+									}
+								},
+								(OTHER-VARIABLE-SPECIFICATIONS)
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data model - Dashboard panels display section</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						The <code><b>panels</b></code> section defines panels for dashboards, consists of a
+						<code><b>display</b></code>, a <code><b>plugin</b></code>, and a <code><b>queries</b></code>
+						section. Here is an example of the display section:
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								"panels": {
+									"Memoryusage": {
+										"kind": "Panel",
+										"spec": {
+											"display": {
+												"name": "Memory usage",
+												"description": "My first stat chart!"
+											},
+											"plugin": { (PLUGINS-SECTION) },
+											"queries": [ { (QUERIES-SECTION) } ]
+										}
+									}
+								}, (ANOTHER-PANEL)
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data model - Dashboard panels plugin section</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Within the <code><b>panels</b></code> section, here's an example of the plugin section:
+					</div>
+					<div style="height: 250px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								"panels": {
+									"Memoryusage": {
+										"kind": "Panel",
+										"spec": {
+											"display": { (DISPLAY-SECTION) },
+
+											"plugin": {
+												"kind": "StatChart",
+												"spec": {
+													"calculation": "last-number",
+													"format": {
+														"unit": "decimal"
+													},
+													"sparkline": {}
+												}
+											},
+
+											"queries": [ { (QUERIES-SECTION) } ]
+										}
+									}
+								}, (ANOTHER-PANEL)
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data model - Dashboard panels queries section</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Within the <code><b>panels</b></code> section, here's an example of the queries section:
+					</div>
+					<div style="height: 300px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								"panels": {
+									"Memoryusage": {
+										"kind": "Panel",
+										"spec": {
+											"display": { (DISPLAY-SECTION) },
+											"plugin": { (PLUGIN-SECTION },
+
+											"queries": [
+												{
+													"kind": "TimeSeriesQuery",
+													"spec": {
+														"plugin": {
+															"kind": "PrometheusTimeSeriesQuery",
+															"spec": {
+																"query": "100 - ((go_memstats_sys_bytes{instance='$instance', job='$job'} * 100) /
+																	(go_memstats_alloc_bytes_total{instance='$instance', job='$job'}))"
+															}
+														}
+													}
+												}
+											]
+										}
+									}
+								}, (ANOTHER-PANEL)
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data model - Dashboard layouts specification section</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						The <code><b>layouts</b></code> section describes the individual panels and their locations on
+						the dashboard:
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								"layouts": [
+									{
+										"kind": "Grid",
+										"spec": {
+											"display": {
+												"title": "Panel Group",
+												"collapse": {
+													"open": true
+												}
+											},
+											"items": [
+												{
+													"x": 0,
+													"y": 0,
+													"width": 12,
+													"height": 6,
+													"content": { "$ref": "#/spec/panels/Memoryusage" }
+												}
+											]
+										}
+									}
+								]
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data model - Downloading dashboard JSON</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						The data model you've been exploring here online is also available as a JSON file that you can
+						download from the UI directly by clicking on the top right download button:
+					</div>
+					<div style="height: 180px; text-align: right;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab04-1.png" alt="json">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data model - Viewing dashboard JSON</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						This file is provided in a raw and unstructured format. Use your favorite editor (ours is VIM
+						with a plugin to format the JSON) and explore your dashboard file:
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ vim ~/Downloads/MyFirstDashboard.json
+
+								{
+									"kind": "Dashboard",
+									"metadata": {
+										"name": "MyFirstDashboard",
+										"createdAt": "2023-11-28T15:32:17.821847724Z",
+										"updatedAt": "2023-11-28T15:32:17.821847724Z",
+										"version": 0,
+										"project": "WorkshopProject"
+									},
+									"spec": {
+										"display": { "name": "MyFirstDashboard"},
+										"panels": {
+											"Memoryusage": {
+												"kind": "Panel",
+												"spec": {
+													"display": {
+														"name": "Memory usage",
+														"description": "My first stat chart!"
+													},
+								(MORE-DASHBOARD-JSON)
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Setup - Getting to my first dashboard</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						We are now going to apply the things we have learned so far to begin working on our first
+						dashboard. Open the browser to your Perses instance after our initial setup, as shown below:
+					</div>
+					<div style="height: 380px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab02-5.png" alt="console">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Setup - Starting point for next steps</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Click on the project <code><b>workshopproject</b></code>, exposing a list of the available
+						dashboards, getting us to the starting point for the next lab:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab04-2.png" alt="my first">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 400px; font-size: xx-large">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab04-2.png" alt="dashboard">
+						<br />
+						Next up, building out your first dashboard...
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="reference">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://github.com/perses/perses" target="_blank">Perses project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-perses" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-perses/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Director Evangelism<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab05.html" target="_blank">Lab 5 - Building your first dashboard</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Fluent Bit workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Telemetry Pipelines Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax-highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-799E08H5WD"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-799E08H5WD');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 1 – Introduction to Fluent Bit</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>To gain an understanding of Fluent Bit and its role in cloud native observability.</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Introduction – Defining pipelines</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Before we get started, let's get on the same page with a definition of cloud native
+						observability pipelines. As noted in
+						<a href="https://casber.substack.com/p/observability-in-2024" target="_blank">this trend report</a>:
+					</div>
+					<div style="height: 150px;">
+						<code><b>Observability pipelines are providing real-time filtering, enrichment, normalization
+							and routing of telemetry data</b></code>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Introduction – Pipeline trends</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						The rise in the amount of data being generated in cloud native environments has become such a
+						burden for teams trying to manage it all, as well as a burden to organization's budgets. As they
+						are searching for more control over all this telemetry data, from collecting, processing, and
+						routing, to storing and querying.<br />
+						<br />
+						Data pipelines have gained significant traction in helping organizations deal with the challenges
+						they are facing by providing a powerful way to lower ingestion volumes and help reduce data
+						costs.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Introduction – Telemetry pipeline benefits</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						Telemetry pipelines act as a telemetry gateway between cloud native data and organizations.
+						It's performing real-time filtering, enrichment, normalization, and routing to affordable storage.
+						This reduces dependencies on expensive and often proprietary storage solutions.<br />
+						<br />
+						Another plus for organizations is the ability to reformat collected data on the fly, often
+						bridging the gap between legacy or non-standards based data structures to current standards.
+						They can achieve this without having to update code, re-instrument, or redeploy existing
+						applications and services.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Introduction – What is Fluent Bit?</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						From the
+						<a href="https://docs.fluentbit.io/manual/about/what-is-fluent-bit" target="_blank">project documentation</a>,
+						<a href="https://fluentbit.io/" target="_blank">Fluent Bit</a> is an
+						<a href="https://github.com/fluent/fluent-bit/blob/master/README.md" target="_blank">open source</a>
+						telemetry agent specifically designed to efficiently handle the
+						challenges of collecting and processing telemetry data across a wide range of environments, from
+						constrained systems to complex cloud infrastructures. It's effective at managing telemetry data
+						from various sources and formats can be a constant challenge, particularly when performance is a
+						critical factor.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Introduction – Telemetry pipeline background</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						Before we get started, let's get on the same page with what cloud native telemetry pipelines
+						are. As noted in
+						<a href="https://casber.substack.com/p/observability-in-2024" target="_blank">this report</a>,
+						<i>"Telemetry pipelines providing real-time filtering, enrichment, normalization and routing
+							of telemetry data"</i>.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Introduction – What does Fluent Bit do?</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						Rather than serving as a drop-in replacement, Fluent Bit enhances the observability strategy for
+						your infrastructure by adapting and optimizing your existing logging layer, as well as metrics
+						and traces processing. Furthermore, Fluent Bit supports a vendor-neutral approach, seamlessly
+						integrating with other ecosystems such as Prometheus and OpenTelemetry.<br />
+						<br />
+						Fluent Bit can be deployed as an edge agent for localized telemetry data handling or used as
+						a central aggregator or collector for managing telemetry data across multiple sources and
+						environments. Fluent Bit has been designed for performance and low resource consumption.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Introduction - Fluent Bit data pipeline</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Designed to process logs, metrics, and traces at speed, scale, and with flexibility:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab01-1.png" alt="architecture">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Introduction – What about Fluentd?</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						First there was <a href="https://www.fluentd.org/architecture" target="_blank">Fluentd</a>, a
+						<a href="https://www.cncf.io/projects/fluentd/" target="_blank">CNCF Graduated Project</a>. It's
+						an open source data collector for building the
+						<a href="https://www.fluentd.org/blog/unified-logging-layer" target="_blank">
+							unified logging layer
+						</a>. When installed, it runs in the background to collect, parse, transform, analyze and store
+						various types of data.<br />
+						<br />
+						The projects have many similarities: Fluent Bit is designed and built on top of the best ideas
+						from Fluentd architecture and general design. Which one you choose depends on your end-users
+						needs.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction – Fluentd to Fluent Bit comparison</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Both projects share similarities, Fluent Bit is fully designed and built on top of the best
+						ideas from Fluentd architecture and general design:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab01-2.png" alt="comparison">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction – Understanding Fluent Bit concepts</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						Before we dive into using Fluent Bit, it's important to have an understanding of the key
+						concepts, so let's explore the following:<br />
+						<br />
+						<ul>
+							<li>Event or Record</li>
+							<li>Filtering</li>
+							<li>Tag</li>
+							<li>Timestamp</li>
+							<li>Match</li>
+							<li>Structured Message</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction – What is an Event or Record?</h3>
+					</div>
+					<div style="height: 160px; text-align: left; font-size: xx-large;">
+						Each incoming piece of data is considered an <code><b>Event</b></code> or a
+						<code><b>Record</b></code>. This lab uses <code><b>Event</b></code> as the preferred terminology.
+						An example of an <code><b>Event</b></code> is shown below in a sample log file, with each line
+						representing one <code><b>Event</b></code>:
+					</div>
+					<div style="width: 950px; height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								Feb 26 09:49:58 EricsM2 syslogd[361]: ASL Sender Statistics
+								Feb 26 09:51:18 EricsM2 AMPDeviceDiscoveryAgent[764]: mux-device:1392
+								Feb 26 09:53:18 EricsM2 AMPDeviceDiscoveryAgent[764]: Entered:__thr_AMMuxedDeviceDisconnected
+								Feb 26 00:30:30 EricsM2 syslogd[361]: ASL Module "com.apple.iokit.power"
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						<code><b>Events</b></code> have a strict format of <code><b>timestamp</b></code>,
+						<code><b>key/value metadata</b></code>, and <code><b>payload</b></code>.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction – Fluent Bit wire protocol and Events</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Fluent Bit communicates with its own <code><b>wire protocol</b></code> that represents each
+						<code><b>Event</b></code> as a two element array with a nested first element:
+					</div>
+					<div style="width: 700px; height: 70px;">
+						<pre>
+							<code data-trim data-noescape>
+								[[TIMESTAMP, METADATA], MESSAGE]
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						<ul>
+							<li><b>TIMESTAMP</b> – in seconds as integer or floating point value (!STRING)</li>
+							<li><b>METADATA</b> - is a <i><b>possibly empty</b></i> object containing event metadata</li>
+							<li><b>MESSAGE</b> - is an object containing the event body</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo – Older Fluent Bit wire protocol</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Previous versions of Fluent Bit (prior to v2.1.0) represent each <code><b>Event</b></code> in
+						a different format, without the metadata element:
+					</div>
+					<div style="width: 700px; height: 70px;">
+						<pre>
+							<code data-trim data-noescape>
+								[TIMESTAMP, MESSAGE]
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Note that this older format is supported for reading input event streams.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction – Filtering on our events</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						The concept of <code><b>Filtering</b></code> is when we need to perform modifications on the
+						contents of an <code><b>Event</b></code>, the process of altering, enriching, or dropping an
+						<code><b>Event</b></code>. A few examples of this are:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<ul>
+							<li>Appending specific information to an Event, such as an IP address</li>
+							<li>Select a specific piece of the Event content</li>
+							<li>Drop <code><b>Events</b></code> that matches certain criteria</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction – Everything gets a Tag</h3>
+					</div>
+					<div style="height: 330px; text-align: left; font-size: xx-large;">
+						Every singe <code><b>Event</b></code>, every one, is given a <code><b>Tag</b></code> as it
+						enters our Fluent Bit pipeline. The <code><b>Tag</b></code> is an internal string used by the
+						<code><b>Router</b></code> in later stages of our pipeline to determine which filters or
+						output phases an <code><b>Event</b></code> must pass through.<br />
+						<br />
+						A tagged <code><b>Event</b></code> must always have a matching rule, see the official
+						<a href="https://docs.fluentbit.io/manual/concepts/data-pipeline/router" target="_blank">
+							Router
+						</a> documentation for details.
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Note: One input plugin does NOT assign tags, the <code><b>Forward</b></code> input. It uses the
+						Fluentd wire protocol called <code><b>Forward</b></code> where every <code><b>Event</b></code>
+						comes with a <code><b>Tag</b></code>. Fluent Bit always uses the incoming
+						<code><b>Tag</b></code> set by a client.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction – What is a Timestamp?</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						A <code><b>Timestamp</b></code> is assigned to each <code><b>Event</b></code> as it enters a
+						pipeline, is always present, and is a numerical fraction in the form of:
+					</div>
+					<div style="width: 700px; height: 70px;">
+						<pre>
+							<code data-trim data-noescape>
+								SECONDS.NANOSECONDS
+							</code>
+						</pre>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<ul>
+							<li><b>SECONDS</b> – number of seconds that have elapsed since the Unix epoch.</li>
+							<li><b>NANOSECONDS</b> – fractional second or one thousand-millionth of a second.</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction – Matching our Events</h3>
+					</div>
+					<div style="height:300px; text-align: left; font-size: xx-large;">
+						Fluent Bit delivers collected and processed <code><b>Events</b></code> to possible destinations
+						by using a routing phase. A <code><b>Match</b></code> represent a rule applied to
+						<code><b>Events</b></code> where it examines its <code><b>Tags</b></code> for matches.<br />
+						<br />
+						For more details around <code><b>Matches</b></code> and <code><b>Tags</b></code>, see the
+						<a href="https://docs.fluentbit.io/manual/concepts/data-pipeline/router" target="_blank">
+							Router
+						</a> documentation.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction – Unstructured or Structured Messages</h3>
+					</div>
+					<div style="height: 280px; text-align: left; font-size: xx-large;">
+						When <code><b>Events</b></code> enter the system they can be viewed as either unstructured or
+						structured <code><b>Event Messages</b></code>. The goal of Fluent Bit is to ensure that all
+						messages have a structured format, defined as having <code><b>keys and values</b></code>, which
+						ensures faster operations on data modifications.<br />
+						<br />
+						<b>Unstructured message:</b>
+					</div>
+					<div style="width: 700px; height: 70px;">
+						<pre>
+							<code data-trim data-noescape>
+								"This workshop was created on 1456289299"
+							</code>
+						</pre>
+					</div>
+					<div style="height: 20px; text-align: left; font-size: xx-large;">
+						<b>Structured message:</b>
+					</div>
+					<div style="width: 700px; height: 70px;">
+						<pre>
+							<code data-trim data-noescape>
+								{"project": "workshop", "created": 1456289299}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo – It's always a structured message</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Fluent Bit treats every single <code><b>Event</b></code> message as a structured message. It
+						uses internally a binary serialization data format called
+						<a href="https://msgpack.org/" target="_blank">MessagePack</a>, which is like a version of
+						JSON on steroids.
+					</div>
+					<div style="height: 400px; text-align: right">
+						<a href="https://msgpack.org/" target="_blank"><img src="images/lab01-3.png" alt="message pack"></a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction - Buffering basics for pipelines</h3>
+					</div>
+					<div style="height: 330px; text-align: left; font-size: xx-large;">
+						A major issue with data pipelines is finding a way to store data that is ingested. We need
+						in-memory storage to hold the data you are processing (fast), but we also don't want to lose data
+						when this first storage is full. To achieve that, we need a secondary storage to hold all data
+						that does not fit into memory.<br />
+						<br />
+						All of this is known as data buffering, having the ability to store <code><b>Events</b></code>
+						somewhere, while processing and delivering them, to still be able to store more.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction – Fluent Bit's buffering strategy</h3>
+					</div>
+					<div style="height: 330px; text-align: left; font-size: xx-large;">
+						Networks fail all the time, or have latency issues causing delays in data delivery. There are
+						many scenarios where we cannot deliver data fast enough as we are receiving it in our pipeline.
+						When this happens it's a phenomenon known as <code><b>backpressure</b></code>, and Fluent Bit
+						is designed with buffering strategies to solve these issues.<br />
+						<br />
+						Fluent Bit offers a primary buffering mechanism in memory and an optional secondary buffering
+						mechanism using the file system. This hybrid solution provides for high performance while
+						processing incoming data and ensures no data loss due to the issues described above. Data ready
+						for processing will always be in-memory, while other data might be in the filesystem until ready
+						to be processes.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction – Telemetry pipeline input phase</h3>
+					</div>
+					<div style="height: 270px; text-align: left; font-size: xx-large;">
+						A telemetry pipeline is where data goes through various phases from collection to final
+						destination. We can define or configure each phase to manipulate the data or the path it's taking
+						through our telemetry pipeline. The first phase is <code><b>INPUT</b></code>, which is where
+						Fluent Bit uses
+						<a href="https://docs.fluentbit.io/manual/pipeline/inputs" target="_blank">Input Plugins</a> to
+						gather information from specific sources. When an input plugin is loaded it creates an instance
+						which we can configure using the plugins <code><b>properties</b></code>.
+					</div>
+					<div style="height: 250px;">
+						<img src="images/lab01-4.png" alt="input">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction – Data pipeline parser phase</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						The second phase is <code><b>PARSER</b></code>, which is where unstructured input data is turned
+						into structured data. Fluent Bit does this using
+						<a href="https://docs.fluentbit.io/manual/pipeline/parsers" target="_blank">Parsers</a> that we
+						can configure to manipulate the unstructured data producing structured data for the next phases
+						of our pipeline.
+					</div>
+					<div style="height: 250px;">
+						<img src="images/lab01-5.png" alt="parser">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction – Example data pipeline parsing</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						Here's an example of unstructured log data entering the <code><b>Parser</b></code> phase:
+					</div>
+					<div style="width: 900px; height: 70px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								192.168.2.20 - - [28/Jul/2006:10:27:10 -0300] "GET /cgi-bin/try/ HTTP/1.0" 200 3395
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						And the parsing results with structured data as the output:
+					</div>
+					<div style="width: 700px; height: 70px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								{
+								  "host":    "192.168.2.20",
+								  "user":    "-",
+								  "method":  "GET",
+								  "path":    "/cgi-bin/try/",
+								  "code":    "200",
+								  "size":    "3395"
+								 }
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction – Data pipeline filter phase</h3>
+					</div>
+					<div style="height: 190px; text-align: left; font-size: xx-large;">
+						Filtering phase is when we modify, enrich, or delete any of the collected
+						<code><b>Events</b></code>. Fluent Bit provides many out-of-the-box plugins as
+						<a href="https://docs.fluentbit.io/manual/pipeline/filters" target="_blank">Filters</a> that
+						can match, exclude, or enrich your structured data before it moves onwards in the pipeline.
+						Filters can be configured using the provided properties.
+					</div>
+					<div style="height: 250px;">
+						<img src="images/lab01-6.png" alt="filter">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction – Data pipeline buffer phase</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						Buffering was discussed previously, but here in the pipeline is where the data is stored, using
+						in-memory or the file-system-based options. Note that when data reaches the buffer phase it's in
+						an immutable state (no more filtering) and that buffered data is not raw text, but in an
+						internal binary representation for storage.
+					</div>
+					<div style="height: 250px;">
+						<img src="images/lab01-7.png" alt="buffer">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction – Data pipeline routing phase</h3>
+					</div>
+					<div style="height: 220px; text-align: left; font-size: xx-large;">
+						The next phase is <code><b>ROUTING</b></code>, which is where Fluent Bit uses the previously
+						discussed <code><b>Tag</b></code> and <code><b>Match</b></code> concepts to determine which
+						output destinations to send data. During the <code><b>INPUT</b></code> phase data is assigned
+						a <code><b>Tag</b></code>, during the <code><b>ROUTING</b></code> phase data is compared to
+						<code><b>Match</b></code> rules from output configurations, if it <i>matches</i> then the
+						data is sent to that output destination.
+					</div>
+					<div style="height: 250px;">
+						<img src="images/lab01-8.png" alt="router">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction – Example routing to database and memory</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						In this example we'll collect and <code><b>Tag</b></code> two metrics, cpu and memory, which we
+						then want to go to separate output destinations. This is configured as follows, noting all
+						matching happens on <code><b>Tag</b></code> values:
+					</div>
+					<div style="width: 700px; height: 70px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								pipeline:
+								  inputs:
+								    - name: cpu
+								      tag: my_cpu
+
+								    - name: mem
+								      tag: my_mem
+
+								  outputs:
+								    - name: database
+								      match: 'my*cpu'
+
+								    - name: stdout
+								      match: 'my*mem'
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction – Example routing using wildcards</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						In this example we'll collect and <code><b>Tag</b></code> the same two metrics, cpu and memory,
+						which we then send to the console output using a catch-all wildcard:
+					</div>
+					<div style="width: 700px; height: 70px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								pipeline:
+								  inputs:
+								    - name: cpu
+								      tag: my_cpu
+
+								    - name: mem
+								      tag: my_mem
+
+								  outputs:
+								    - name: stdout
+								      match: 'my*'
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction – Example routing with regular expressions</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						In this example we'll collect and <code><b>Tag</b></code> two sensor metrics which we then send
+						to the console output using a the <code><b>Match_regex</b></code> pattern that matches all
+						tags ending with <code><b>"_sensor_A"</b></code> or <code><b>"_sensor_B"</b></code>:
+					</div>
+					<div style="width: 700px; height: 70px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								pipeline:
+								  inputs:
+								    - name: temperature_sensor
+								      tag: temp_sensor_A
+
+								    - name: humidity_sensor
+								      tag: humid_sensor_B
+
+								  outputs:
+								    - name: stdout
+								      match_regex: '.*sensor_[AB]'
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction – Data pipeline output phase</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						The final phase is <code><b>OUTPUT</b></code>, which is where Fluent Bit uses
+						<a href="https://docs.fluentbit.io/manual/pipeline/outputs" target="_blank">Output Plugins</a> to
+						connect with specific destinations. These destinations can be databases, remote services, cloud
+						services, and more.
+					</div>
+					<div style="height: 250px;">
+						<img src="images/lab01-9.png" alt="output">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab completed – Results</h2>
+					</div>
+					<div style="height: 50px;">
+						We gained a basic understanding of Fluent Bit.
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab01-10.png" alt="pipelines">
+					</div>
+					<div style="height: 50px;">
+						Next up, installing Fluent Bit on your machine.
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://github.com/fluent/fluent-bit/blob/master/README.md" target="_blank">Fluent Bit repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact – are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Technology Advocate Lead<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in the workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab02.html" target="_blank">Lab 2 - Installing Fluent Bit</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

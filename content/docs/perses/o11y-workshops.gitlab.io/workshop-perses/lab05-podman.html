@@ -1,0 +1,407 @@
+<!doctype html>
+<!--suppress HtmlDeprecatedAttribute -->
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Perses workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Visualization Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-BGV1XYZ1ND"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-BGV1XYZ1ND');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data source - Container installation notes</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						This lab assumes you completed lab 2 on the container path, so you already have the
+						<code><b>perses</b></code> container running and serving on
+						<code><b>localhost:8080</b></code>, and you are sitting in the
+						<code><b>perses-install-demo</b></code> directory you unzipped there.<br />
+						<br />
+						You are going to add Prometheus and the node exporter as two more containers, published to
+						<code><b>localhost:9090</b></code> and <code><b>localhost:9100</b></code> so your browser can
+						query them. If you installed Perses from source instead, this path still works, the two are
+						completely independent of each other.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Container - Starting Podman machine</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						You need to make sure that the Podman virtual machine is running, so, assuming you have
+						initialized a Podman machine already:
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman machine start
+							</code>
+						</pre>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						If you want to use other container tooling, such as Docker, most of the commands below are the
+						same with just a substitution of the tooling name (<code><b>docker</b></code> instead of
+						<code><b>podman</b></code>).
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus install - The configuration</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Before we can run our Prometheus instance, we need to explore the lab setup in the provided
+						configuration shown below:
+					</div>
+					<div style="height: 250px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ cat support/workshop-prometheus.yml
+
+								# workshop config
+								global:
+								  scrape_interval: 5s
+
+								scrape_configs:
+
+								  # Scraping prometheus.
+								  - job_name: "prometheus"
+									static_configs:
+									  - targets: ["localhost:9090"]
+
+								  # Scraping node exporter.
+								  - job_name: "node"
+									static_configs:
+									  - targets: ["localhost:9100"]
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus install - Some thoughts on config</h3>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						Normally you are monitoring other targets over HTTP and scraping their endpoints, but we are
+						going to start with Prometheus as it also exposes its own metrics endpoints and an instance of
+						the Node Exporter. Monitoring these are only an exercise for this workshop. Also note that
+						scraping metrics every 5 seconds is a bit over the top, commonly you would see 10-60 seconds,
+						but we want our data to flow in a steady stream for this workshop.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Container - Creating a pod for both containers</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Both containers are going into a single Podman <code><b>pod</b></code>, and the ports are
+						published on the pod rather than on the individual containers:
+					</div>
+					<div style="height: 150px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman pod create --name workshop-datasource \
+								    -p 127.0.0.1:9090:9090 \
+								    -p 127.0.0.1:9100:9100
+
+								f3c1d9a6e2b74c05a1d8e6f4b39c7a20d5e81fb63c94a7d2e0b58c1f6a3d9e47
+							</code>
+						</pre>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						Note there is nothing to publish for port 8080 here, your Perses container from lab 2 keeps
+						that one and is not part of this pod.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Why a pod and not two containers?</h3>
+					</div>
+					<div style="height: 420px; text-align: left; font-size: x-large;">
+						Containers in a pod share one network namespace, which means they see each other on
+						<code><b>localhost</b></code> exactly as two processes on your laptop would.<br />
+						<br />
+						That is the whole reason for the pod. The configuration file you just looked at scrapes
+						<code><b>localhost:9090</b></code> and <code><b>localhost:9100</b></code>, so it works
+						unchanged in here, and Prometheus writes those same addresses into the
+						<code><b>instance</b></code> label. Your variable drop-downs and every screenshot in the rest
+						of this workshop read identically to the local binary path.<br />
+						<br />
+						Run the two as separate containers on a shared network instead, and you would be scraping
+						<code><b>node-exporter:9100</b></code>, which lands a service name in the
+						<code><b>instance</b></code> label and leaves you translating labels for the rest of the day.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus install - Start your metrics engines!</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Now start Prometheus inside the pod, mounting our workshop configuration over the one the image
+						ships. Run this from the <code><b>perses-install-demo</b></code> directory:
+					</div>
+					<div style="height: 130px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run -d --pod workshop-datasource --name prometheus \
+								    -v "$(pwd)/support/workshop-prometheus.yml:/etc/prometheus/prometheus.yml:ro,Z" \
+								    docker.io/prom/prometheus:v3.13.1
+							</code>
+						</pre>
+					</div>
+					<div style="height: 160px; text-align: left; font-size: x-large;">
+						The image already looks for its configuration at
+						<code><b>/etc/prometheus/prometheus.yml</b></code>, so there is no flag to pass. The
+						<code><b>ro,Z</b></code> mounts it read-only and relabels it for SELinux, harmless on machines
+						without SELinux. On Windows, replace <code><b>$(pwd)</b></code> with the full path to the
+						directory.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus install - Checking the container logs</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						The container was started detached (<code><b>-d</b></code>), so to watch it come up, or to
+						debug a configuration that will not load, ask for the logs:
+					</div>
+					<div style="height: 240px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman logs -f prometheus
+
+								...
+								level=INFO source=main.go:896 msg="Starting Prometheus Server" mode=server version="(version=3.13.1)"
+								level=INFO source=web.go:727 msg="Start listening for connections" address=0.0.0.0:9090
+								level=INFO source=main.go:1480 msg="TSDB started"
+								level=INFO source=main.go:1441 msg="Server is ready to receive web requests."
+								...
+							</code>
+						</pre>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: x-large;">
+						A container that exited instead of starting is almost always a configuration problem, and the
+						last few log lines will name the file and line for you.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus install - Verifying instance</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						Now let's see if our Prometheus server is up and running by loading the status page in our
+						browser at <a href="http://localhost:9090" target="_blank">http://localhost:9090</a>, noting it
+						needs to run a little bit to collect some data from its own HTTP metrics endpoint. Click on the
+						menu items STATUS -&gt; TARGET HEALTH to verify it is collecting Prometheus metrics and not yet
+						connecting to the Node Exporter instance (as not yet started):
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab05-1.png" alt="status"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Node exporter install - Start your node engines!</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Now it's time to start the node exporter for Prometheus to start scraping. There is no
+						configuration file needed, and it goes into the same pod:
+					</div>
+					<div style="height: 100px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run -d --pod workshop-datasource --name node-exporter \
+								    quay.io/prometheus/node-exporter:v1.12.1
+							</code>
+						</pre>
+					</div>
+					<div style="height: 160px; text-align: left; font-size: xx-large;">
+						It listens on port 9100 by default, which is the port you already published on the pod, so
+						Prometheus starts scraping it on its next 5-second interval with no configuration change.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Whose machine is being measured?</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: x-large;">
+						Worth being honest about what you just started. A node exporter in a container reports on the
+						machine it can see, and from inside a container that is the container's own view of the
+						kernel it is running on. On Mac and Windows, where Podman runs a Linux virtual machine, those
+						numbers describe the virtual machine and not your laptop.<br />
+						<br />
+						For this workshop that makes no difference, we want a steady stream of real metrics to build
+						panels against, and this gives us exactly that. Just do not read the disk and memory figures
+						as a report on your own hardware. If that is what you are after, the local binaries path
+						measures your machine directly.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Container - Verifying the deployment</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						You should now have the Perses container from lab 2 running on its own, plus a pod holding
+						Prometheus and the node exporter:
+					</div>
+					<div style="height: 150px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman ps --pod
+
+								NAMES          STATUS   PORTS                     POD NAME
+								perses         Up 21m   127.0.0.1:8080-&gt;8080/tcp
+								prometheus     Up 4m    127.0.0.1:9090-&gt;9090/tcp  workshop-datasource
+								node-exporter  Up 47s   127.0.0.1:9100-&gt;9100/tcp  workshop-datasource
+							</code>
+						</pre>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: x-large;">
+						The pod also runs a small <code><b>infra</b></code> container of its own that holds the shared
+						network namespace open, add <code><b>-a</b></code> to the command above if you want to see it.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Node exporter install - Verifying instance</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Now let's see if our Prometheus server picked up our node instance in our browser at
+						<a href="http://localhost:9090" target="_blank">http://localhost:9090</a>, and clicking on the
+						menu items STATUS -&gt; TARGET HEALTH to verify it is collecting Prometheus and Node Exporter
+						metrics (look for the green UP state on the right side):
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab05-2.png" alt="status"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Verifying - The labels you should see</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						This is the check that matters for the rest of the workshop. Query
+						<code><b>up</b></code> in the expression browser and confirm you get exactly these two
+						series:
+					</div>
+					<div style="height: 120px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								up{instance="localhost:9090", job="prometheus"}  1
+								up{instance="localhost:9100", job="node"}        1
+							</code>
+						</pre>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: xx-large;">
+						If either instance shows a container or service name instead, the containers are not sharing a
+						network namespace. Check that both were started with
+						<code><b>--pod workshop-datasource</b></code>.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Container - Cleaning up later on</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Not yet, but when you are completely finished with the workshop, removing the pod takes both
+						containers with it. Your Perses container is separate, so stop that one too, and then the
+						virtual machine:
+					</div>
+					<div style="height: 250px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman pod rm -f workshop-datasource
+
+								$ podman container stop perses
+
+								$ podman machine stop
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h3 class="r-fit-text">Data source installed - Results</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						Prometheus is scraping itself and the node exporter, both are reachable from your browser,
+						and the labels read the same as every other path in this workshop.<br />
+						<br />
+						Leave the pod running for the rest of the workshop, it is what your dashboards are going to be
+						querying.<br />
+						<br />
+						Next up, building your first dashboard...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab05b.html" target="_blank">Building your first dashboard</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

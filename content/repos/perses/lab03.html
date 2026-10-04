@@ -1,0 +1,835 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Perses workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Visualization Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-BGV1XYZ1ND"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-BGV1XYZ1ND');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 3 - Exploring dashboard tooling</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>To explore the Perses API and be able to use the Perses command line tooling to gain
+							insights into the current available projects, dashboards, and data sources.</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses API - A little background</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						After installing Perses in the previous lab, you have the dashboard open in your browser. There
+						is an application programming interface (API) available for you to gain insights into the
+						configuration applied to your Perses server. You can find out more about the projects,
+						dashboards, and data sources that have been created. This can be handy to start with existing
+						resources and modify them for your own versions.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses API - The basic operations</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						The Perses API provides access to five operations (API end points) for every resource, listed
+						here in no particular order:<br />
+						<br />
+						<ul>
+							<li>creating a resource</li>
+							<li>updating a resource</li>
+							<li>deleting a resource</li>
+							<li>retrieving a single resource</li>
+							<li>retrieving a list of resources</li>
+						</ul>
+						<br /><br />
+						On the next slide you will explore some of the browser based API insights Perses provides.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses API - Viewing existing projects</h3>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						You can view the configured projects on your Perses server with a browser, just enter this URL:<br />
+						<br />
+						<code><b>http://localhost:8080/api/v1/projects</b></code><br />
+						<br />
+						This shows you un-formatted JSON output of the available projects. You should see the single
+						<code><b>workshopproject</b></code> listed:
+					</div>
+					<div style="height: 100px; text-align: center">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab03-1.png" alt="empty">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses API - Viewing projects (YARC)</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						Browsers are not great for viewing API responses, so let's use
+						<a href="https://yet-another-rest-client.com/" target="_blank">a REST Client (YARC)</a> (install
+						extension on your own) that automatically formats all responses, but you can use your preferred
+						REST client. Enter <code><b>http://localhost:8080/api/v1/projects</b></code><br /> and click on
+						SEND REQUEST button:
+					</div>
+					<div style="height: 350px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab03-2.png" alt="viewing">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses API - Project response (YARC)</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						You'll see the API response is formatted for easy consumption, much better than in the browser:
+					</div>
+					<div style="height: 430px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab03-3.png" alt="response">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses API - Listing dashboards</h3>
+					</div>
+					<div style="height: 160px; text-align: left; font-size: xx-large;">
+						Next we can look at the listing of available dashboards within the WorkshopProject with this
+						API request:<br />
+						<br />
+						<code><b>http://localhost:8080/api/v1/projects/workshopproject/dashboards</b></code>
+					</div>
+					<div style="height: 350px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab03-4.png" alt="dashboard">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses API - Listing dashboards response</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Note this view of the reply contains only partial results, as the response encompasses the
+						entire configuration for each available dashboard. In our case there is one dashboard listed as
+						<code><b>MyFirstDashboard</b></code>:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab03-5.png" alt="demo">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses API - Listing single dashboard</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						To grab an example configuration to start from a working dashboard, just specify a specific
+						dashboard:<br />
+						<br />
+						<code><b>http://localhost:8080/api/v1/projects/workshopproject/dashboards/MyFirstDashboard</b></code>
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab03-6.png" alt="single">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses API - Single dashboard response</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						Now the output response is just a single dashboard configuration for
+						<code><b>MyFirstDashboard</b></code>:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab03-7.png" alt="single response">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses API - Listing data sources</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						Data sources are where we point our dashboard queries to. Often metrics gathering Prometheus
+						instances as we're using Prom Query Language (PromQL). Let's list them within
+						<code><b>WorkshopProject</b></code>:<br />
+						<br />
+						<code><b>http://localhost:8080/api/v1/projects/workshopproject/datasources</b></code>
+					</div>
+					<div style="height: 350px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab03-8.png" alt="listing data">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses API - Data sources response</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						We see the available data sources defined for our workshop demo project in the
+						specification. You can browse the details below:
+					</div>
+					<div style="height: 450px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab03-9.png" alt="data reply">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Perses API - Official documentation</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						We can't show all possible API usage here, so we will just consider these handled so far as
+						a basic introduction. It's enough to get you started and enough to know that the API is
+						available for you to explore further on your own. See the
+						<a href="https://github.com/perses/perses/blob/main/docs/api/README.md" target="_blank">API documentation</a>
+						for more details.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses CLI - Command line tooling setup</h3>
+					</div>
+					<div style="height: 220px; text-align: left; font-size: x-large;">
+						If you choose the <code><b>source</b></code> installation, the <code><b>percli</b></code>
+						(command line) tooling is available in <code><b>./target/perses-[VERSION]/bin/percli</b></code>.<br />
+						<br />
+						If are using the container installation, then you will find a pre-built copy for your OS in
+						<code><b>./support/bin/percli-{OS_VERSION}-amd64.zip</b></code>. Unzip the version for your
+						operating system (example below for OSX) and use to access the Perses container API (note, the
+						easy install project automatically unzips the version our OS needs):
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ls -1 ./support/bin/
+
+								percli-darwin-amd64.zip
+								percli-linux-amd64.zip
+								percli-windows-amd64.zip
+
+								$ unzip ./support/bin/percli-darwin-amd64.zip -d ./support/bin/
+
+								Archive:  ./support/bin/percli-darwin-amd64.zip
+								inflating: ./support/bin/percli
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses CLI - Command line tooling usage</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						We're assuming you've just completed the setup for using the<code><b>percli</b></code> command
+						line tooling. All examples shown in this lab will use the path to the tooling as shown below,
+						but you can use any path to the tooling you set up:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./support/bin/percli --help
+
+								Command line interface to interact with the Perses API
+
+								Usage:
+								  percli [command]
+
+								Available Commands:
+								  apply       Create or update resources through a file. JSON or YAML format supported
+								  completion  Generate the autocompletion script for the specified shell
+								  config      display local or remote config
+								  dac         Commands related to Dashboard-as-Code
+								  delete      Delete resources
+								  describe    Show details of a specific resource
+								  get         Retrieve any kind of resource from the API.
+								  help        Help about any command
+								  lint        Static check of the resources
+								  login       Log in to the Perses API
+								  migrate     migrate a Grafana dashboard to the Perses format
+								  plugin      Commands related to plugins development
+								  project     Select the project used by default.
+								  refresh     refresh the access token when it expires
+								  version     Display client version.
+								  whoami      Display current user used
+
+								Flags:
+								  -h, --help                  help for percli
+									  --log.level string      Set log verbosity level. Values: panic, fatal, error, warning, info, debug, trace (default "info")
+									  --percliconfig string   Path to the percliconfig file to use for CLI requests. (default "/Users/erics/.perses/config.json")
+
+								Use "percli [command] --help" for more information about a command.
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses CLI - Available commands</h3>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						A few of the interesting available commands we will explore are:<br />
+						<br />
+						<ul>
+							<li>login - log in to an instance of the Perses API</li>
+							<li>get - request a response from the Perses API</li>
+							<li>project - select a project to be used as default</li>
+							<li>describe - request details for a specific resource</li>
+							<li>delete - delete a specific resource</li>
+							<li>apply - create or update existing resources using JSON or YAML file</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses CLI - The LOGIN command</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						The LOGIN command is used for connecting to a specific instance of the Perses API, in our case
+						we want to connect to our localhost server. Below is an image of the LOGIN command help
+						documentation:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./support/bin/percli login -h
+
+								Log in to the Perses API
+
+								Usage:
+								  percli login [URL] [flags]
+
+								Examples:
+
+								# Log in to the given server
+								percli login https://perses.dev
+
+								# Log in to the given server via delegated authentication, non-interactively
+								percli login https://demo.perses.dev --provider [slug_id] --client-id [client_id] --client-secret [client-secret]
+
+
+								Flags:
+									  --client-id string           Client ID used for robotic access when using external authentication provider.
+									  --client-secret string       Client Secret used for robotic access when using external authentication provider.
+								  -h, --help                       help for login
+									  --insecure-skip-tls-verify   If true, server's certificate will not be checked for validity == insecure HTTPS connections.
+								  -p, --password string            Password used for the authentication.
+									  --provider string            External authentication provider identifier. (slug_id)
+									  --token string               Bearer token for authentication to the API server
+								  -u, --username string            Username used for the authentication.
+
+								Global Flags:
+									  --log.level string      Set log verbosity level. Values: panic, fatal, error, warning, info, debug, trace (default "info")
+									  --percliconfig string   Path to the percliconfig file to use for CLI requests. (default "/Users/erics/.perses/config.json")
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses CLI - Logging in to Perses instance</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						First you need to log in to an instance of Perses before you can start exploring the API.
+						Connect to your Perses instance as follows (the command returns nothing):
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./support/bin/percli login http://localhost:8080
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses CLI - The GET command</h3>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: xx-large;">
+						Now that we are connected, let's explore the GET command:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./support/bin/percli get -h
+
+								Retrieve any kind of resource from the API.
+
+								Usage:
+								  percli get [RESOURCE_TYPE] [PREFIX] [flags]
+
+								Examples:
+
+								# List all dashboards in the current project selected.
+								percli get dashboards
+
+								# List all dashboards that begin with a given name in the current project selected.
+								percli get dashboards node
+
+								# List all dashboards in a specific project.
+								percli get dashboards -p my_project
+
+								#List all dashboards as a JSON object.
+								percli get dashboards -a -ojson
+
+								Flags:
+								  -a, --all              If present, list requested object(s) across all projects. The project in current context ignored.
+								  -h, --help             help for get
+								  -o, --output string    Kind of display: json or yaml. Default is yaml
+								  -p, --project string   If present, the project scope for this CLI request
+
+								Global Flags:
+									  --log.level string      Set log verbosity. Possible values: panic, fatal, error, warning, info, debug, trace (default "info")
+									  --percliconfig string   Path to the percliconfig file to use for CLI requests. (default "/Users/erics/.perses/config.json")
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses CLI - Listing all projects (GET)</h3>
+					</div>
+					<div style="height:120px; text-align: left; font-size: xx-large;">
+						Let's get a list of our projects using the GET argument as shown below and see again that we
+						have a single <code><b>WorkshopProject</b></code> configured on our server:
+					</div>
+					<div style="height: 200px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./support/bin/percli get projects
+
+								      NAME       │ AGE
+								─────────────────┼─────
+								 workshopproject │ 17h
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses CLI - Selecting a projects (PROJECT)</h3>
+					</div>
+					<div style="height:80px; text-align: left; font-size: xx-large;">
+						Now select a projects using the PROJECT argument as shown below:
+					</div>
+					<div style="height: 200px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./support/bin/percli project workshopproject
+
+								project workshopproject selected
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses CLI - Listing dashboards (GET)</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						Let's get a list of all dashboards using the GET argument as shown below:
+					</div>
+					<div style="height: 200px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./support/bin/percli get --all dashboards
+
+								       NAME       │     PROJECT     │ AGE
+								──────────────────┼─────────────────┼─────
+								 myfirstdashboard │ workshopproject │ 17h
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses CLI - Listing data sources (GET)</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						A final example using GET, by first asking for a listing of all data sources:
+					</div>
+					<div style="height: 210px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./support/bin/percli get --all datasources
+
+								        NAME         │     PROJECT     │   DATASOURCE TYPE    │ AGE
+								─────────────────────┼─────────────────┼──────────────────────┼─────
+								 prometheusdemolocal │ workshopproject │ PrometheusDatasource │ 17h
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses CLI - The DESCRIBE command</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						You can list the details of a specific resource, such as a dashboard or data source using
+						DESCRIBE. The output will be in YAML by default (structured). Check out the documentation:
+					</div>
+					<div style="height: 210px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./support/bin/percli describe -h
+
+								Show details of a specific resource
+
+								Usage:
+								  percli describe [RESOURCE_TYPE] [NAME] [flags]
+
+								Examples:
+
+								## Describe a particular dashboard.
+								percli describe dashboard nodeExporter
+
+								## Describe a particular dashboard as a JSON object.
+								percli describe dashboard nodeExporter -ojson
+
+
+								Flags:
+								  -h, --help             help for describe
+								  -o, --output string    Kind of display: json or yaml. Default is yaml
+								  -p, --project string   If present, the project scope for this CLI request
+
+								Global Flags:
+									  --log.level string      Set log verbosity. Possible values: panic, fatal, error, warning, info, debug, trace (default "info")
+									  --percliconfig string   Path to the percliconfig file to use for CLI requests. (default "/Users/erics/.perses/config.json")
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses CLI - Describing a data source</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Using the name of the data source, we'll now request its details and expect formatted YAML
+						as the response (if you want unstructured JSON, try the <code>-ojson</code> flag):
+					</div>
+					<div style="height: 210px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./support/bin/percli describe datasource prometheusdemolocal
+
+								kind: Datasource
+								metadata:
+									name: prometheusdemolocal
+									createdAt: 2025-10-01T16:19:52.388707Z
+									updatedAt: 2025-10-01T16:19:52.388707Z
+									version: 0
+									project: workshopproject
+								spec:
+									display:
+										name: localhost:9090
+									default: false
+									plugin:
+										kind: PrometheusDatasource
+										spec:
+											directUrl: http://localhost:9090
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses CLI - The DELETE command</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						The next command we are going to explore is DELETE, which you can use to remove any resource
+						from your server. Here is the documentation (scroll down to see all of it):
+					</div>
+					<div style="height: 210px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./support/bin/percli delete -h
+
+								JSON and YAML formats are accepted.
+
+								If both a filename and command line arguments are passed, the command line arguments are
+								used and the filename is ignored. Note that the delete command does NOT do resource
+								version checks, so if someone submits an update to a resource right when you submit a
+								delete, their update will be lost along with the rest of the resource.
+
+								Usage:
+								  percli delete (-f [FILENAME] | TYPE ([NAME1 NAME2] | --all)) [flags]
+
+								Examples:
+								# Delete any kind of resources from a file
+								percli delete -f data.json
+
+								# Delete any kind of resources from stdin
+								cat data.json | percli delete -f -
+
+								# Delete a specific dashboard
+								percli delete dashboards node_exporter cadvisor
+
+								# Delete all dashboards
+								percli delete dashboards --all
+
+								Flags:
+								  -a, --all                Delete all resources in the project of the specified resource types.
+								  -d, --directory string   Path to the directory containing the resources consumed by the command.
+								  -f, --file string        Path to the file that contains the resources consumed by the command.
+								  -h, --help               help for delete
+								  -p, --project string     If present, the project scope for this CLI request
+
+								Global Flags:
+									  --log.level string      Set log verbosity. Possible values: panic, fatal, error, warning, info, debug, trace (default "info")
+									  --percliconfig string   Path to the percliconfig file to use for CLI requests. (default "/Users/erics/.perses/config.json")
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses CLI - Deleting a dashboard</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Our server dashboard looks something like this currently:
+					</div>
+					<div style="height: 300px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab03-12.png" alt="cli delete dashboards">
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						<br />
+						Now let's remove <code><b>MyFirstDashboard</b></code> dashboard on the next slide...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses CLI - Deleting my first dashboard</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Remove the <code><b>MyFirstDashboard</b></code> dashboard with the following:
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./support/bin/percli delete dashboards MyFirstDashboard
+
+								object "Dashboard" "MyFirstDashboard" has been deleted in the project "workshopproject"
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses CLI - Verifying deletion of dashboard</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Reloading your Perses instance in the browser verifies that your dashboard has been removed, but
+						the project and datasource remain:
+					</div>
+					<div style=" height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab03-13.png" alt="deleted">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses CLI - The APPLY command</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						The APPLY command creates or updates any resource from a file. The changes are applied
+						to the server logged in to. Here is the documentation:
+					</div>
+					<div style="height: 100px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./support/bin/percli apply -h
+
+								Create or update resources through a file. JSON or YAML format supported
+
+								Usage:
+								  percli apply (-f [FILENAME] | -d [DIRECTORY_NAME]) [flags]
+
+								Examples:
+								# Create/update the resources from the file resources.json to the remote Perses server.
+								percli apply -f ./resources.json
+
+								# Create/update any resources from a folder
+								percli apply -d ./
+
+								# Apply the JSON passed into stdin to the remote Perses server.
+								cat ./resources.json | percli apply -f -
+
+								Flags:
+								  -d, --directory string   Path to the directory containing the resources consumed by the command.
+								  -f, --file string        Path to the file that contains the resources consumed by the command.
+								  -h, --help               help for apply
+								  -p, --project string     If present, the project scope for this CLI request
+
+								Global Flags:
+									  --log.level string      Set log verbosity. Possible values: panic, fatal, error, warning, info, debug, trace (default "info")
+									  --percliconfig string   Path to the percliconfig file to use for CLI requests. (default "/Users/erics/.perses/config.json")
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses CLI - Applying dashboard update</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Let's create a new <code><b>MyFirstDashboard</b></code> using a provided file found in
+						<code><b>./support/workshop-myfirstdashboard.json</b></code>. It's a resource defining
+						our first dashboard, and we can update the server with this:
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./support/bin/percli apply -f support/workshop-myfirstdashboard.json
+
+								object "Dashboard" "MyFirstDashboard" has been applied in the project "workshopproject"
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses CLI - Verifying our dashboard update</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						All is back to normal if you reload your Perses instance in the browser:
+					</div>
+					<div style="height: 350px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab03-14.png" alt="cli add dashboards"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses CLI - Basic understanding of API usage</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						You now have a basic understand of what the Perses API is, how to connect, how to query, and
+						an understanding of setting up the command line tooling. You've also explored some of the API
+						interactions using the command line tooling.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 400px; font-size: xx-large">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab03-14.png" alt="results">
+						<br />
+						Next up, exploring dashboard components...
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://github.com/perses/perses" target="_blank">Perses project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-perses" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-perses/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Director Evangelism<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab04.html" target="_blank">Lab 4 - Exploring Perses dashboards</a>
+					</div>
+				</section>
+
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

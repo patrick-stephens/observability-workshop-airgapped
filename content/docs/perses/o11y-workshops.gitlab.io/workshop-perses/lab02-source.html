@@ -1,0 +1,474 @@
+<!doctype html>
+<!--suppress HtmlDeprecatedAttribute -->
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Perses workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Visualization Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-BGV1XYZ1ND"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-BGV1XYZ1ND');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section id="local-install">
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Source - Locally installing Perses</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Installing on your local machine can be done in just a few steps with our
+						<a href="https://gitlab.com/o11y-workshops/perses-install-demo" target="_blank">
+							Perses Easy Install project.
+						</a> This contains the source code from a released version of Perses, see
+						readme for the exact version, and uses a simple automated installation script.<br />
+						<br />
+						This automated installation project is used to install both Perses (which by itself has no
+						examples set up) and to pre-populate the instance with a project, dashboard, and datasource.<br />
+						<br />
+						On the next slide you will download and install Perses using the Perses Easy Install project.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Source - Using the easy install project</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						The Perses Easy Install project takes just 3 steps to a running server:<br />
+						<br />
+						<ol>
+							<li>Download and unzip project.</li>
+							<li>Run the <code>init.sh</code> file in a console.</li>
+							<li>Connect in a browser window.</li>
+						</ol><br />
+						<br />
+						Let's walk through these steps one by one in the next slides...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 110px;">
+						<h3 class="r-fit-text">Source - Downloading and unzip project</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						The first step is to
+						<a href="https://gitlab.com/o11y-workshops/perses-install-demo/-/archive/v1.10/perses-install-demo-v1.10.zip">
+							download the project.
+						</a>
+						Unzipping (use your file manager or console) should look something like this:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ unzip perses-install-demo-[VERSION].zip
+
+								Archive:  perses-install-demo-[VERSION].zip
+								creating: perses-install-demo-[VERSION]/
+								extracting: perses-install-demo-[VERSION]/.gitignore
+								inflating: perses-install-demo-[VERSION]/README.md
+								creating: perses-install-demo-[VERSION]/docs/
+								creating: perses-install-demo-[VERSION]/docs/demo-images/
+								inflating: perses-install-demo-[VERSION]/init.bat
+								inflating: perses-install-demo-[VERSION]/init.sh
+								creating: perses-install-demo-[VERSION]/installs/
+								inflating: perses-install-demo-[VERSION]/installs/README
+								inflating: perses-install-demo-[VERSION]/installs/perses-[VERSION].zip
+								creating: perses-install-demo-[VERSION]/support/
+								extracting: perses-install-demo-[VERSION]/support/README
+								creating: perses-install-demo-[VERSION]/support/bin/
+								inflating: perses-install-demo-[VERSION]/support/bin/percli-darwin-amd64.zip
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Source - Getting started with install script</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						In our example here we will run the console-based installation script (note the VERSION text
+						below is to be replaced with the version of the project you have downloaded):
+					</div>
+					<div style="height: 200px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								$ cd perses-install-demo-{VERSION}
+
+								$ ./init.sh
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Source - Enjoy the welcome ASCII art!</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						First, you are presented with welcome art and details about this project:
+					</div>
+					<div align="center">
+						<div style="width: 560px; height: 200px; text-align: left; font-size: x-large;">
+							<pre>
+								<code data-trim data-noescape>
+									[INFO]    #############################################################
+									[INFO]    ##                                                         ##
+									[INFO]    ##  Setting up the Perses Easy Install demo                ##
+									[INFO]    ##                                                         ##
+									[INFO]    ##           ####  ##### ####   #### #####  ####           ##
+									[INFO]    ##           #   # #     #   # #     #     #               ##
+									[INFO]    ##           ####  ###   ####   ###  ###    ###            ##
+									[INFO]    ##           #     #     #  #      # #         #           ##
+									[INFO]    ##           #     ##### #   # ####  ##### ####            ##
+									[INFO]    ##                                                         ##
+									[INFO]    ##                #####  ###   #### #   #                  ##
+									[INFO]    ##                #     #   # #      # #                   ##
+									[INFO]    ##                ###   #####  ###    #                    ##
+									[INFO]    ##                #     #   #     #   #                    ##
+									[INFO]    ##                ##### #   # ####    #                    ##
+									[INFO]    ##                                                         ##
+									[INFO]    ##        ##### #   #  #### #####  ###  #     #            ##
+									[INFO]    ##          #   ##  # #       #   #   # #     #            ##
+									[INFO]    ##          #   # # #  ###    #   ##### #     #            ##
+									[INFO]    ##          #   #  ##     #   #   #   # #     #            ##
+									[INFO]    ##        ##### #   # ####    #   #   # ##### #####        ##
+									[INFO]    ##                                                         ##
+									[INFO]    ##  brought to you by Eric D. Schabell                     ##
+									[INFO]    ##                                                         ##
+									[INFO]    ##  git@gitlab.com:o11y-workshops/perses-install-demo.git  ##
+									[INFO]    ##                                                         ##
+									[INFO]    #############################################################
+									...
+								</code>
+							</pre>
+						</div>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Whoops... that's not right?</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Note that there are many fail-safe checks in this script, and you found the first one! Read the
+						help messages in the console output and fix it by running it with the right argument:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[INFO]    Checking the build mode arguments...
+
+								[WARN]    ========================================================================
+								[WARN]    =                                                                      =
+								[WARN]    =  To use this installation script you have to provide one argument    =
+								[WARN]    =  indicating how you want to install the Perses server. You have the  =
+								[WARN]    =  option to install a container image or build it from source:        =
+								[WARN]    =                                                                      =
+								[WARN]    =    $ ./init.sh {podman|source}                                       =
+								[WARN]    =                                                                      =
+								[WARN]    =  Both methods are validated by the install scripts.                  =
+								[WARN]    =                                                                      =
+								[WARN]    ========================================================================
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Source - Checking build dependencies</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						This time, as you scroll down the output, you'll see validation for dependencies needed to
+						build the Perses project. Should any fail, you will be pointed to installation help. Here all
+						checks are passing (noting your versions reported might be different, as long as they pass):
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[INFO]    Checking the build mode arguments...
+								[INFO]    Installing from source...
+								[INFO]    Installing Perses from the source project...
+								[INFO]    Checking for Go version needed to use Perses:
+								[INFO]    Go major version is good...
+								[INFO]    Go minor version is good...
+								[INFO]    Your Go version 1.26 accepted!
+								[INFO]    Checking for Node version needed to use Perses:
+								[INFO]    Node major version is good...
+								[INFO]    Your Node version 24 accepted!
+								[INFO]    Checking for NPM version needed to use Perses:
+								[INFO]    NPM version: 11
+								[INFO]    NPM major version is good...
+								[INFO]    Your NPM version 11 accepted!
+								...
+  							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Source - Unpacking and building project</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						As you scroll further down the output, you see the Perses project is installed into the
+						<code>target</code> directory. We then run the tests and start building the project:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[INFO]    Unpacking Perses project into target directory:
+								[INFO]    Perses project unpacked successfully into target directory!
+								[INFO]    Let's move to the Perses project home directory...
+								[INFO]    Building the Perses server (this takes a bit, so wait for it to complete):
+
+								cd ./ui && npm install  && npm run build
+								...
+  							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Source - Building Perses completes</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Eventually (cut out of the log here due to length of the build), the build should complete and
+						the Perses server is ready to use. Here you see the console output showing a successful
+						build (scroll to see code):
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								>> compressing assets
+								scripts/compress_assets.sh
+								>> install default plugins
+								go run ./scripts/plugin/install_plugin.go
+								Downloading plugin BarChart
+								...
+								Downloading plugin TimeSeriesTable
+								Downloading plugin Tempo
+								Downloading plugin GaugeChart
+								Downloading plugin TraceTable
+								Downloading plugin PieChart
+								Downloading plugin Table
+								All plugins successfully installed.
+								...
+								[INFO]    Perses server built successfully!
+								...
+  							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Source - Adding Perses configuration</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Now you'll see a set-up message working to pre-configure our Perses instance with some workshop
+						configurations:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[INFO]    Setup workshop configuration...
+								[INFO]    Starting the perses server...
+								[INFO]    Waiting for server to start...
+								...
+  							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Source - Starting server and log in</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						After a successful build, you see the server is started:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[INFO]    Setting up example workshop project...
+								[INFO]    Logging in to Perses instance: http://localhost:8080
+								[INFO]    Applying the demo projects setup...
+								[INFO]    Applying the dashboard setup...
+								[INFO]    Applying the demo datasources...
+								[INFO]    Removing default Perses projects...
+								...
+  							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Source - Sharing the end report</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						After a successful build, the end report is presented with the final instructions on how to
+						open the Perses dashboard and how to stop the server when done with this workshop:
+					</div>
+					<div align="right">
+						<div style="width: 640px; height: 150px; font-size: xx-large;">
+							<pre>
+								<code data-trim data-noescape>
+									...
+									[INFO]    ======================================================
+									[INFO]    =                                                    =
+									[INFO]    =  Install complete, get ready to rock Perses!       =
+									[INFO]    =                                                    =
+									[INFO]    =  The Perses dashboard can be opened at:            =
+									[INFO]    =                                                    =
+									[INFO]    =           http://localhost:8080                    =
+									[INFO]    =                                                    =
+									[INFO]    =  Getting started workshop available online:        =
+									[INFO]    =                                                    =
+									[INFO]    =  https://o11y-workshops.gitlab.io/workshop-perses  =
+									[INFO]    =                                                    =
+									[INFO]    =  Note: When finished using the Perses server you   =
+									[INFO]    =  can kill it from the command line with the        =
+									[INFO]    =  following cmd to locate the process id (PID):     =
+									[INFO]    =                                                    =
+									[INFO]    =      $ ps aux | grep perses                        =
+									[INFO]    =                                                    =
+									[INFO]    =      $ kill [PID]                                  =
+									[INFO]    =                                                    =
+									[INFO]    ======================================================
+									...
+								</code>
+							</pre>
+						</div>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Source - Connecting in a browser</h3>
+					</div>
+					<div style="height: 50px; text-align: center; font-size: xx-large;">
+						<code><b><a href="http://localhost:8080" target="_blank">http://localhost:8080</a></b></code>
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab02-5.png" alt="example">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Source - Connecting in a browser (dark mode)</h3>
+					</div>
+					<div style="height: 50px; text-align: center; font-size: xx-large;">
+						Click on the icon in the top right corner for dark mode:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab02-6.png" alt="example-dark">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 400px; font-size: xx-large">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab02-5.png" alt="completed">
+						<br />
+						Next up, exploring dashboard tooling...
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://github.com/perses/perses" target="_blank">Perses project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-perses" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-perses/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Director Evangelism<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab03.html" target="_blank">Lab 3 - Exploring dashboard tooling</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

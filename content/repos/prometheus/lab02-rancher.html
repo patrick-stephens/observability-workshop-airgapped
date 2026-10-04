@@ -1,0 +1,951 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Prometheus workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Lab 2 - Prometheus Kubernetes</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-PW25SPMWGG"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-PW25SPMWGG');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 2 - Installing Prometheus (Kubernetes)</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>This lab guides you through installing Prometheus on a local Kubernetes (k3s) cluster
+							using Helm, configuring, and running it to start gathering metrics.</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Kubernetes installation notes</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						This lab guides you through installing Prometheus on a local Kubernetes cluster provided by
+						<a href="https://rancherdesktop.io" target="_blank"><b>Rancher Desktop</b></a>, an open source
+						desktop application that ships a lightweight Kubernetes distribution (k3s) and works on Mac
+						OS X, Linux, and Windows systems. This workshop assumes you have installed and started it with
+						<b>Kubernetes enabled</b> in the preferences:<br />
+						<br />
+						<ul>
+							<li>
+								<a href="https://docs.rancherdesktop.io/getting-started/installation/" target="_blank">
+									Install Rancher Desktop (Mac OS X, Linux, or Windows)
+								</a>
+							</li>
+							<li>
+								<a href="https://helm.sh/docs/intro/install/" target="_blank">
+									Install the Helm command line tooling
+								</a>
+							</li>
+						</ul><br />
+						<br />
+						The rest of this lab is pictured using Mac OS X, but it is assumed you have enough knowledge of
+						your Linux or Windows systems to be able to achieve the same results. Also note that any other
+						local Kubernetes cluster works here (minikube, kind, Docker Desktop), but we leave you to sort
+						out the details.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Verifying tooling installation</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: x-large;">
+						To start with a working Kubernetes installation, you should see the following results for the
+						commands shown (note versions shown might differ for you):
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl config current-context
+								rancher-desktop
+
+								$ kubectl get nodes
+								NAME                   STATUS   ROLES                  AGE   VERSION
+								lima-rancher-desktop   Ready    control-plane,master   2d    v1.25.16+k3s4
+
+								$ helm version
+								version.BuildInfo{Version:"v4.x"}  &lt;&lt;&lt;&lt; MINIMUM VERSION REQUIRED
+							</code>
+						</pre>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: x-large;">
+						Now that you have the tooling, let's get started installing Prometheus on Kubernetes...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Installation - Make a project directory</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						The first step will be to open a console or terminal window and start with the command line
+						to create yourself an empty workshop directory, something like this:
+					</div>
+					<div style="height: 150px;">
+						<pre>
+							<code data-trim data-noescape>
+								$ mkdir workshop-prometheus
+
+								$ cd workshop-prometheus
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Installation - Adding the Helm repository</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						The Prometheus community maintains a Helm chart that packages everything needed to run
+						Prometheus on Kubernetes. Add the repository and check what it offers:
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+								"prometheus-community" has been added to your repositories
+
+								$ helm repo update
+								...
+								...Successfully got an update from the "prometheus-community" chart repository
+								Update Complete. ⎈Happy Helming!⎈
+
+								$ helm search repo prometheus-community/prometheus --version 29.20.0
+								NAME                             CHART VERSION  APP VERSION  DESCRIPTION
+								prometheus-community/prometheus  29.20.0        <mark>v3.13.1</mark>      Prometheus is a monitoring system...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Setup - A workshop values file</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Using any editor you like, create a file named <code><b>workshop-values.yaml</b></code>. This is
+						how you hand your own configuration to the Helm chart. Start with the server settings and switch
+						off the extra components we don't need, cut-and-paste (be sure to save the results):
+					</div>
+					<div style="height: 300px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# workshop config
+								server:
+								  image:
+								    tag: v3.13.1
+								  global:
+								    scrape_interval: 5s
+								    scrape_timeout: 4s
+								  persistentVolume:
+								    enabled: false
+								  service:
+								    servicePort: 9090
+
+								# Keep the workshop lean - no extra components.
+								alertmanager:
+								  enabled: false
+								kube-state-metrics:
+								  enabled: false
+								prometheus-node-exporter:
+								  enabled: false
+								prometheus-pushgateway:
+								  enabled: false
+							</code>
+						</pre>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Note the <code><b>scrape_timeout</b></code> must be smaller than the
+						<code><b>scrape_interval</b></code>, the chart writes both out and Prometheus refuses to start
+						if the timeout is the larger of the two.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Setup - Trimming down the chart</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						The chart also ships a set of Kubernetes scrape jobs we don't need. Add this block at the very
+						bottom of the same <code><b>workshop-values.yaml</b></code> file so that we only scrape
+						Prometheus itself, exactly like the other installation paths in this workshop:
+					</div>
+					<div style="height: 220px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Scraping only Prometheus.
+								scrapeConfigs:
+								  kubernetes-api-servers: { enabled: false }
+								  kubernetes-nodes: { enabled: false }
+								  kubernetes-nodes-cadvisor: { enabled: false }
+								  kubernetes-service-endpoints: { enabled: false }
+								  kubernetes-service-endpoints-slow: { enabled: false }
+								  kubernetes-services: { enabled: false }
+								  kubernetes-pods: { enabled: false }
+								  kubernetes-pods-slow: { enabled: false }
+								  prometheus-pushgateway: { enabled: false }
+							</code>
+						</pre>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: x-large;">
+						<b>Watch the indentation.</b> Only the nine job names are indented two spaces under
+						<code><b>scrapeConfigs</b></code>, everything else in this file sits at the left margin. If the
+						earlier <code><b>alertmanager</b></code> block accidentally ends up indented under here, it
+						silently does nothing, and you get all the extra components anyway.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Configuration - Some thoughts on setup</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Normally you are monitoring other targets over HTTP and scraping their endpoints, but we are
+						going to start with Prometheus as it also exposes its own metrics endpoints. Monitoring your
+						Prometheus servers health is only an exercise for this workshop. Also note that scraping metrics
+						every 5 seconds is a bit over the top, commonly you would see 10-60 seconds, but we want our
+						data to flow in a steady stream for this workshop.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Configuration - The global section</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						<b>Nothing to edit on this slide.</b> Your values file is not the Prometheus configuration, the
+						chart translates it into one and stores it in a Kubernetes <code><b>ConfigMap</b></code> mounted
+						at <code><b>/etc/config/prometheus.yml</b></code>. This is what the two lines you put under
+						<code><b>server.global</b></code> turn into, the <code><b>global</b></code> section holding
+						settings and default values:
+					</div>
+					<div style="height: 170px;">
+						<pre>
+							<code data-trim data-noescape>
+								# generated by the chart, not something you write
+								global:
+								  evaluation_interval: 1m
+								  scrape_interval: 5s
+								  scrape_timeout: 4s
+							</code>
+						</pre>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: x-large;">
+						Note <code><b>evaluation_interval</b></code> appeared on its own, that's a chart default we never
+						asked for.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Configuration - The scrape configs section</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						<b>Also nothing to edit here.</b> Still looking at the generated
+						<code><b>/etc/config/prometheus.yml</b></code>, the <code><b>scrape_configs</b></code> section is
+						where Prometheus is told which targets to scrape. We never wrote this, it is the chart's built-in
+						<code><b>scrapeConfigs.prometheus</b></code> entry, the one job we left switched on in the
+						previous slide, listing our target using a <code><b>host:port</b></code> format:
+					</div>
+					<div style="height: 180px;">
+						<pre>
+							<code data-trim data-noescape>
+								# generated by the chart, not something you write
+								scrape_configs:
+								- job_name: prometheus
+								  static_configs:
+								  - targets:
+								    - localhost:9090
+							</code>
+						</pre>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: x-large;">
+						So the whole of <code><b>workshop-values.yaml</b></code> is the two blocks from the two
+						<code><b>Setup</b></code> slides, nothing more. Note: production configurations would use
+						service discovery integrations to find targets, more on that later in this workshop.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Installation - Deploying the Helm chart</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Now you can install Prometheus into its own <code><b>prometheus</b></code> namespace. We use
+						<code><b>helm upgrade --install</b></code> instead of <code><b>helm install</b></code> so that
+						this exact command keeps working whether it is the first time you run it or the tenth:
+					</div>
+					<div style="height: 150px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm upgrade --install workshop-prometheus prometheus-community/prometheus \
+								    --version 29.20.0 \
+								    --namespace prometheus --create-namespace \
+								    -f workshop-values.yaml
+
+								Release "workshop-prometheus" does not exist. Installing it now.
+								NAME: workshop-prometheus
+								LAST DEPLOYED: Fri Jul 10 09:30:55 2026
+								NAMESPACE: prometheus
+								STATUS: deployed
+								REVISION: 1
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Installation - A note on names</h3>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						Naming the release <code><b>workshop-prometheus</b></code> matters. The chart collapses the
+						name when the release already contains "Prometheus", so our resources land as
+						<code><b>workshop-prometheus-server</b></code> instead of the rather silly
+						<code><b>workshop-prometheus-prometheus-server</b></code>. Every command in this lab passes
+						<code><b>-n prometheus</b></code> explicitly. If you get tired of typing it, you can make that
+						namespace your default:
+					</div>
+					<div style="height: 150px;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl config set-context --current --namespace=prometheus
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Installation - Verifying the deployment</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Looking at what landed in the cluster we see the following:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl get pods -n prometheus
+
+								NAME                                          READY   STATUS    RESTARTS   AGE
+								workshop-prometheus-server-6d4f8b9c7d-x2n8k   2/2     Running   0          45s
+
+								$ kubectl get svc -n prometheus
+
+								NAME                         TYPE        CLUSTER-IP     PORT(S)    AGE
+								workshop-prometheus-server   ClusterIP   10.43.112.87   9090/TCP   45s
+							</code>
+						</pre>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Note the pod reports <code><b>2/2</b></code> containers, that's Prometheus itself plus a
+						<code><b>configmap-reload</b></code> sidecar we will make use of later.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Start your metrics engines!</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						The Prometheus server is already running inside the cluster, but it's not reachable from your
+						machine yet. A port-forward fixes that, mapping the service to the same
+						<code><b>localhost:9090</b></code> the rest of this workshop expects:
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl port-forward -n prometheus svc/workshop-prometheus-server 9090:9090
+
+								Forwarding from 127.0.0.1:9090 -> 9090
+								Forwarding from [::1]:9090 -> 9090
+							</code>
+						</pre>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Leave this running in its own terminal window for the rest of the workshop, closing it cuts off
+						your access to the Prometheus console.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Checking the server logs</h3>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: x-large;">
+						In a second terminal we can watch the Prometheus server start up (scroll to view log):
+					</div>
+					<div style="height: 170px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl logs -n prometheus -f deploy/workshop-prometheus-server -c prometheus-server
+
+								time=2026-08-03T13:13:08.587Z level=INFO source=main.go:1724 msg="updated GOGC" old=100 new=75
+								time=2026-08-03T13:13:08.587Z level=INFO source=main.go:789 msg="Leaving GOMAXPROCS=2: CPU quota undefined" component=automaxprocs
+								time=2026-08-03T13:13:08.587Z level=INFO source=memlimit.go:198 msg="GOMEMLIMIT is updated" component=automemlimit package=github.com/KimMachineGun/automemlimit/memlimit GOMEMLIMIT=5588486553 previous=9223372036854775807
+								time=2026-08-03T13:13:08.587Z level=INFO source=main.go:896 msg="Starting Prometheus Server" mode=server version="(version=3.13.1, branch=HEAD, revision=73ff57ce2b8161059ac7fe5188f03f1c3d22b29a)"
+								time=2026-08-03T13:13:08.587Z level=INFO source=main.go:901 msg="operational information" build_context="(go=go1.26.5, platform=linux/arm64, user=root@6a98665b49f7, date=20260710-08:21:41, tags=netgo,builtinassets)" host_details="(Linux 6.18.37-0-virt #1-Alpine SMP PREEMPT_DYNAMIC 2026-06-29 10:52:25 aarch64 workshop-prometheus-server-69b9bb94d-697bq (none))" fd_limits="(soft=1048576, hard=1048576)" vm_limits="(soft=unlimited, hard=unlimited)"
+								time=2026-08-03T13:13:08.646Z level=INFO source=web.go:727 msg="Start listening for connections" component=web address=0.0.0.0:9090
+								time=2026-08-03T13:13:08.650Z level=INFO source=main.go:1456 msg="Starting TSDB ..."
+								time=2026-08-03T13:13:08.651Z level=INFO source=tls_config.go:354 msg="Listening on" component=web address=[::]:9090
+								time=2026-08-03T13:13:08.651Z level=INFO source=tls_config.go:357 msg="TLS is disabled." component=web http2=false address=[::]:9090
+								time=2026-08-03T13:13:08.651Z level=INFO source=head.go:709 msg="Replaying on-disk memory mappable chunks if any" component=tsdb
+								time=2026-08-03T13:13:08.651Z level=INFO source=head.go:795 msg="On-disk memory mappable chunks replay completed" component=tsdb duration=792ns
+								time=2026-08-03T13:13:08.651Z level=INFO source=head.go:803 msg="Replaying WAL, this may take a while" component=tsdb
+								time=2026-08-03T13:13:08.652Z level=INFO source=head.go:898 msg="WAL segment loaded" component=tsdb segment=0 maxSegment=0 duration=76.25µs
+								time=2026-08-03T13:13:08.652Z level=INFO source=head.go:935 msg="WAL replay completed" component=tsdb checkpoint_replay_duration=15µs wal_replay_duration=83.167µs wbl_replay_duration=125ns chunk_snapshot_load_duration=0s mmap_chunk_replay_duration=792ns total_replay_duration=106.25µs
+								time=2026-08-03T13:13:08.652Z level=INFO source=main.go:1477 msg="filesystem information" fs_type=EXT4_SUPER_MAGIC
+								time=2026-08-03T13:13:08.652Z level=INFO source=main.go:1480 msg="TSDB started"
+								time=2026-08-03T13:13:08.652Z level=INFO source=main.go:1678 msg="Loading configuration file" filename=/etc/config/prometheus.yml
+								time=2026-08-03T13:13:08.652Z level=INFO source=main.go:1094 msg="TSDB retention updated" duration=15d size=0B percentage=0
+								time=2026-08-03T13:13:08.653Z level=INFO source=main.go:1717 msg="Completed loading of configuration file" db_storage=8.417µs remote_storage=1.041µs web_handler=167ns query_engine=542ns scrape=335.375µs scrape_sd=15.75µs notify=625ns notify_sd=375ns rules=53µs tracing=2.459µs filename=/etc/config/prometheus.yml totalDuration=503.75µs
+								time=2026-08-03T13:13:08.653Z level=INFO source=main.go:1441 msg="Server is ready to receive web requests."
+								time=2026-08-03T13:13:08.653Z level=INFO source=manager.go:211 msg="Starting rule manager..." component="rule manager"
+								time=2026-08-03T13:13:10.810Z level=INFO source=main.go:1678 msg="Loading configuration file" filename=/etc/config/prometheus.yml
+								time=2026-08-03T13:13:10.811Z level=INFO source=main.go:1717 msg="Completed loading of configuration file" db_storage=5.041µs remote_storage=3.25µs web_handler=625ns query_engine=2.041µs scrape=110.125µs scrape_sd=18.583µs notify=1.959µs notify_sd=1.458µs rules=195.583µs tracing=4.709µs filename=/etc/config/prometheus.yml totalDuration=915.75µs
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Adjusting settings live</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						To change the configuration you edit <code><b>workshop-values.yaml</b></code> and run the exact
+						same <code><b>helm upgrade --install</b></code> command again. The
+						<code><b>configmap-reload</b></code> sidecar notices the updated ConfigMap and tells Prometheus
+						to reload itself, so there is no restart and no image to rebuild.<br />
+						<br />
+						Now let's see if our Prometheus server is up and running on our local machine by loading the
+						status page in our browser at <a href="http://localhost:9090" target="_blank">http://localhost:9090</a>,
+						noting it needs to run a little bit to collect some data from its own HTTP metrics endpoint.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - The status page</h3>
+					</div>
+					<div style="height: 370px;">
+						<img src="images/lab02-1.png" alt="status"><br />
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Now try the dark mode feature by clicking on the half moon icon in the top right corner.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Status page (dark mode)</h3>
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab02-2.png" alt="status"><br />
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Now try the metrics endpoint
+						<a href="http://localhost:9090/metrics" target="_blank">(http://localhost:9090/metrics)</a>
+						directly in your browser.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Prometheus - Live metrics endpoint</h3>
+					</div>
+					<div style="height: 450px;">
+						<img src="images/lab02-3.png" alt="endpoint"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Checking your targets</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						After you configure a new <code><b>prometheus</b></code> target to scrape and (re)start the
+						Prometheus server, validate it's running correctly by going to the status page, using the
+						drop-down menu at the top labeled <code><b>STATUS</b></code> and selecting
+						<code><b>TARGETS</b></code>:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab02-4.png" alt="starting"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Checking your targets</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						This shows you a list of the targets, in our case just one, featuring the scrape configuration
+						details. The most important field here is the <code><b>STATE</b></code>, where we want to see a
+						green <code><b>UP</b></code>:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab02-5.png" alt="starting"><br />
+					</div>
+				</section>
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Bad target state</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Let's break our configuration and see what that looks like in the targets status page. To do this
+						open up your values file <code><b>workshop-values.yaml</b></code> and add a
+						<code><b>prometheus</b></code> entry <b>inside the existing</b>
+						<code><b>scrapeConfigs</b></code> block to override the target port number as shown:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Scraping only Prometheus.
+								scrapeConfigs:
+								  prometheus:                                  &lt;&lt;&lt;&lt; ADD THESE FOUR LINES
+								    static_configs:
+								      - targets:
+								      - localhost:9099
+								  kubernetes-api-servers: { enabled: false }   &lt;&lt;&lt;&lt; LEAVE THE REST AS THEY ARE
+								  kubernetes-nodes: { enabled: false }
+								  ...
+							</code>
+						</pre>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: x-large;">
+						Do <b>not</b> add a second <code><b>scrapeConfigs:</b></code> line further down the file. YAML
+						quietly lets the last one win, which would throw away all the disabled jobs above and hand you
+						back every Kubernetes scrape job. Save and see next slide for applying the new configuration.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Apply a new configuration</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: x-large;">
+						Now apply the broken configuration by running the very same command you used to install, only
+						this time Helm upgrades the existing release instead of creating it:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm upgrade --install workshop-prometheus prometheus-community/prometheus \
+								    --version 29.20.0 \
+								    --namespace prometheus --create-namespace \
+								    -f workshop-values.yaml
+
+								Release "workshop-prometheus" has been upgraded. Happy Helming!
+								NAME: workshop-prometheus
+								NAMESPACE: prometheus
+								STATUS: deployed
+								REVISION: 2
+							</code>
+						</pre>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Note the <code><b>REVISION</b></code> number increased. Give the <code><b>configmap-reload</b></code>
+						sidecar a few seconds to pick up the change, no restart needed.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Verify bad target state</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Back to the target state page, and we see that indeed the target we configured is broken:
+					</div>
+					<div style="height: 300px;">
+						<img src="images/lab02-10.png" alt="broken"><br />
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<b>Exercise:</b> go back and fix this target before proceeding!
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Exploring command-line flags</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						When you started Prometheus we mentioned a flag to point at our new configuration file. There is
+						a status page you can use to view all the flags that have been set (by your or default settings).
+						Using the drop-down menu again at the top labeled <code><b>STATUS</b></code> and selecting
+						<code><b>COMMAND-LINE FLAGS</b></code>:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab02-6.png" alt="menu"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Exploring command-line flags</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						This shows you a long list of flags with their current values and a search field for locating
+						one you might be interested in:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab02-6a.png" alt="flags"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Searching for a flag</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						By filling in a search query, you can narrow down the long list to a specific area. Let's
+						explore the flag value for <code><b>--config.file</b></code>:
+					</div>
+					<div style="height: 250px;">
+						<img src="images/lab02-7.png" alt="config"><br />
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Note: on this Kubernetes path the value is <code><b>/etc/config/prometheus.yml</b></code>, the
+						file the Helm chart rendered from your values into a ConfigMap.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Time series database status</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						Next, there is a status page you can use to view your time series database, or TSDB, status.
+						Using the drop-down menu again at the top labeled <code><b>STATUS</b></code> and selecting
+						<code><b>TSDB-STATUS</b></code>:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab02-8.png" alt="starting"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Time series database status</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						This shows you some details for the time series being collected in an overview status line with
+						several tables below with cardinality status:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab02-8a.png" alt="flags"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Exploring active configuration</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						Lastly, at least in this lab, you can verify the exact configuration being applied to your
+						Prometheus server. Using the drop-down menu again at the top labeled <code><b>STATUS</b></code>
+						and selecting <code><b>CONFIGURATION</b></code>:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab02-9.png" alt="starting"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Exploring active configuration</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						This shows you your exact configuration, often including some defaults that you might not have
+						in your personal configuration file, yet are being used. There is even a handy copy-to-clipboard
+						button for you to grab it:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab02-9a.png" alt="flags"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Using the expression tooling</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						You can navigate back to the expression browser that lets you query your time series data
+						by clicking on the menu entry <code><b>GRAPH</b></code>. This is the default built-in query
+						interface for running Prometheus Query Language (PromQL) queries. Be sure you are in the
+						<code><b>TABLE</b></code> tab:
+					</div>
+					<div style="height: 300px;">
+						<img src="images/lab02-11.png" alt="queries"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Total samples ingested</h3>
+					</div>
+					<div style="height: 270px; text-align: left; font-size: xx-large;">
+						The <code><b>TABLE</b></code> view provides the output of a query written using PromQL expression as
+						a series. It's less expensive to use than the other option, <code><b>GRAPH</b></code>, because you are
+						not plotting out the series answers in a graph. Without worrying about the PromQL used (we'll
+						explore that later in this workshop), lets show the total number of samples ingested by our
+						Prometheus server since it started:
+					</div>
+					<div style="height: 150px;">
+						<pre>
+							<code data-trim data-noescape>
+								# Copy this line below comments into the Expression field and
+								# click on the EXECUTE button on the right side of the screen.
+								#
+								prometheus_tsdb_head_samples_appended_total
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Validating an expression</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						You will have noticed that there are three buttons to the right of the
+						<code><b>EXPRESSION</b></code> entry field. Click to show a menu with options. The first one can
+						be used to explore available metrics, the second to validate the expression you entered, and the
+						last one to show a tree view of complexer queries (this one is not complex). We'll just click
+						on the <code><b>FORMAT EXPRESSION</b></code> menu entry and if it's a good expression you get a
+						validation pop-up as shown below:
+					</div>
+					<div style="height: 250px;">
+						<img src="images/lab02-12.png" alt="queries"><br />
+					</div>
+					<div style="height: 100px; text-align: right;">
+						<img src="images/lab02-12a.png" alt="pop-up"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Execute the expression query</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						After validating our expression, run it by clicking on the <code><b>EXECUTE</b></code> button:
+					</div>
+					<div style="height: 300px;">
+						<img src="images/lab02-13.png" alt="queries"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Exploring the visualization</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Let's explore by clicking on the <code><b>GRAPH</b></code> tab. Note the features included to
+						visualize queries. I have adjusted my longer running server to look at 12h of data here, and
+						I am browsing the results:
+					</div>
+					<div style="height: 450px;">
+						<img src="images/lab02-13a.png" alt="queries"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Add another query</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Go back to the <code><b>TABLE</b></code> tab. Notice at the bottom there is a button
+						<code><b>ADD QUERY</b></code>, click on it to add another query panel in which we will execute
+						the following query expression. Let's look at the number of samples ingested per second averaged
+						over a 1m window of time:
+					</div>
+					<div style="height: 150px;">
+						<pre>
+							<code data-trim data-noescape>
+								# Copy this line below comments into the Expression field and
+								# click on the EXECUTE button on the right side of the screen.
+								#
+								rate(prometheus_tsdb_head_samples_appended_total[1m])
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Execute the second query</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						You can now see multiple expressions are possible:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab02-14.png" alt="queries"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Prometheus - Exploring second visualization</h3>
+					</div>
+					<div style="height: 550px;">
+						<img src="images/lab02-15.png" alt="graphs"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Warning about pages</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						If you now select any of the status pages from the <code><b>STATUS</b></code> menu at the top and
+						then return to the expression query page using the <code><b>GRAPH</b></code> menu entry. You will
+						notice that extra panels you might have added will be gone.<br />
+						<br />
+						<b>Pro tip:</b> you might want to work using browser tabs.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - One last query</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Assuming you went to another status page and back, we have a last query we will run here to
+						simulate the same query used to fill the system UP metric we viewed for our Prometheus target:
+					</div>
+					<div style="height: 250px;">
+						<pre>
+							<code data-trim data-noescape>
+								# Copy this line below comments into the Expression field and
+								# click on the EXECUTE button on the right side of the screen.
+								#
+								up{job="prometheus"}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Execute the UP query</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						You can now see the results as a boolean value suggesting it is really UP:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab02-16.png" alt="queries"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Exploring this silly visualization</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						This is a rather silly metric to visualize this way, but this is what it looks like going back
+						over 1d as my server was running during this lab's development (you can check my working hours!):
+					</div>
+					<div style="height: 450px;">
+						<img src="images/lab02-17.png" alt="graphs"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 400px; font-size: xx-large">
+						<img src="images/lab02-2.png" alt="completed">
+						<br />
+						Next up, exploring the query language...
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://youtu.be/KJvUyP4c1NQ" target="_blank">Video introduction to workshop (Open Source Edinburgh meetup)</a></li>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-prometheus" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://prometheus.io" target="_blank">Prometheus project</a></li>
+							<li><a href="https://github.com/prometheus/promlens" target="_blank">PromLens project (archived, now the Prometheus EXPLAIN tab)</a></li>
+							<li><a href="https://github.com/perses/perses" target="_blank">Perses project</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-prometheus/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Director Evangelism<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop... </h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab03.html" target="_blank">Lab 3 - Introduction to the Query Language</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMenu, RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+	</body>
+</html>

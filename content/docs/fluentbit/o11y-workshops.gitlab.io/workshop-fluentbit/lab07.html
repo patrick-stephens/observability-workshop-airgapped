@@ -1,0 +1,744 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Fluent Bit workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Telemetry Pipelines Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-799E08H5WD"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-799E08H5WD');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 7 - Pipeline integration with OpenTelemetry</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>
+							This lab explores how to integrate a Fluent Bit pipeline with OpenTelemetry.
+						</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Jumping to the solution</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						If you happen to be exploring Fluent Bit as an architect and want to jump to the solution in
+						action, we've included the configuration files in the easy install project from the source
+						install support directory. Please see the previous installing from source lab. Instead of creating all
+						the configurations as shown in this lab, you'll find them ready to use as shown below from the
+						<code><b>fluentbit-install-demo</b></code> root directory:
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ls -l support/configs-lab-7/
+
+								-rw-r--r--@ 1 erics  staff   166 Aug  1 15:34 Buildfile-fb
+								-rw-r--r--  1 erics  staff   215 Jul 27 09:47 Buildfile-otel
+								-rw-r--r--  1 erics  staff    73 Jul 25 13:51 Buildfile-prom
+								-rw-r--r--  1 erics  staff  1589 Aug  1 15:50 workshop-fb.yaml
+								-rw-r--r--  1 erics  staff   245 Jul 30 15:42 workshop-otel.yaml
+								-rw-r--r--  1 erics  staff   209 Jul 27 09:23 workshop-prom.yml
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - The use cases</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: x-large;">
+						There are many reasons why an organization might want to pass their telemetry pipeline output
+						onwards to OpenTelemetry (OTel), specifically through an
+						<a href="https://opentelemetry.io/docs/collector/" target="_blank">OpenTelemetry Collector</a>.
+						To facilitate this integration, Fluent Bit from the release of version 3.1 added support for
+						converting its telemetry data into the OTel format.<br />
+						<br />
+						In this lab, we'll explore what Fluent Bit offers to convert pipeline data into the correct
+						format for sending onwards to OTel.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - The architecture</h3>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: x-large;">
+						This is an architectural overview of what we are building. Here you can see the pipeline
+						collecting log events, processing them into an OTel Envelope to satisfy the OTel schema
+						(resource, scope, attributes), pushing to an OTel Collector, and finally to both the collectors
+						console output and to a separate log file:
+					</div>
+					<div style="height: 420px;">
+						<img src="images/lab07-1.png" alt="architecture">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Initial log configuration</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						We begin configuration of our telemetry pipeline in the <code><b>INPUT</b></code> phase with a
+						simple dummy plugin generating sample log events as follows:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# This file is our workshop Fluent Bit configuration.
+								#
+								service:
+								  flush: 1
+								  log_level: info
+
+								pipeline:
+								  inputs:
+								    # This entry generates a success message for the workshop.
+								    - name: dummy
+								      dummy: '{"service" : "backend", "log_entry" : "Generating a 200 success code."}'
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Initial configuration outputs</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						Now ensure the output section of our configuration file <code><b>workshop-fb.yaml</b></code>
+						following the inputs section is as follows:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								outputs:
+								  # This entry directs all tags (it matches any we encounter)
+								  # to print to our console.
+								  - name: stdout
+								    match: '*'
+								    format: json_lines
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Running initial pipeline (source)</h3>
+					</div>
+					<div style="height: 220px; text-align: left; font-size: xx-large;">
+						To see if our configuration works we can test run it with our Fluent Bit installation. Depending
+						on the chosen install method, here we show how to run it using the source installation followed
+						by the container version. Below the source install is shown from the directory we created to hold
+						all our configuration files:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# source install.
+								#
+								$ [PATH_TO]/fluent-bit --config workshop-fb.yaml
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Console output initial pipeline (source)</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						The console output should look something like this. This runs until exiting with CTRL_C:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.0] initializing
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.0] storage_strategy='memory' (memory only)
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.1] initializing
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.1] storage_strategy='memory' (memory only)
+								[2025/07/10 14:14:57] [ info] [output:stdout:stdout.0] worker #0 started
+								[2025/07/10 14:14:57] [ info] [sp] stream processor started
+								[2025/07/10 14:14:57] [ info] [engine] Shutdown Grace Period=5, Shutdown Input Grace Period=2
+								{"date":1722519715.919221,"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":1722519716.252186,"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":1722519716.583481,"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":1722519716.917044,"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":1722519717.250669,"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":1722519717.584412,"service":"backend","log_entry":"Generating a 200 success code."}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Testing initial pipeline (container)</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Let's now try testing our configuration by running it using a container image. First thing that
+						is needed is to open in our favorite editor, a new file called
+						<code><b>Buildfile-fb</b></code>. This is going to be used to build a new container image
+						and insert our configuration. Note this file needs to be in the same directory as our
+						configuration file, otherwise adjust the file path names:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								FROM ghcr.io/fluent/fluent-bit:5.1.1
+
+								COPY ./workshop-fb.yaml /fluent-bit/etc/workshop-fb.yaml
+
+								CMD [ "fluent-bit", "-c", "/fluent-bit/etc/workshop-fb.yaml"]
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Building initial pipeline (container)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Now we'll build a new container image, naming it with a version tag, as follows using the
+						<code><b>Buildfile-fb</b></code> and assuming you are in the same directory:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-fb:v12 -f Buildfile-fb
+
+								STEP 1/3: FROM ghcr.io/fluent/fluent-bit:5.1.1
+								STEP 2/3: COPY ./workshop-fb.yaml /fluent-bit/etc/workshop-fb.yaml
+								--> b4ed3356a842
+								STEP 3/3: CMD [ "fluent-bit", "-c", "/fluent-bit/etc/workshop-fb.yaml"]
+								COMMIT workshop-fb:v4
+								--> bcd69f8a85a0
+								Successfully tagged localhost/workshop-fb:v12
+								bcd69f8a85a024ac39604013bdf847131ddb06b1827aae91812b57479009e79a
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Running initial pipeline (container)</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Run the initial pipeline using this container command:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run --rm --name fbv12 workshop-fb:v12
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Console output initial pipeline (container)</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						The console output should look something like this. This runs until exiting with CTRL_C:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.0] initializing
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.0] storage_strategy='memory' (memory only)
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.1] initializing
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.1] storage_strategy='memory' (memory only)
+								[2025/07/10 14:14:57] [ info] [output:stdout:stdout.0] worker #0 started
+								[2025/07/10 14:14:57] [ info] [sp] stream processor started
+								[2025/07/10 14:14:57] [ info] [engine] Shutdown Grace Period=5, Shutdown Input Grace Period=2
+								{"date":1722519715.919221,"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":1722519716.252186,"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":1722519716.583481,"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":1722519716.917044,"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":1722519717.250669,"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":1722519717.584412,"service":"backend","log_entry":"Generating a 200 success code."}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration – Updating running pipeline (k3s)</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						If you deployed onto Kubernetes (k3s) with Rancher Desktop back in lab 3, Fluent Bit is already
+						running, configured by the Helm values file <code><b>workshop-fb-helm.yaml</b></code>. Rather than
+						a source or container run, we update that same file with this lab's pipeline and roll it out with a
+						<code><b>helm upgrade</b></code>. Replace the <code><b>extraFiles</b></code> block, starting with the
+						service and inputs sections, keeping the <code><b>http_server</b></code> lines so the liveness probe
+						on port <code><b>2020</b></code> keeps passing:
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								args:
+								  - --workdir=/fluent-bit/etc
+								  - --config=/fluent-bit/etc/conf/fluent-bit.yaml
+
+								config:
+								  extraFiles:
+								    fluent-bit.yaml: |
+								      service:
+								        flush: 1
+								        log_level: info
+								        http_server: on
+								        http_listen: 0.0.0.0
+								        http_port: 2020
+
+								      pipeline:
+								        inputs:
+								          # This entry generates a success message for the workshop.
+								          - name: dummy
+								            dummy: '{"service" : "backend", "log_entry" : "Generating a 200 success code."}'
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration – Updating running pipeline (k3s) cont.</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Continuing in the same file, add the outputs section below the inputs, directing all tags to the
+						pod's console (stdout):
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								      pipeline:
+								        inputs:
+								          ...
+
+								        outputs:
+								          # This entry directs all tags to the console (pod stdout).
+								          - name: stdout
+								            match: '*'
+								            format: json_lines
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration – Rolling out initial pipeline (k3s)</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Apply the updated configuration by running a <code><b>helm upgrade</b></code> from the
+						<code><b>fluentbit-install-demo</b></code> root directory. This rolls out a new Fluent Bit pod
+						picking up our initial pipeline, so we can check the configuration works before building
+						towards OTel:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+								       --set image.tag=5.1.1 \
+								       --namespace logging --create-namespace \
+								       --values workshop-fb-helm.yaml
+
+								Release "fluent-bit" has been upgraded. Happy Helming!
+								NAME: fluent-bit
+								NAMESPACE: logging
+								STATUS: deployed
+								REVISION: 9
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration – Console output initial pipeline (k3s)</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						Since our output plugin is <code><b>stdout</b></code>, the events are written to the Fluent Bit
+						pod's console. View them by following the pod logs in the <code><b>logging</b></code> namespace
+						(exit with CTRL-C):
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+
+								...
+								{"date":1722519715.919221,"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":1722519716.252186,"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":1722519716.583481,"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":1722519716.917044,"service":"backend","log_entry":"Generating a 200 success code."}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - OpenTelemetry envelope</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Within the pipeline after ingesting log events, we need to process them into an OTel compatible
+						schema before we can push them onwards to an OTel Collector. Fluent Bit v3.1+ offers a processor
+						to put our logs into an OTel envelope.<br />
+						<br />
+						The OTel Envelope is putting our log events into the correct format (<code><b>resource</b></code>,
+						<code><b>scope</b></code>, <code><b>attributes</b></code>). Let's try adding this to our
+						<code><b>workshop-fb.yaml</b></code> file and explore the changes to our log events...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Processing the envelope </h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						The configuration of our <code><b>processor</b></code> section needs an entry for logs. Fluent
+						Bit provides a simple processor called <code><b>opentelemetry_envelope</b></code> and is added
+						as follows after the inputs section:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								pipeline:
+								  inputs:
+								    # This entry generates an success message for the workshop.
+								    - name: dummy
+								      dummy: '{"service" : "backend", "log_entry" : "Generating a 200 success code."}'
+
+								      processors:
+								        logs:
+								          - name: opentelemetry_envelope
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Testing envelope pipeline (source)</h3>
+					</div>
+					<div style="height: 220px; text-align: left; font-size: xx-large;">
+						To see if our configuration works we can test run it with our Fluent Bit installation. Depending
+						on the chosen install method, here we show how to run it using the source installation followed
+						by the container version. Below the source install is shown from the directory we created to hold
+						all our configuration files:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# source install.
+								#
+								$ [PATH_TO]/fluent-bit --config workshop-fb.yaml
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Console output envelope pipeline (source)</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						The console output should look something like this. Note each log event has now been put into
+						the OTel Envelope format, providing for a <code><b>resource</b></code>, <code><b>scope</b></code>,
+						and <code><b>attributes</b></code>. This runs until exiting with CTRL_C:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[2025/07/10 15:28:55] [ info] [input:dummy:dummy.0] initializing
+								[2025/07/10 15:28:55] [ info] [input:dummy:dummy.0] storage_strategy='memory' (memory only)
+								[2025/07/10 15:28:55] [ info] [input:storage_backlog:storage_backlog.1] initializing
+								[2025/07/10 15:28:55] [ info] [input:storage_backlog:storage_backlog.1] storage_strategy='memory' (memory only)
+								[2025/07/10 15:28:55] [ info] [input:storage_backlog:storage_backlog.1] queue memory limit: 95.4M
+								[2025/07/10 15:28:55] [ info] [output:stdout:stdout.0] worker #0 started
+								[2025/07/10 15:28:55] [ info] [sp] stream processor started
+								[2025/07/10 15:28:55] [ info] [engine] Shutdown Grace Period=5, Shutdown Input Grace Period=2
+								{"date":1752154136.222278,"__internal__":{"group_attributes":{"resource":{},"scope":{}},"log_metadata":{}},"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":1752154137.223238,"__internal__":{"group_attributes":{"resource":{},"scope":{}},"log_metadata":{}},"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":1752154138.223008,"__internal__":{"group_attributes":{"resource":{},"scope":{}},"log_metadata":{}},"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":1752154139.219798,"__internal__":{"group_attributes":{"resource":{},"scope":{}},"log_metadata":{}},"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":1752154140.222503,"__internal__":{"group_attributes":{"resource":{},"scope":{}},"log_metadata":{}},"service":"backend","log_entry":"Generating a 200 success code."}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Building envelope pipeline (container)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Now we'll build a new container image, naming it with a version tag, as follows using the
+						<code><b>Buildfile-fb</b></code> and assuming you are in the same directory:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-fb:v13 -f Buildfile-fb
+
+								STEP 1/3: FROM ghcr.io/fluent/fluent-bit:5.1.1
+								STEP 2/3: COPY ./workshop-fb.yaml /fluent-bit/etc/workshop-fb.yaml
+								--> b4ed3356a842
+								STEP 3/3: CMD [ "fluent-bit", "-c", "/fluent-bit/etc/workshop-fb.yaml"]
+								COMMIT workshop-fb:v4
+								--> bcd69f8a85a0
+								Successfully tagged localhost/workshop-fb:v13
+								bcd69f8a85a024ac39604013bdf847131ddb06b1827aae91812b57479009e79a
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Running envelope pipeline (container)</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Run the initial pipeline using this container command:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run --rm --name fbv13 workshop-fb:v13
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Console output envelope pipeline (container)</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						The console output should look something like this. Note each log event has now been put into
+						the OTel Envelope format, providing for a <code><b>resource</b></code>, <code><b>scope</b></code>,
+						and <code><b>attributes</b></code>. This runs until exiting with CTRL_C:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[2025/07/10 13:31:09] [ info] [input:dummy:dummy.0] initializing
+								[2025/07/10 13:31:09] [ info] [input:dummy:dummy.0] storage_strategy='memory' (memory only)
+								[2025/07/10 13:31:09] [ info] [input:storage_backlog:storage_backlog.1] initializing
+								[2025/07/10 13:31:09] [ info] [input:storage_backlog:storage_backlog.1] storage_strategy='memory' (memory only)
+								[2025/07/10 13:31:09] [ info] [input:storage_backlog:storage_backlog.1] queue memory limit: 95.4M
+								[2025/07/10 13:31:09] [ info] [sp] stream processor started
+								[2025/07/10 13:31:09] [ info] [engine] Shutdown Grace Period=5, Shutdown Input Grace Period=2
+								[2025/07/10 13:31:09] [ info] [output:stdout:stdout.0] worker #0 started
+								{"date":1752154270.233076,"__internal__":{"group_attributes":{"resource":{},"scope":{}},"log_metadata":{}},"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":1752154271.237937,"__internal__":{"group_attributes":{"resource":{},"scope":{}},"log_metadata":{}},"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":1752154272.234584,"__internal__":{"group_attributes":{"resource":{},"scope":{}},"log_metadata":{}},"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":1752154273.236762,"__internal__":{"group_attributes":{"resource":{},"scope":{}},"log_metadata":{}},"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":1752154274.23592,"__internal__":{"group_attributes":{"resource":{},"scope":{}},"log_metadata":{}},"service":"backend","log_entry":"Generating a 200 success code."}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration – Adding the envelope (k3s)</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						On Kubernetes we apply the same processor to the running pipeline. Open our Helm values file
+						<code><b>workshop-fb-helm.yaml</b></code> and add a <code><b>processors</b></code> section to the
+						dummy input. Note the indentation: everything sits inside the <code><b>fluent-bit.yaml</b></code>
+						block under <code><b>extraFiles</b></code>:
+					</div>
+					<div style="height: 260px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								      pipeline:
+								        inputs:
+								          # This entry generates a success message for the workshop.
+								          - name: dummy
+								            dummy: '{"service" : "backend", "log_entry" : "Generating a 200 success code."}'
+
+								            processors:
+								              logs:
+								                - name: opentelemetry_envelope
+
+								        outputs:
+								          ...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration – Rolling out envelope pipeline (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Apply the updated configuration with another <code><b>helm upgrade</b></code> from the
+						<code><b>fluentbit-install-demo</b></code> root directory, rolling out a new Fluent Bit pod that
+						picks up our OTel Envelope processing:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+								       --set image.tag=5.1.1 \
+								       --namespace logging --create-namespace \
+								       --values workshop-fb-helm.yaml
+
+								Release "fluent-bit" has been upgraded. Happy Helming!
+								NAME: fluent-bit
+								NAMESPACE: logging
+								STATUS: deployed
+								REVISION: 10
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration – Console output envelope pipeline (k3s)</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						Follow the pod logs in the <code><b>logging</b></code> namespace. Note each log event has now been
+						put into the OTel Envelope format, providing for a <code><b>resource</b></code>,
+						<code><b>scope</b></code>, and <code><b>attributes</b></code> (exit with CTRL-C):
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+
+								...
+								{"date":1752154270.233076,"__internal__":{"group_attributes":{"resource":{},"scope":{}},"log_metadata":{}},"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":1752154271.237937,"__internal__":{"group_attributes":{"resource":{},"scope":{}},"log_metadata":{}},"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":1752154272.234584,"__internal__":{"group_attributes":{"resource":{},"scope":{}},"log_metadata":{}},"service":"backend","log_entry":"Generating a 200 success code."}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Inside the architecture</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						The work up to now has been focused on our telemetry pipeline with Fluent Bit. We configured log
+						event ingestion, processing to an OTel Envelope, and it's ready to push onwards as shown here in
+						this architectural component:
+					</div>
+					<div style="height: 300px; text-align: right;">
+						<img src="images/lab07-2.png" alt="envelope">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Pushing to the collector</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						When sending telemetry data in the OTel Envelope we are using the OpenTelemetry Protocol (OTLP),
+						which is the standard to ingest into a collector. The next step will be for us to configure an
+						OTel Collector to receive telemetry data and point our Fluent Bit instances at that collector as
+						depicted in this diagram:
+					</div>
+					<div style="height: 300px;">
+						<img src="images/lab07-3.png" alt="collector">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Options installing OTel Collector</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						The rest of this workshop can be done using the path of source installations, container
+						installations, or a Kubernetes (k3s) installation of the OTel Collector, so please click on the
+						option you want to use for the rest of this workshop:
+					</div>
+					<div style="height: 50px; text-align: left;">
+						<ul>
+							<li><a href="lab07-source.html" target="_blank">Installing from the source code</a></li>
+							<li><a href="lab07-podman.html" target="_blank">Installing in a container using Podman</a></li>
+							<li><a href="lab07-rancher.html" target="_blank">Kubernetes (k3s) using Rancher Desktop</a></li>
+						</ul>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

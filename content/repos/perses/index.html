@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Perses workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Visualization Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-BGV1XYZ1ND"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-BGV1XYZ1ND');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<section>
+						<div style="height: 300px;">
+							<h2>Workshop</h2>
+							<h3>Getting started with open dashboards and visualization</h3>
+						</div>
+						<div style="height: 150px; font-size: xx-large;">
+							This workshop will guide you through the open source dashboard and visualization project Perses,
+							what it is, a basic installation, and building your first dashboard.
+						</div>
+						<div style="height: 300px; text-align: left; font-size: x-large;">
+							<b>Needed for kubernetes install:</b> <a href="https://rancherdesktop.io/" target="_blank">Rancher Desktop (k3s)</a>, Helm<br />
+							<b>Needed for container install:</b> Podman or Docker<br />
+							<b>Needed for source install:</b> Go v1.26+, Node.js v22+, npm v10+<br />
+							<br />
+							Based on Perses v0.54, Prometheus 3.13, and Node Exporter 1.12
+							<br /><br />
+							<h5 style="text-align: right;">Next slide to the right... ==></h5>
+						</div>
+					</section>
+
+					<section>
+						<div style="height: 100px;">
+							<h2>Follow along:</h2>
+						</div>
+						<div style="height: 350px;">
+							<img src="images/qr-code-perses-workshop.png" alt="qr-code">
+							<br />
+							<b>Short link:</b><a href="https://bit.ly/perses-workshop" target="_blank"> bit.ly/perses-workshop</a>
+						</div>
+					</section>
+				</section>
+
+				<section>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Navigation tips - Table of contents</h2>
+					</div>
+					<div style="height: 300px; font-size: xx-large; text-align: left">
+						Each lab provided by this workshop has a table of contents. Using this table of contents
+						and general navigation provided for your ease of use.<br />
+						<br />
+						Keyboard:<br />
+						<ul>
+							<li>'m' key = open / close table of contents</li>
+							<li>arrow keys = move forward / back through slides</li>
+						</ul>
+						<br /><br />
+						Mouse click on:<br />
+						<ul>
+							<li>bottom left icon = open table of contents</li>
+							<li>bottom right arrow icons = move forward / back through slides</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h3 class="r-fit-text">Some workshop guidelines</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						Some things to watch for in the workshop:<br /><br />
+						<ul>
+							<li>All links you can click to follow are displayed as <i style="color: #2FBF71">green text</i> </li>
+							<li>All video images can be clicked on to view</li>
+							<li>All code snippets will be as follows:
+								<ul>
+									<li><code>System.out.println("This is code.");</code></li>
+								</ul>
+						</ul>
+						<br />
+						<br />
+						Find any issue as you take this workshop, please
+						<a href="https://gitlab.com/o11y-workshops/workshop-perses/-/issues/new" target="_blank">
+							report here (click link).</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 50px;">
+						<h2 class="r-fit-text">Building beautiful dashboards and visualizations</h2>
+					</div>
+					<div style="height: 550px; font-size: xx-large">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/final-dashboard-results.png" alt="dashboard">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab 1 - Introduction to Perses</h2>
+					</div>
+					<div style="height: 200px; font-size: xx-large">
+						Lab goals: This lab introduces you to the Perses project and provides you with an understanding
+						of its evolution from a Linux Foundation project to promotion into the Cloud Native Computing
+						Foundation (CNCF) as a Sandbox project.
+					</div>
+					<div style="height: 70px;">
+						<a href="lab01.html" target="_blank">[ Click here to start ]</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab 2 - Installing Perses</h2>
+					</div>
+					<div style="height: 200px; font-size: xx-large">
+						Lab goals: This lab walks you through the steps for installing Perses on your local machine.
+					</div>
+					<div style="height: 70px;">
+						<a href="lab02.html" target="_blank">[ Click here to start ]</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab 3 - Exploring dashboard tooling</h2>
+					</div>
+					<div style="height: 200px; font-size: xx-large">
+						Lab goals: This lab explores the Perses API and how to use the Perses command line tooling to gain
+						insights into the current available projects, dashboards, and data sources.
+					</div>
+					<div style="height: 70px;">
+						<a href="lab03.html" target="_blank">[ Click here to start ]</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab 4 - Exploring Perses dashboards</h2>
+					</div>
+					<div style="height: 200px; font-size: xx-large">
+						Lab goals: This lab ensures your understanding of what the basic components are to building
+						dashboards with the Perses project.
+					</div>
+					<div style="height: 70px;">
+						<a href="lab04.html" target="_blank">[ Click here to start ]</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab 5 - Building your first dashboard</h2>
+					</div>
+					<div style="height: 200px; font-size: xx-large">
+						Lab goals: This lab shows you now to construct your first basic dashboard from scratch using
+						the Perses project.
+					</div>
+					<div style="height: 70px;">
+						<a href="lab05.html" target="_blank">[ Click here to start ]</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab 6 - Building advanced dashboard</h2>
+					</div>
+					<div style="height: 200px; font-size: xx-large">
+						Lab goals: This lab shows you how to build out your first basic dashboard, extending it with
+						more components until you have an advanced dashboard with better metrics coverage.
+					</div>
+					<div style="height: 70px;">
+						<a href="lab06.html" target="_blank">[ Click here to start ]</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab 7 - Building advanced++ dashboards</h2>
+					</div>
+					<div style="height: 200px; font-size: xx-large">
+						Lab goals: This lab shows you how to build extend your advanced dashboard, sprucing it up
+						with a few more important components until you have an advanced++ dashboard you can be
+						proud of.
+					</div>
+					<div style="height: 70px;">
+						<a href="lab07.html" target="_blank">[ Click here to start ]</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2>The End</h2>
+					</div>
+					<div style="height: 250px; font-size: xx-large;">
+						This completes the standalone workshop. If interested in more cloud native observability workshops,
+						then head back to <a href="https://o11y-workshops.gitlab.io" target="_blank">choose your next
+						workshop adventure.</a>
+						<br />
+						<br />
+						Thanks for your time and feedback is always welcome!
+					</div>
+					<div style="height: 100px; font-size: large; text-align: left">
+						Eric D. Schabell<br/>
+						Director Evangelism<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>}
+						<br />
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

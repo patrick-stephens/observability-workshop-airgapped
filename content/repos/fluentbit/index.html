@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Fluent Bit workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Telemetry Pipelines Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax-highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-799E08H5WD"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-799E08H5WD');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<section>
+						<div style="height: 300px;">
+							<h2>Workshop</h2>
+							<h3>Getting started with cloud native telemetry pipelines</h3>
+						</div>
+						<div style="height: 150px; font-size: xx-large;">
+							This workshop will guide you through telemetry pipelines with the open source project
+							Fluent Bit, what it is, a basic installation, and setting up a first pipeline project.
+						</div>
+						<div style="height: 300px; text-align: left; font-size: large;">
+							<b>Needed for Kubernetes install:</b> Rancher Desktop (k3s)<br />
+							<b>Needed for container install:</b> Podman or Docker<br />
+							<b>Needed for source install:</b> cmake, openssl, and bison<br />
+							<br />
+							Labs are based on Fluent Bit v5.1, Prometheus v3.13, OpenTelemetry Collector v0.159, OpenSearch v3.3.1, and OpenSearch Dashboard v3.3.0<br />
+							<br />
+							<h5 style="text-align: right;">Next slide to the right... ==></h5>
+						</div>
+					</section>
+
+					<section>
+						<div style="height: 100px;">
+							<h2>Follow along:</h2>
+						</div>
+						<div style="height: 350px;">
+							<img src="images/qr-code-fluentbit-workshop.png" alt="qr-code">
+							<br />
+							<b>Short link: </b><a href="https://bit.ly/fluentbit-workshop" target="_blank">bit.ly/fluentbit-workshop</a>
+						</div>
+					</section>
+				</section>
+
+				<section>
+					<div style="height: 120px">
+						<h2 class="r-fit-text">Navigation tips – Table of contents</h2>
+					</div>
+					<div style="height: 300px; font-size: xx-large; text-align: left">
+						Each lab provided by this workshop has a table of contents. Using this table of contents
+						and general navigation provided for your ease of use.<br />
+						<br />
+						Keyboard:<br />
+						<ul>
+							<li>'m' key = open / close table of contents</li>
+							<li>arrow keys = move forward / back through slides</li>
+						</ul>
+						<br /><br />
+						Mouse click on:<br />
+						<ul>
+							<li>bottom left icon = open table of contents</li>
+							<li>bottom right arrow icons = move forward / back through slides</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Some workshop guidelines</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						Some things to watch for in the workshop:<br /><br />
+						<ul>
+							<li>All links you can click to follow are displayed as <i style="color: #2FBF71">green text</i> </li>
+							<li>All video images can be clicked on to view</li>
+							<li>All code snippets will be as follows:
+								<ul>
+									<li><code>System.out.println("This is code.");</code></li>
+								</ul>
+						</ul>
+						<br />
+						<br />
+						Find any issue as you take this workshop, please
+						<a href="https://gitlab.com/o11y-workshops/workshop-fluentbit/-/issues/new" target="_blank">
+							report here (click link).</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab 1 – Introduction to Fluent Bit</h2>
+					</div>
+					<div style="height: 150px; font-size: xx-large">
+						Lab goals: This lab introduces you to Fluent Bit and provides you with an understanding of its
+						role in cloud native observability.
+					</div>
+					<div style="height: 70px;">
+						<a href="lab01.html" target="_blank">[ Click here to start ]</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab 2 – Installing Fluent Bit</h2>
+					</div>
+					<div style="height: 150px; font-size: xx-large">
+						Lab goals: This lab walks you through the steps for installing Fluent Bit on your local machine.
+					</div>
+					<div style="height: 70px;">
+						<a href="lab02.html" target="_blank">[ Click here to start ]</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab 3 – Exploring first pipelines</h2>
+					</div>
+					<div style="height: 150px; font-size: xx-large">
+						Lab goals: This lab explores your first telemetry pipelines using Fluent Bit.
+					</div>
+					<div style="height: 70px;">
+						<a href="lab03.html" target="_blank">[ Click here to start ]</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab 4 – Exploring more pipelines</h2>
+					</div>
+					<div style="height: 150px; font-size: xx-large">
+						Lab goals: This lab continues exploring more telemetry pipelines using Fluent Bit.
+					</div>
+					<div style="height: 70px;">
+						<a href="lab04.html" target="_blank">[ Click here to start ]</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab 5 - Understanding backpressure</h2>
+					</div>
+					<div style="height: 200px; font-size: xx-large">
+						Lab goals: This lab ensures your understanding of backpressure in telemetry pipelines and how
+						to address it with Fluent Bit.
+					</div>
+					<div style="height: 70px;">
+						<a href="lab05.html" target="_blank">[ Click here to start ]</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab 6 - Avoiding telemetry data loss</h2>
+					</div>
+					<div style="height: 150px; font-size: xx-large">
+						Lab goals: This lab explores how to avoid losing telemetry data in your telemetry pipeline with
+						Fluent Bit.
+					</div>
+					<div style="height: 70px;">
+						<a href="lab06.html" target="_blank">[ Click here to start ]</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab 7 – Pipeline integration with OpenTelemetry</h2>
+					</div>
+					<div style="height: 150px; font-size: xx-large">
+						Lab goals: This lab explores how to integrate a Fluent Bit pipeline with OpenTelemetry.
+					</div>
+					<div style="height: 70px;">
+						<a href="lab07.html" target="_blank">[ Click here to start ]</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab 8 – Controlling logs with Fluent Bit on Kubernetes</h2>
+					</div>
+					<div style="height: 150px; font-size: xx-large">
+						Lab goals: This lab explores how to use Fluent Bit to get control of logs on Kubernetes.
+					</div>
+					<div style="height: 70px;">
+						<a href="lab08.html" target="_blank">[ Click here to start ]</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab 9 – Visualizing Fluent Bit telemetry data with OpenSearch</h2>
+					</div>
+					<div style="height: 150px; font-size: xx-large">
+						Lab goals: This lab explores how to visualize Fluent Bit telemetry pipeline data with OpenSearch.
+					</div>
+					<div style="height: 70px;">
+						<a href="lab09.html" target="_blank">[ Click here to start ]</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab 10 – Advanced telemetry routing</h2>
+					</div>
+					<div style="height: 150px; font-size: xx-large">
+						Lab goals: This lab explores routing patterns in Fluent Bit including tag-based routing,
+						conditional routing (new in Fluent Bit 4.2+), and label-based matching.
+					</div>
+					<div style="height: 70px;">
+						<a href="lab10.html" target="_blank">[ Click here to start ]</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2>The End</h2>
+					</div>
+					<div style="height: 250px; font-size: xx-large;">
+						This completes the standalone workshop. If interested in more cloud native observability workshops,
+						then head back to <a href="https://o11y-workshops.gitlab.io" target="_blank">choose your next
+						workshop adventure.</a>
+						<br />
+						<br />
+						Thanks for your time, and feedback is always welcome!
+					</div>
+					<div style="height: 200px; font-size: large; text-align: left">
+						Eric D. Schabell<br/>
+						Technology Advocate Lead<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>}
+						<br />
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

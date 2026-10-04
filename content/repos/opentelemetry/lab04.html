@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="OpenTelemetry Workshop">
+		<meta name="author" content="Paige Cruz">
+
+		<title>Lab 4 - Exploring Jaeger UI</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-33MFF345ZY"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-33MFF345ZY');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 4 - Exploring Jaeger</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>This lab walks you through querying, viewing and comparing trace visualizations with Jaeger.</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Exploring Jaeger - Choose your runtime</h2>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						This lab explores the Jaeger UI backed by the demo application sending it traces. Choose how
+						that workload is running:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<ul>
+							<li>Continue onwards with the application running under <b>Podman</b></li>
+							<li><a href="lab04-rancher.html" target="_blank">Continue using Kubernetes (k3s)</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Exploring Jaeger - Podman prerequisites</h2>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						This path explores the Jaeger UI served from a pod running under
+						<a href="https://podman.io/" target="_blank">Podman</a>. Start the <code>hello-otel</code>
+						pod, then confirm it is up. If <code>podman pod ps</code> already lists it as
+						<b>Running</b>, skip the first command:
+					</div>
+					<div style="height: 240px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman play kube programmatic/app_pod.yaml
+
+								$ podman pod ps
+								POD ID        NAME        STATUS      CREATED         INFRA ID      # OF CONTAINERS
+								6bc7de63cbe3  hello-otel  Running     21 seconds ago  11430dfc0823  3
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Exploring Jaeger - Generate some trace data</h2>
+					</div>
+					<div style="height: 140px; text-align: left; font-size: xx-large;">
+						Jaeger has nothing to show until the application is exercised. Open a second terminal or a
+						browser and hit each of these routes a few times to fill Jaeger with traces:
+					</div>
+					<div style="height: 300px; text-align: left; font-size: x-large;">
+						<ul>
+							<li><b><a href="http://localhost:8001/" target="_blank">/</a></b> - displays count of how many times the page has been loaded. </li>
+							<li><strong><a href="http://localhost:8001/doggo" target="_blank">/doggo</a></strong> - displays random photo of a dog from the <a href="https://dog.ceo/dog-api/" target="_blank">Dog API</a></li>
+							<li><b><a href="http://localhost:8001/rolldice" target="_blank">/rolldice</a></b> - displays result of a randomized simulated dice roll </li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Exploring Jaeger - Verify the Jaeger UI</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Open browser to <a href="http://localhost:16686" target="_blank">http://localhost:16686</a>.
+						You should see a screen like below with a Gopher detective:
+					</div>
+					<div style="height: 420px;">
+						<img src="images/lab02-jaeger-successful.png" alt="gopher">
+					</div>
+				</section>
+
+                <section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Exploring Jaeger - tooling overview</h2>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						Jaeger is an open source distributed tracing system and CNCF <em>graduated</em> project that
+						supports multiple storage backends and a web interface. This workshop uses Jaeger
+						<b>v1.76.0</b>, the current release of the v1 line.
+					</div>
+					<div style="height: 300px; text-align: center;">
+						<img src="images/lab04-jaeger-logo.png" alt="logo">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Exploring Jaeger - Unpacking the all-in-one</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Jaeger natively supports receiving telemetry via OTLP, the OpenTelemetry Protocol which is
+						powering our examples and instead of a storage backend we're storing trace data in-memory:<br />
+						<br />
+						<ul>
+							<li><strong>jaeger-collector</strong>:</li>
+							<ul>
+								<li>receives, processes, and sends traces to storage</li>
+							</ul>
+							<li><strong>jaeger-query</strong>:</li>
+							<ul>
+								<li>exposes APIs for retrieving traces from storage</li>
+								<li>hosts a web UI.</li>
+							</ul>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Exploring Jaeger - Searching through traces</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						The first page you land on in Jaeger is the Traces page with a search panel. This is where you
+						can filter to look at traces with a specific service, a particular operation, relevant tags
+						(e.g. status <em>http.status_code=500</em>), duration or any combination of the above:
+					</div>
+					<div style="height: 400px; text-align: center;">
+						<img src="images/lab04-search-trace.png" alt="search">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Exploring Jaeger - Exploring search results</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Traces matching the search query populate a scatter plot and a table. The scatter plot is a
+						quick way to visually identify traces that look out of the ordinary and by clicking on the
+						bubble you'll be taken straight to the corresponding trace waterfall. The table view is helpful
+						for sorting to find specific traces by duration, amount of spans or recency:
+					</div>
+					<div style="height: 400px; text-align: center;">
+						<img src="images/lab04-search-trace.png" alt="search-results">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Exploring Jaeger - More trace details</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Traces can feature 100s of services and 1000s of spans so the default view is to have all span
+						details collapsed to show the fullest picture of the request with quick stats about the trace
+						like duration and number of services. From this view you can see what spans are taking up the
+						most time relative to the overall request duration:
+					</div>
+					<div style="height: 350px; text-align: center;">
+						<img src="images/lab04-trace-detail-collapsed.png" alt="details">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Exploring Jaeger - Search bar for trace details</h2>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: x-large;">
+						The search bar allows you to search within the trace for spans with properties like "GET", "200", etc. clicking the target opens up
+						the matching spans:
+					</div>
+					<div style="height: 400px; text-align: center;">
+						<img src="images/lab04-trace-detail-search.png" alt="bar">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Exploring Jaeger - A trace scatter plot</h2>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						The scatter plot is a quick way to visually identify traces that look out of the ordinary and
+						by clicking on the bubble you'll be taken straight to the corresponding trace waterfall. The
+						table view is helpful for sorting to find specific traces by duration, amount of spans or
+						recency:
+					</div>
+					<div style="height: 300px; text-align: center;">
+						<img src="images/lab04-trace-scatter.png" alt="scatter-plot">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Exploring Jaeger - Leveraging a trace table</h2>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						The table view is helpful for sorting to find specific traces by duration, amount of spans or
+						recency. Clicking on the trace name takes you to its trace waterfall page and selecting 2 or
+						more checkboxes lets you compare the selected traces with each other:
+					</div>
+					<div style="height: 400px; text-align: center;">
+						<img src="images/lab04-trace-table.png" alt="table">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Exploring Jaeger - A single span</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						When you've zeroed in on an "interesting" span, clicking the name opens up more details like the
+						associated tags and process information. This is where your manually instrumented metadata
+						becomes powerful way to inspect your system behavior:
+					</div>
+					<div style="height: 450px; text-align: center;">
+						<img src="images/lab04-span-detail.png" alt="span-zoom">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Exploring Jaeger - Additional trace visualizations</h2>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: x-large;">
+						Other helpful trace visualizations are found in the drop-down next to the trace search bar they
+						include:<br />
+						<br />
+					   <ul>
+							<li>Graph</li>
+							<li>Spans Table</li>
+							<li>Flamegraph</li>
+					   </ul>
+					</div>
+					<div style="height: 400px; text-align: center;">
+						<img src="images/lab04-other-viz.png" alt="other">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Exploring Jaeger - The graph view</h2>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						The graph view shows the trace with spans groups into node blocks with options to color the
+						nodes uniquely by service, by Time to highlight the critical path, or Self Time which shows the
+						longest span durations not waiting on children:
+					</div>
+					<div style="height: 400px; text-align: center;">
+						<img src="images/lab04-trace-graph.png" alt="trace-graph">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Exploring Jaeger - The spans table</h2>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						This view shows a table with duration, operation and service name per span in the trace. The
+						option to search by service or operation lets you hone in on specific interactions. Clicking a
+						span ID takes you the Trace Detail view with that span highlighted:
+					</div>
+					<div style="height: 400px; text-align: center;">
+						<img src="images/lab04-traces-table.png" alt="spans-table">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Exploring Jaeger - The flamegraph view</h2>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Flamegraph is another way to visualize the trace waterfall, as you explore the spans you can
+						right-click to collapse unnecessary details, copy the function name to use in another query or
+						highlight similar spans within the trace:
+					</div>
+					<div style="height: 400px; text-align: center;">
+						<img src="images/lab04-flamegraph.png" alt="flamegraph">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Exploring Jaeger - Comparing traces for change</h2>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: x-large;">
+						When new bugs pop up or unexpected behavior your investigation typically is trying to answer,
+						"What changed?" or "How does this compare to normal?" This is where trace comparison shines! Use
+						this to compare two or more traces to quickly identify which spans are present or occur more
+						frequently in only one of the traces.
+
+						<p>	Why did one request to `/doggo` take 685ms and another only 281ms?  </p>
+
+					</div>
+					<div style="height: 350px; text-align: center;">
+						<img src="images/lab04-compare-pt1.png" alt="comparisons">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Exploring Jaeger - Trace comparison in detail</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: x-large;">
+						Colors are modeled after code diffs:<br />
+						<br />
+						<ul>
+							<li>Gray for nodes in both Trace A and Trace B</li>
+							<li>Red for nodes only in Trace A</li>
+							<li>Green for nodes only in Trace B</li>
+						</ul><br />
+						Looks like the culprit is compiling the jinja template which is only done on the first time a
+						page is loaded!
+					</div>
+					<div style="height: 350px; text-align: center;">
+						<img src="images/lab04-compare-pt2.png" alt="comparisons-part2">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Exploring Jaeger - Why so many visualizations?</h2>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						Trace data powers both high level insights into relationships between services and low level insights.
+
+						It would be overwhelming to show all of that information in one view, and it's the ability to jump between trace comparisons,
+						span queries, individual attributes on method calls and topology maps that make trace data flexible and powerful.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Exploring Jaeger - Stop the pod</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman play kube programmatic/app_pod.yaml --down
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 30px; font-size: xx-large;">
+						We reviewed trace visualization and analysis options in the Jaeger UI.
+					</div>
+					<div style="height: 350px; text-align: center;">
+						<img src="images/lab04-compare-pt2.png" alt="comparisons-part2">
+					</div>
+					<div style="height: 50px; font-size: xx-large;">
+						<br>
+						Next up, manually instrumenting metadata on spans.
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://medium.com/jaegertracing/trace-comparisons-arrive-in-jaeger-1-7-a97ad5e2d05d" target="_blank">Trace Comparison Deep Dive</a></li>
+							<li><a href="https://www.jaegertracing.io/" target="_blank">Jaeger Project Site</a></li>
+							<li><a href="https://medium.com/jaegertracing/introducing-native-support-for-opentelemetry-in-jaeger-eb661be8183c" target="_blank">Native OTLP Support in Jaeger</a></li>
+							<li><a href="https://www.jaegertracing.io/docs/deployment/" target="_blank">Jaeger Deployment Options</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Paige Cruz<br/>
+						Senior Developer Advocate<br/>
+						Contact: <a href="https://twitter.com/paigerduty" target="_blank">Twitter</a>
+						<a href="https://hachyderm.io/@epaigerduty" target="_blank">Mastodon</a>
+						<!-- change to work email  -->
+						or <a href="mailto:paigerduty@chronosphere.io">Send Email</a>
+
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab05.html" target="_blank">Lab 05 - Manual Instrumentation</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

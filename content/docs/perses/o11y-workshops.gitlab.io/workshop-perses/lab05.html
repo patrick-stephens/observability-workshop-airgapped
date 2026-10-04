@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Perses workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Visualization Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-BGV1XYZ1ND"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-BGV1XYZ1ND');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 5 - Building your first dashboard</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>To install a Prometheus data source for Perses to query, then build your first basic
+							dashboard from the basic template you created in the last lab.</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Starting point for this lab</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						In the previous lab you explored the sections and elements used in a dashboard specification
+						resource. To start this lab (you should have done previously), open a browser to the project
+						<code><b>workshopproject</b></code> as shown:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab04-2.png" alt="my first">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - We need a data source</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						If we just open our dashboard project now, there will be no data as the data source is expecting
+						to find a Prometheus instance. Before starting to build out our first basic dashboard, we will
+						install, configure, and run a
+						<a href="https://prometheus.io/docs/prometheus/latest/installation/" target="_blank">
+							Prometheus
+						</a> instance collecting data from itself and a
+						<a href="https://prometheus.io/docs/guides/node-exporter/#installing-and-running-the-node-exporter" target="_blank">
+							Node Exporter
+						</a>
+						instance.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">How this lab is organised</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						This lab comes in two parts. On the next slide you pick how you want to install the Prometheus
+						data source, which takes you off to that installation path. Every one of those paths ends by
+						sending you on to
+						<a href="lab05b.html" target="_blank">lab 5b</a>, where you build the dashboard itself.<br />
+						<br />
+						You do not come back to this page, so pick your path and keep going.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h3 class="r-fit-text">Options for installing a data source</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Perses needs something to query, so please click on the option you want to use, matching how
+						you installed Perses back in lab 2:
+					</div>
+					<div style="height: 180px; text-align: left; font-size: xx-large;">
+						<ul>
+							<li><a href="lab05-podman.html" target="_blank">Installing in containers using Podman (preferred)</a></li>
+							<li><a href="lab05-binary.html" target="_blank">Installing the local binaries</a></li>
+							<li><a href="lab05-rancher.html" target="_blank">Installing on Kubernetes (k3s) with Helm</a></li>
+						</ul>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						Installed Perses from source in lab 2? Take either the Podman or the local binaries path, both
+						work alongside it. Using the online demo sandbox you can't reach our Prometheus install here, so
+						skip this lab.
+					</div>
+				</section>
+
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

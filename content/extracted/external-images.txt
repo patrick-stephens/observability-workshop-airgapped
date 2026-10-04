@@ -1,0 +1,12 @@
+docker.io/jaegertracing/all-in-one:1.76.0
+docker.io/library/busybox:1.36
+docker.io/opensearchproject/opensearch-dashboards:3.3.0
+docker.io/opensearchproject/opensearch:3.3.1
+docker.io/persesdev/perses:v0.54.0
+docker.io/prom/prometheus:v3.13.1
+eclipse-temurin:21
+ghcr.io/fluent/fluent-bit:5.1.1
+otel/opentelemetry-collector-contrib:0.159.0
+prom/prometheus:v3.13.1
+python:3.13-bullseye
+quay.io/prometheus/node-exporter:v1.12.1

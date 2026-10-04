@@ -1,0 +1,1406 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Prometheus workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Lab 4 - Prometheus</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-PW25SPMWGG"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-PW25SPMWGG');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 4 - Exploring Basic Queries</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>This lab dives into using PromQL to explore basic querying so that you can use it
+							to visualize collected metrics data.</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Review current lab setup</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						A quick review: Be sure you've <a href="lab03.html" target="_blank">completed the previous lab</a>
+						before proceeding.<br />
+						<br />
+						If you've done that, then you now have Prometheus installed, configured, and running (maybe for
+						some time now) collecting time series data known as metrics. You've also built and installed the
+						services demo project to provide a service that Prometheus scrapes for a varied data collection.
+						This involved re-configuring Prometheus to scrape the new services instance and reloading it,
+						which was a restart, a fresh container run, or a <code><b>helm upgrade</b></code>, depending on
+						the installation path you chose. The
+						longer this setup is running, the more data your queries will display as the graph views can be
+						adjusted by time intervals.<br />
+						<br />
+						In this lab, you'll start using the query language and see what we can find out from our metrics
+						data collection.<br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Before you query, check your endpoints</h3>
+					</div>
+					<div style="height: 175px; text-align: left; font-size: x-large;">
+						Whichever installation path you took in the previous lab, the rest of this lab uses the same two
+						addresses: Prometheus at <code><b>http://localhost:9090</b></code> and the services demo metrics
+						at <code><b>http://localhost:8080/metrics</b></code>. On the source and container paths both are
+						already bound to those ports and there is nothing to do here. On the Kubernetes (k3s) path
+						nothing is reachable until <b>both</b> port-forwards are running, each in its own terminal window:
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl port-forward -n prometheus svc/workshop-prometheus-server 9090:9090
+
+								$ kubectl port-forward -n prometheus svc/services-demo 8080:8080
+							</code>
+						</pre>
+					</div>
+					<div style="height: 190px; text-align: left; font-size: x-large;">
+						The one difference you will actually see in your query results is the value of the
+						<code><b>instance</b></code> label, as each path scrapes the services demo through a different
+						address:<br />
+						<ul>
+							<li>source: <code><b>instance="localhost:8080"</b></code></li>
+							<li>container: <code><b>instance="host.containers.internal:8080"</b></code></li>
+							<li>Kubernetes (k3s): <code><b>instance="services-demo:8080"</b></code></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Starting with selecting metrics</h3>
+					</div>
+					<div style="height: 450px; text-align: left; font-size: xx-large;">
+						The basic first step to querying your metrics data collection (time series data) is to select
+						some portion of that data. You have to start somewhere, with a basic selection, before you
+						move to transforming or performing calculations on your selected data.<br />
+						<br />
+						When you select some metric, you are going to start by selecting all instances of that metric
+						with no filtering at all. The second step will be to filter based on a metric
+						<code><b>NAME</b></code> and one or more of its <code><b>LABELS</b></code>.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - A few definitions before querying</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						Let's look at what you are going to be doing in your first basic queries:
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						<ul>
+							<li><b>Metric name</b> - querying for all time series data collected for that metric</li>
+							<br />
+							<li><b>Label</b> - using one or more assigned labels filters metric output</li>
+							<br />
+							<li><b>Timestamp</b> - fixes a query single moment in time of your choosing</li>
+							<br />
+							<li><b>Range of time</b> - setting a query to select over a certain period of time</li>
+							<br />
+							<li><b>Time-shifted data</b> - setting a query to select over a period of time while adding an offset from the time of query execution (looking in the past)</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Basic PromQL - Services demo metrics by name</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						You're going to start with queries targeting the services demo metric names you saw listed when
+						you installed it in the previous lab. You can view all of them and their available labels in your
+						browser at its metrics endpoint <code><b>http://localhost:8080/metrics</b></code> (if that
+						address does not respond on the Kubernetes path, your port-forward is not running, see the
+						previous endpoints slide):
+					</div>
+					<div style="height: 100px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# HELP demo_api_http_requests_in_progress The current number of API HTTP requests in progress.
+								# TYPE demo_api_http_requests_in_progress gauge
+								demo_api_http_requests_in_progress 1
+								# HELP demo_api_request_duration_seconds A histogram of the API HTTP request durations in seconds.
+								# TYPE demo_api_request_duration_seconds histogram
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0001"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.00015000000000000001"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.00022500000000000002"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0003375"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.00050625"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.000759375"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0011390624999999999"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0017085937499999998"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0025628906249999996"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0038443359374999994"} 0
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Selecting a metric by name</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						Let's start by selecting the below metric name using the Prometheus expression browser which you
+						can find at <code><b>http://localhost:9090</b></code> (again, on the Kubernetes path this needs
+						its port-forward running). Cut-and-paste the below line to select all
+						time series data from our collection in Prometheus:
+					</div>
+					<div style="height: 200px;">
+						<pre>
+							<code data-trim data-noescape>
+								demo_api_request_duration_seconds_count
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Results metric selection</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						As you can see, the metric <code><b>demo_api_request_duration_seconds_count</b></code> selects
+						all <code><b>LABELS</b></code> associated with it. In this case they are
+						<code><b>INSTANCE, JOB, METHOD, PATH, STATUS</b></code>. Your results should look something like
+						this (the screenshots in this lab were captured on the source path, so your
+						<code><b>INSTANCE</b></code> value will read differently on the container and Kubernetes paths):
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab04-1.png" alt="select metric">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Shorthand metric selection</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						The metric name selected was shorthand to make it easier to use. If you are interested, the
+						full form to select a metric by name is as follows. Be sure to give it a try in your instance
+						to see the same results as before:
+					</div>
+					<div style="height: 200px;">
+						<pre>
+							<code data-trim data-noescape>
+								{__name__="demo_api_request_duration_seconds_count"}
+
+								is the same as:
+
+								demo_api_request_duration_seconds_count
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Filtering using a label</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Now we can start filtering our selection output by using a specific label. You might have noticed
+						that the output had two sorts of <code><b>METHOD</b></code>, either GET or POST, so we can narrow the
+						output down by half just by selecting one of them as follows:
+					</div>
+					<div style="height: 200px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								demo_api_request_duration_seconds_count{method="POST"}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Filtering auto-completion</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						Note that entering the query (typing by hand) in the expression browser includes auto-completion
+						suggestions as you go:
+					</div>
+					<div style="height: 300px;">
+						<img src="images/lab04-2.png" alt="filter label">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Results filtering a label</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						The query filtered our output to only the entries containing a method with value
+						<code><b>POST</b></code>, which has reduced our results listing by half:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab04-3.png" alt="filter label">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Filtering with multiple labels</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						To further refine our search we can be more specific by adding more labels to our query. Try
+						the following query with two labels filtering your results:
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								demo_api_request_duration_seconds_count{method="POST", path="/api/foo"}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Results multiple labels</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						This query with filtering using two labels narrowed our results some (note that all labels must
+						match to select a metric):
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab04-4.png" alt="filter labels">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Filtering with multiple labels</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						To further refine our search we can be more specific by adding more labels to our query. Three
+						labels should be enough to get a single results, so try this one:
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								demo_api_request_duration_seconds_count{method="POST", path="/api/foo", status="500"}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Results multiple labels</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						This final query is specific enough after filtering with three labels to narrow our search
+						results down to one final answer:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab04-5.png" alt="filter labels">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Possible matching operators</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						When filtering our queries up to now, we've only used the equality operator (=), there are
+						more to help you with filtering:
+					</div>
+					<div style="height: 200px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								 =: Equals
+								!=: Non-equals
+								=~: Regular expression matching
+								!~: Regular expression non-match
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Filtering with non-equals</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Revisiting the first selection query we did with a single label filter, we can apply non-equals
+						to select results for this metric where the label <code><b>METHOD</b></code> is not POST:
+					</div>
+					<div style="height: 200px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								demo_api_request_duration_seconds_count{method!="POST"}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Results non-equal label</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						The results of our non-equal query:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab04-6.png" alt="filter labels">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Explore more selecting labels</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						This is the time for you to now explore queries using equals and non-equals with a variety
+						of metric names. Remember you can use auto-completion to explore the available labels.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Filtering with regular expressions</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Now let's try and select using just a regular expression and leave out any specific metric name
+						to see what metrics are using our API in a <code><b>PATH</b></code> label. You need curly
+						brackets to query only a single label, or a comma separated list of labels:
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								{path=~"api"}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - First attempt regexp</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						The results of our first attempt are disappointing. The reason it's empty is that Prometheus
+						matches regexp against the full string instead of a partial string. We have no
+						<code><b>PATH</b></code> labels with only the word <code><b>api</b></code> in them. In the next slide we can try
+						again:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab04-7.png" alt="filter labels">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Filtering with regular expressions</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						We want to select any metric with a <code><b>PATH</b></code> label that contains the string
+						<code><b>api</b></code>, so let's make sure we search for everything that exists before and
+						after the <code><b>api</b></code> string. To do that we start with an anchor (^) and wildcard
+						(*) followed by a dot to anchor to the <code><b>api</b></code> string, then follow it with
+						another dot to anchor our wildcard (*) for any remaining string values after
+						<code><b>api</b></code>:
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								{path=~"^*.api.*"}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Filtering results for regexp</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						This looks much better, a long list of metric names (multiple if you scroll down and inspect
+						the selection results) and they all container the string <code><b>api</b></code> embedded in the
+						<code><b>PATH</b></code> label:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab04-8.png" alt="filter labels">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Danger with regular expressions</h3>
+					</div>
+					<div style="height: 180px; text-align: left; font-size: xx-large;">
+						Now we get the bright idea to try out the regular expression non-match operator (!~) by
+						adjusting our select query from looking for <code><b>api</b></code> in the
+						<code><b>PATH</b></code> label to looking for all metrics that don't have the string
+						<code><b>foo</b></code> in them, like this:
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								{path!~"^*.foo.*"}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Safety valve for regexp</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						We end up getting an error message like this and might think we did something wrong. We didn't,
+						other than set up a query that is so wide in matching metrics that it would put massive load on
+						your Prometheus instance. The fine engineers behind this project decided to put a safety stop
+						in place when queries are too much for the system, which plays out in an error message:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab04-9.png" alt="filter labels">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Explore more regexp</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						This is the time for you to now explore queries with your own regexps where you try to
+						select results and see what works as you learn about these types of queries.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Instant vectors explained</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						Up to now you've only done queries selecting the single latest value for all series found, known
+						as an <b>INSTANT VECTOR</b>. There are functions that require a range of values and not just a
+						single value. These are known as a <b>RANGE VECTOR</b> and have a duration specifier at the
+						end in the form <code><b>[number,unit]</b></code>. Let's try this one to select all user cpu
+						usage over the last minute:
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								demo_cpu_usage_seconds_total{mode="user"}[1m]
+
+								Valid durations are:
+
+								 ms - milliseconds
+								 s - seconds
+								 m - minutes
+								 h - hours
+								 d - days
+								 w - weeks
+								 y - years
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Range vectors in action</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						The user cpu usage over a range vector of one minute:
+					</div>
+					<div style="height: 500px;">
+						<img src="images/lab04-10.png" alt="filter labels">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Explore more range vectors</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						This is the time for you to now explore queries and try out various ranges to see what
+						the resulting queries might be. Also try applying them to different metric names.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Time-shifting data selection</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						One issue that's going to come up is how to select data in the past, so that you can compare it
+						to current data. This is known as time-shifting, where you run your selection query but want it
+						to look in a time frame in the past. To do this you append <code>offset</code> and a <code>duration</code>,
+						such as looking at user cpu usage over one minute back one hour ago:
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								demo_cpu_usage_seconds_total{mode="user"}[1m] offset 10m
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Results time-shifting selection</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						The user cpu usage over a range vector of one minute looking back to 10 minutes ago (noting that
+						if you get a <code><b>"query returned no data"</b></code> response, you might not have data
+						collection going back that long, so just shorten the offset duration based on how long your
+						environment has been running, such as 10m shown here):
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab04-11.png" alt="time-shifting">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Searching in the future</h3>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						Time-shifting offsets can be negative number, which causes selection queries to look into the
+						future for data, relative to their current evaluation timestamp. These negative offsets are not
+						a common use case and should be avoided unless you are sure you have a special reason for them.
+						For this reason, they are not covered in this workshop.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Graphic visualization of metrics</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Up to now you've just been exploring simple selections of counter metrics, which produced a
+						table view like this from our very first query:
+					</div>
+					<div style="height: 30px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								demo_api_request_duration_seconds_count{method="POST"}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab04-12.png" alt="selection">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Selecting counters for graphs</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						This is not a metric to visualized in a graph (select the graph tab to view) as it's an absolute
+						value increasing over time:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab04-13.png" alt="graphic counter">
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						<br />
+						What we are more interested in is HOW FAST a count increases over time, so let's explore that
+						in the next slide...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Visualizing using rate function</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						The function of choice for calculating the change over time in a metric is to use the
+						<code>rate()</code> function. It calculates the <b>change of a counter per-second over a given
+						period of time</b>. In our example below, we are going to check the rate over a 5-minute window:
+					</div>
+					<div style="height:200px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								rate(demo_api_request_duration_seconds_count{method="POST"}[5m])
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Graphing the rate function</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						The graph shows a more interesting view of the metric performance over time using the rate
+						function. Note you might have to adjust the length of your viewing window, here shown at 30 mins,
+						depending on your time of scraping metrics to see what is shown here with the changes over time:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab04-14.png" alt="rate">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Inside the rate function</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						The inner workings of the rate function are important to understanding what you are viewing in
+						the resulting graphic visualizations:<br />
+						<br />
+						<ul>
+							<li>counter metrics reset to 0 when a scraping process resets</li>
+							<li>rate (during any window) assumes counter decrease is reset</li>
+							<li>rate adjusts all following samples in window it's measuring to fix this</li>
+							<li>rate extrapolates first and last samples under the window boundary to actual window edges</li>
+							<li>can report noninteger rates for counters with integer increases</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Visualizing inside rate function</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						This graphic shows how the rate function works over its window and how it deals with resets
+						of the scraping process:
+					</div>
+					<div style="height: 500px;">
+						<img src="images/lab04-15.png" alt="graphic">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Visualizing using irate function</h3>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						If we want to zoom in on a rate function, we can increase the resolution of our graph by using
+						the <code><b>irate()</b></code> function. It calculates only the <b>last two samples within a
+						given window</b>. The function then calculates an <code><b>INSTANTANEOUS</b></code> rate from
+						those two samples. The provided window tells irate how far to look back for the two samples and
+						reacts faster to counter changes. Let's see what our counter looks like in a higher resolution
+						graph:
+					</div>
+					<div style="height:100px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								irate(demo_api_request_duration_seconds_count{method="POST"}[5m])
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Graphing the irate function</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						The graph shows more deviations over the time frame given, uncovering short dips in the rate that
+						weren't visible before. (Note that the rate function gives a smoother graph and is recommended
+						for use in alerting rules that should not fire on short spikes in rate):
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab04-16.png" alt="irate">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Visualizing using increase function</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						The default on rate and irate functions is to calculate using a per-second rate of sampling. If
+						we want to query the total increase over a give time window, we need to use the
+						<code><b>increase()</b></code> function:
+					</div>
+					<div style="height:200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								increase(demo_api_request_duration_seconds_count{method="POST"}[30m])
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Graphing the increase function</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						The graph shows the total increase over our 30-minute time window for this counter:
+					</div>
+					<div style="height: 450px;">
+						<img src="images/lab04-17.png" alt="graphic">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Note about rate and friends</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						This family of functions needs at least two (2) samples from within the specified window, or it
+						will not be able to return any output. The standard is to set window sizes to be four times (4x)
+						the scrape interval to ensure reliable output even when failures happen, such as shown below:
+					</div>
+					<div style="height: 450px;">
+						<img src="images/lab04-18.png" alt="graphic">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Selecting gauges for graphs</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						Since <code><b>rate</b></code>, <code><b>irate</b></code>, and <code><b>increase</b></code>
+						functions only help visualize counter metrics due to the behavior of correcting all decreases
+						in value as a reset and only outputting non-negative values. When we want to track values that
+						can decrease as well as increase, such as temperature, we use gauge metrics. There are two
+						functions we can use to help visualize gauge metrics, the <code><b>deriv()</b></code> and
+						<code><b>delta()</b></code> functions.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Visualizing using deriv function</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						To track our services api requests over the last 15 minutes, both increases and decreases, we
+						can use the <code><b>deriv()</b></code> function. You might need to play with the measurement
+						window to catch the collected data based on how long you have your instance running for this
+						workshop, here you see 15 minutes as an example:
+					</div>
+					<div style="height:200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								deriv(demo_api_request_duration_seconds_count{job="services"}[15m])
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Graphing the deriv function</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						The graph shows what our gauge metric has captured over the 15-minute window used in this
+						displayed example output:
+					</div>
+					<div style="height: 450px;">
+						<img src="images/lab04-19.png" alt="deriv">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Visualizing using delta function</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						To track our services api requests over the last 15 minutes, sampling only the first and last
+						values in the given time window, we can use the <code><b>delta()</b></code> function. You might
+						need to play with the measurement window to catch the collected data based on how long you have
+						your instance running for this workshop, here you see 15 minutes as an example:
+					</div>
+					<div style="height:200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								delta(demo_api_request_duration_seconds_count{job="services"}[15m])
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Graphing the delta function</h3>
+					</div>
+					<div style="height: 90px; text-align: left; font-size: x-large;">
+						The graph shows what our gauge metric has captured over the 15-minute window used in this
+						displayed example output, note the smooth graph is now more jagged as the sample is just two
+						data points (first and last in the time window):
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab04-20.png" alt="delta">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Visualizing the future</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Let's have some fun and look at visualizing how our gauge metric will look one hour in the
+						future. This sort of query is useful when, for example, building an alert to tell you when
+						your memory is about to fill up in the next hour. The function
+						<code><b>predict_linear()</b></code> in the following query will try to predict what the memory
+						usage will be in one hour, based on its development in the last 15 minutes:
+					</div>
+					<div style="height:200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								predict_linear(demo_memory_usage_bytes{job="services"}[15m], 3600)
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Graphing the future</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						The graph shows what might happen with our memory usage for the services demo job based on 15
+						minutes of historical data:
+					</div>
+					<div style="height: 450px;">
+						<img src="images/lab04-21.png" alt="delta">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Visualize highly dimensional data</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						Up to now you've been visualizing time series data that is highly dimensional. That means you have
+						the ability to drill down into more and more detail, such as using one, two, and then three
+						labels to narrow your search of the data.<br />
+						<br />
+						Now we are going to look at how you can aggregate over all these dimensions (labels for example)
+						to get a less detailed view. To do this you'll be using aggregation functions
+						<code><b>sum</b></code>, <code><b>avg</b></code>, <code><b>min</b></code>, and
+						<code><b>max</b></code>. There are many more, see the
+						<a href="https://prometheus.io/docs/prometheus/latest/querying/operators/#aggregation-operators" target="_blank">
+							aggregation operators documentation.
+						</a> Note that these operators do not aggregate over time, but <b>across multiple series at each
+						point in time.</b>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Looking first all dimensions</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						When we first look at the selection of metric data we see in the TABLE view all the dimensions
+						we can get details from and use to narrow our search (labels), but next we are going to look at all these
+						dimensions, across multiple series (data points), at each point in time.
+					</div>
+					<div style="height:50px;">
+						<pre>
+							<code data-trim data-noescape>
+								demo_api_request_duration_seconds_count{job="services"}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab04-22.png" alt="delta">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Visualizing using sum function</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						The function <code><b>sum()</b></code> is going to give us a look across all the previous
+						dimensions for 5-minute period of time and then look at this across all those captured series:
+					</div>
+					<div style="height:200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								sum(
+								  #individual rates for each dimension.
+								  rate(demo_api_request_duration_seconds_count{job="services"}[5m])
+								)
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Graphing the sum function</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						The graph shows the results of our sum function across highly dimensional metrics:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab04-23.png" alt="delta">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Visualizing using avg function</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						The function <code><b>avg()</b></code> is going to give us a look across all the previous
+						dimensions for 5-minute period of time and then look at this across all those captured series:
+					</div>
+					<div style="height:200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								avg(
+								  #individual rates for each dimension.
+								  rate(demo_api_request_duration_seconds_count{job="services"}[5m])
+								)
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Graphing the avg function</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						The graph shows the results of averaging across our highly dimensional metric query:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab04-24.png" alt="delta">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Visualizing using min function</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						The function <code><b>min()</b></code> is going to give us a look across all the previous
+						dimensions for 5-minute period of time and then look at this across all those captured series:
+					</div>
+					<div style="height:200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								min(
+								  #individual rates for each dimension.
+								  rate(demo_api_request_duration_seconds_count{job="services"}[5m])
+								)
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Graphing the min function</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						The graph shows the results of looking at minimums across our highly dimensional metric query:
+					</div>
+					<div style="height: 450px;">
+						<img src="images/lab04-25.png" alt="delta">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Visualizing using max function</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						The function <code><b>max()</b></code> is going to give us a look across all the previous
+						dimensions for 5-minute period of time and then look at this across all those captured series:
+					</div>
+					<div style="height:200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								max(
+								  #individual rates for each dimension.
+								  rate(demo_api_request_duration_seconds_count{job="services"}[5m])
+								)
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Graphing the max function</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						The graph shows the results of looking at maximums across our highly dimensional metric query:
+					</div>
+					<div style="height: 450px;">
+						<img src="images/lab04-26.png" alt="delta">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Visualizing using without function</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						The problem with aggregation functions is that they work on so many dimensions, as you can
+						imagine that's resource intensive. It's always advisable to use these functions on partial sets
+						of dimensional data, for example by excluding labels you do not need. The function
+						<code><b>without()</b></code> is going to give us the power to exclude some dimensional data in
+						the same query we've been using:
+					</div>
+					<div style="height:200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								sum without(method, status) (
+								  #individual rates for each dimension.
+								  rate(demo_api_request_duration_seconds_count{job="services"}[5m])
+								)
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Graphing the without function</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						The first graph shows the dimensions being summed in the second, but without the method or
+						status labels. The dimensions being queried have been cut by 50%:
+					</div>
+					<div style="height: 300px;">
+						<img src="images/lab04-27.png" alt="delta-table">
+						<img src="images/lab04-28.png" alt="delta-graph">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Visualizing using by function</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						Another approach is to use inclusion with the <code><b>by()</b></code> function. This is going
+						to give us the power to aggregate by using only the included dimensional data:
+					</div>
+					<div style="height:200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								sum by(instance, job, path) (
+								  #individual rates for each dimension.
+								  rate(demo_api_request_duration_seconds_count{job="services"}[5m])
+								)
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Graphing the by function</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						The first graph shows the dimensions being summed in the second, but second includes three
+						labels. The dimensions being queried are only those you specified:
+					</div>
+					<div style="height: 300px;">
+						<img src="images/lab04-27b.png" alt="delta">
+						<img src="images/lab04-29.png" alt="delta">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - without() over by()</h3>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						There is a great article covering the details on why you should use without over by, see
+						<a href="https://www.robustperception.io/prefer-without-and-ignoring" target="_blank">
+							RobustPerception on by() vs. without()
+						</a><br />
+						<br />
+						The reality is that, as your metrics gain new labels over time, your expression results
+						automatically include any newly added labels if you use <code><b>without()</b></code>.<br />
+						<br />
+						You won't have to revisit or edit aggregation expressions.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - The rest of aggregation story</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						<a href="https://prometheus.io/docs/prometheus/latest/querying/operators/#aggregation-operators" target="_blank">
+							See the documentation</a>, beyond those covered in this workshop, Prometheus supports more
+						aggregators:<br />
+						<br />
+						<ul>
+							<li><code><b>stddev()</b></code>: calculates the standard deviation of all values within an aggregated group.</li>
+							<li><code><b>stdvar()</b></code>: calculates the standard variance of all values within an aggregated group.</li>
+							<li><code><b>count()</b></code>: calculates the total number of series within an aggregated group.</li>
+							<li><code><b>count_values()</b></code>: calculates number of elements with the same sample value.</li>
+							<li><code><b>bottomk(k, ...)</b></code>: calculates the smallest k elements by sample value.</li>
+							<li><code><b>topk(k, ...)</b></code>: calculates the largest k elements by sample value.</li>
+							<li><code><b>quantile(φ, ...)</b></code>: calculates the φ-quantile (0 ≤ φ ≤ 1) over dimensions.</li>
+							<li><code><b>group(...)</b></code>: just group by labels and set the sample value to 1.</li>
+							<li><code><b>limitk(k, ...)</b></code>: samples k elements from the result.</li>
+							<li><code><b>limit_ratio(r, ...)</b></code>: samples elements with approximately ratio r (0 &lt; r ≤ 1).</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Doing simple math</h3>
+					</div>
+					<div style="height:200px; text-align: left; font-size: x-large;">
+						You can do any arithmetic you like with the query language, which is fun for numbers, so try a
+						few of these to see all the supported operators in action (the first one is shown in example
+						below):<br />
+						<br />
+						<ul>
+							<li>(2 + 2 / 2) * 3</li>
+							<li>((4 - 2 / 2) * 3) * 2^2</li>
+							<li>(5 % 3)</li>
+						</ul>
+					</div>
+					<div style="height: 250px;">
+						<img src="images/lab04-30.png" alt="math">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Time series interesting math</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						It becomes much more interesting when you start using math operators applied to time series
+						data queries for human-readable output. Take for example the first query below that returns
+						it's results in bytes. In the second query with a bit of applied math, dividing the results
+						by 1024 twice, you turn these results into human-readable MBs:
+					</div>
+					<div style="height:100px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								demo_batch_last_run_processed_bytes{job="services"}
+
+								demo_batch_last_run_processed_bytes{job="services"} / 1024 / 1024
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Interesting math results</h3>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: x-large;">
+						The results of the first query in bytes followed by the massaged results in MBs:
+					</div>
+					<div style="height: 450px;">
+						<img src="images/lab04-31.png" alt="bytes">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - The power of binary operations</h3>
+					</div>
+					<div style="height: 360px; text-align: left; font-size: xx-large;">
+						A very powerful feature is that the query language supports binary operations between whole
+						sets of time series. If we query using the metric
+						<code><b>demo_api_request_duration_seconds_sum</b></code> over 5 minutes we track the total time
+						spent in each dimension, that's each label (instance, job, method, path, status). If we divide
+						that by the metric <code><b>demo_api_request_duration_seconds_count</b></code> which collects
+						the total count of requests for the same set of dimensions (again, the labels), gives you the
+						average request duration over the last 5 minutes, broken out by each dimension (by each label):
+					</div>
+					<div style="height:100px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								rate(demo_api_request_duration_seconds_sum{job="services"}[5m])
+								/
+								rate(demo_api_request_duration_seconds_count{job="services"}[5m])
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Results binary operation</h3>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: x-large;">
+						The results of a binary operation, average request duration broken out by each dimension:
+					</div>
+					<div style="height: 450px;">
+						<img src="images/lab04-32.png" alt="mbs">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Mismatched dimensions (labels)</h3>
+					</div>
+					<div style="height: 230px; text-align: left; font-size: x-large;">
+						In many cases the metrics you query will not have the same dimensions, one side having more than
+						the other means you have to tell the divide operator which label to group by. In the below
+						example, the <code><b>demo_cpu_usage_seconds_total</b></code> metric has an additional
+						<code><b>mode</b></code> label dimension. To calculate per-mode CPU usage divided by the number
+						of cores to find a per-core usage value of 0 to 1, you are telling it to group by the extra
+						<code><b>mode</b></code> label dimension. This is done with <code><b>group_left</b></code>
+						modifier, and then you also need to exclude the <code><b>mode</b></code> label by explicitly
+						matching only the mutually existing labels using the <code><b>on</b></code> modifier:
+					</div>
+					<div style="height:100px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								rate(demo_cpu_usage_seconds_total{job="services"}[5m])
+								/
+								on(job, instance) group_left demo_num_cpus{job="services"}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Results mismatch dimensions</h3>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: x-large;">
+						The results of your binary operation, finding a per-core usage value of 0 to 1:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab04-33.png" alt="mbs">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Other options to try</h3>
+					</div>
+					<div style="height: 220px; text-align: left; font-size: xx-large;">
+						You can approach the previous problem from the other direction using the
+						<code><b>ignoring()</b></code> modifier to exclude the <code><b>mode</b></code> label dimensions
+						from your query. It does not apply here, but if there are extra dimensions on the right instead
+						of the left side of the operation, you can use <code><b>group_right</b></code> modifier instead.
+						Let's try this:
+					</div>
+					<div style="height:150px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								rate(demo_cpu_usage_seconds_total{job="services"}[5m])
+								/
+								ignoring(mode) group_left demo_num_cpus{job="services"}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic PromQL - Results other options</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						The results of your binary operation, finding a per-core usage value of 0 to 1 using
+						<code>ignoring</code>:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab04-34.png" alt="mbs">
+					</div>
+				</section>
+
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 450px; font-size: xx-large">
+						<img src="images/lab04-32.png" alt="completed">
+						<br />
+						Next up, exploring advanced queries...
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://youtu.be/KJvUyP4c1NQ" target="_blank">Video introduction to workshop (Open Source Edinburgh meetup)</a></li>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-prometheus" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://prometheus.io" target="_blank">Prometheus project</a></li>
+							<li><a href="https://github.com/prometheus/promlens" target="_blank">PromLens project (archived, now the Prometheus EXPLAIN tab)</a></li>
+							<li><a href="https://github.com/perses/perses" target="_blank">Perses project</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-prometheus/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Director Evangelism<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop... </h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab05.html" target="_blank">Lab 5 - Using Advanced Queries</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMenu, RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+	</body>
+</html>

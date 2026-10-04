@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Fluent Bit workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Telemetry Pipelines Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-799E08H5WD"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-799E08H5WD');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+<!--
+				<section>
+					<h3 class="r-fit-text">Lab 5 - Understanding backpressure (k3s)</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>
+							This lab explores backpressure in telemetry pipelines and how to address it with Fluent Bit,
+							this time running on Kubernetes (k3s) with Rancher Desktop.
+						</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure - The basic problem</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						The purpose of our telemetry pipelines is to collect events, parse, optionally filter, optionally
+						buffer, route, and deliver them to predefined destinations. Fluent Bit is set up by default to
+						put events into memory, but what happens if that memory is not able to hold the flow of events
+						coming into the pipeline?<br />
+						<br />
+						This problem is known as <code><b>backpressure</b></code> and leads to high memory consumption
+						in the Fluent Bit service. Other causes can be network failures, latency, or unresponsive
+						third-party services. These can result in delays or failure to process data fast enough while we
+						continue to receive new incoming data to process. In high-load environments with backpressure,
+						there's a risk of increased memory usage, which leads to the termination of the Fluent Bit
+						process by the hosting operating system. This is known as an
+						<code><b>Out of Memory (OOM)</b></code> error.<br />
+						<br />
+						Let's configure an example pipeline and make it run in a constrained pod, causing backpressure
+						and ending with the container being OOMKilled by Kubernetes...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure - Same OOM, different mechanism</h3>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: x-large;">
+						The OOM kill is not a container-runtime feature, it is the Linux kernel
+						<code><b>cgroup</b></code> memory limit and its OOM killer. On the Podman path we set that limit
+						with <code><b>--memory</b></code>. On Kubernetes we set it with
+						<code><b>resources.limits.memory</b></code> on the pod's container, and the kernel does exactly
+						the same thing.<br />
+						<br />
+						The bonus on Kubernetes is that the OOM is reported first-class: the pod status shows
+						<code><b>Last State: Terminated</b></code>, <code><b>Reason: OOMKilled</b></code>, and
+						<code><b>Exit Code: 137</b></code> (128 + SIGKILL). We assume you deployed Fluent Bit onto k3s
+						with Rancher Desktop back in lab 3, so it is already running from the Helm values file
+						<code><b>workshop-fb-helm.yaml</b></code>.
+					</div>
+				</section>
+-->
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure - Configuration OOM inputs (k3s)</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						We begin configuration of our telemetry pipeline in the <code><b>INPUT</b></code> phase with a
+						simple dummy plugin generating a large amount of entries to flood our pipeline. Update the
+						<code><b>extraFiles</b></code> block in <code><b>workshop-fb-helm.yaml</b></code>, keeping the
+						<code><b>http_server</b></code> lines so the liveness probe on port <code><b>2020</b></code>
+						keeps passing:
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								args:
+								  - --workdir=/fluent-bit/etc
+								  - --config=/fluent-bit/etc/conf/fluent-bit.yaml
+
+								config:
+								  extraFiles:
+								    fluent-bit.yaml: |
+								      service:
+								        flush: 1
+								        log_level: info
+								        http_server: on
+								        http_listen: 0.0.0.0
+								        http_port: 2020
+
+								      pipeline:
+								        inputs:
+								          # This entry generates a large amount of success messages for the workshop.
+								          - name:  dummy
+								            tag:   big.data
+								            copies: 15000
+								            dummy: '{"message":"true 200 success", "big_data": "blah blah blah blah blah blah blah blah"}'
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure - Configuring OOM outputs (k3s)</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Continuing in the same file, add the outputs section below the inputs, directing all tags to the
+						pod's console (stdout):
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								      pipeline:
+								        inputs:
+								          ...
+
+								        outputs:
+								          # This entry directs all tags to the console (pod stdout).
+								          - name: stdout
+								            match: '*'
+								            format: json_lines
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure - Constraining the pod memory</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						To cause the OOM we constrict the pod's memory. Add a <code><b>resources</b></code> block to the
+						same <code><b>workshop-fb-helm.yaml</b></code> values file, giving the container a tight limit
+						(here around <code><b>15Mi</b></code>, adjust on your machine until you see it run a bit of
+						logging before being killed):
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								resources:
+								  limits:
+								    memory: 15Mi
+								  requests:
+								    memory: 15Mi
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure - Rolling out this pipeline (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Apply the updated configuration with a <code><b>helm upgrade</b></code> from the
+						<code><b>fluentbit-install-demo</b></code> root directory. This rolls out a new Fluent Bit pod
+						with our flooding pipeline and the tight memory limit:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+								       --set image.tag=5.1.1 \
+								       --namespace logging --create-namespace \
+								       --values workshop-fb-helm.yaml
+
+								Release "fluent-bit" has been upgraded. Happy Helming!
+								NAME: fluent-bit
+								NAMESPACE: logging
+								STATUS: deployed
+								REVISION: 6
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure - Watching the pod fail (k3s)</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Watch the pod in the <code><b>logging</b></code> namespace. It runs for a moment, floods memory,
+						and Kubernetes kills it. Unlike the one-shot Podman container, a Helm-managed pod restarts,
+						so you will see it cycle into <code><b>OOMKilled</b></code> and then
+						<code><b>CrashLoopBackOff</b></code>:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging get pods -w
+
+								NAME                            READY   STATUS            RESTARTS   AGE
+								log-generator-cf9d79d46-xgvc9   1/1     Running           1          3m
+								fluent-bit-6c8f9                1/1     Running           0          3s
+								fluent-bit-6c8f9                0/1     OOMKilled         0          6s
+								fluent-bit-6c8f9                0/1     CrashLoopBackOff  1         20s
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure - Validating backpressure OOM (k3s)</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						To validate our backpressure worked, describe the pod and inspect the last container state. The
+						following shows that the kernel killed our container due to an OOM error, reported as
+						<code><b>OOMKilled</b></code> with exit code <code><b>137</b></code>:
+					</div>
+					<div style="height: 220px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging describe pod -l app.kubernetes.io/name=fluent-bit
+
+								...
+								Last State:     Terminated
+								  <mark>Reason:       OOMKilled</mark>
+								  <mark>Exit Code:    137</mark>
+								  Started:      ...
+								  Finished:     ...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure - Confirming the OOM (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						You can also confirm the OOM kill in a scriptable way by reading the terminated container's last
+						state directly from the pod status, which reliably reports <code><b>OOMKilled</b></code>:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging get pod \
+										-l app.kubernetes.io/name=fluent-bit \
+										-o jsonpath='{.items[0].status.containerStatuses[0].lastState.terminated.reason}'
+
+								OOMKilled
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure - Catastrophic failure prevention</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						What we've seen is that when a channel floods with too many events to process, our pipeline
+						pod fails. From that point onwards we are now unable to collect, process, or deliver any
+						more events.<br />
+						<br />
+						Our first try at fixing this problem is to ensure that our input plugin is not flooded with
+						more events than it can handle. We can prevent this backpressure scenario from happening by
+						setting memory limits on the input plugin. This means setting a configuration property
+						<code><b>mem_buf_limit</b></code> that will limit the events allowed. Let's try this...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure - Memory buffer limit</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						The configuration of our telemetry pipeline in the <code><b>INPUT</b></code> phase needs a
+						slight adjustment by adding <code><b>mem_buf_limit</b></code> as shown, set to
+						<code><b>2MB</b></code> to ensure we hit that limit on ingesting events:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								      pipeline:
+								        inputs:
+								          # This entry generates a large amount of success messages for the workshop.
+								          - name:  dummy
+								            tag:   big.data
+								            copies: 15000
+								            dummy: '{"message":"true 200 success", "big_data": "blah blah blah blah blah blah blah"}'
+								            mem_buf_limit: 2MB
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure - Rolling out limited pipeline (k3s)</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						With <code><b>mem_buf_limit</b></code> in place the input plugin pauses instead of overrunning
+						memory, so the pod survives. Give it a touch more headroom in <code><b>workshop-fb-helm.yaml</b></code>
+						than before (here around <code><b>25Mi to 30Mi</b></code>, tune on your machine) and roll it out again:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+								       --set image.tag=5.1.1 \
+								       --namespace logging --create-namespace \
+								       --values workshop-fb-helm.yaml
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure - Console output limited pipeline (k3s)</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						First confirm the pod is actually surviving (<code><b>RESTARTS</b></code> should stay at 0), then
+						follow its logs in the <code><b>logging</b></code> namespace. Because <code><b>stdout</b></code>
+						drains instantly, records flood through steadily; the <code><b>paused</b></code> /
+						<code><b>resume</b></code> lines only appear when ingestion briefly outpaces the
+						<code><b>2MB</b></code> buffer, so you may need to tune <code><b>resources.limits.memory</b></code>
+						down until that pressure shows (exit with CTRL-C):
+					</div>
+					<div style="height: 220px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging get pods
+
+								NAME                          READY   STATUS    RESTARTS   AGE
+								fluent-bit-6c8f9b7d4c-abcde   1/1     Running   0          40s
+
+								$ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+
+								...
+								{"date":1753280450.742,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah"}
+								[2026/07/23 14:20:52.108] [ warn] [input] dummy.0 paused (mem buf overlimit)
+								[2026/07/23 14:20:52.108] [ info] [input] pausing dummy.0
+								[2026/07/23 14:20:52.640] [ info] [input] dummy.0 resume (mem buf overlimit)
+								[2026/07/23 14:20:52.640] [ info] [input] resume dummy.0
+								{"date":1753280453.216,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah"}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - How it works part 1</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: x-large;">
+						The <code><b>mem_buf_limit</b></code> only applies with memory only buffering. Behind the
+						scenes, our previous example behaves as follows (using fictional data amounts):
+					</div>
+					<div style="height: 220px; text-align: left; font-size: x-large;">
+						<ul>
+							<li><code><b>mem_buf_limit</b></code> set to 2MB</li>
+							<li>input plugin tries to append 1.25MB</li>
+							<li>engine routes 1.25MB data to output plugin</li>
+							<li>output plugin backend is blocking delivery for some reason</li>
+							<li>engine scheduler will retry delivery after 10 seconds</li>
+							<li>input plugin tries to append the next 1MB</li>
+						</ul>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: x-large;">
+						Here the engine allows appending of the last 1MB into memory, now buffering 2.25MB of data and
+						exceeding the limit we set. This is a <code><b>permissive limit</b></code>, meaning a single
+						write to the memory is allowed past the limit, but triggers the following:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<ul>
+							<li>blocks input plugin from appending more data</li>
+							<li>notify the input plugin invoking the pause notification</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - How it works part 2</h3>
+					</div>
+					<div style="height: 140px; text-align: left; font-size: x-large;">
+						While the input plugin is paused, the engine will not append more data from that plugin. The
+						input plugin manages the state and decides what to do when paused. When the engine can finally
+						deliver the initial 1.25MB of data (or given up retrying), that amount of memory is released
+						causing the following:
+					</div>
+					<div style="height: 220px; text-align: left; font-size: x-large;">
+						<ul>
+							<li>when 1.25MB data was delivered, internal memory counter is updated</li>
+							<li>the internal memory counter now shows remaining 1MB in memory</li>
+							<li>with 1MB < 2MB, engine will check input plugin state</li>
+							<li>if plugin paused, it sends a resume notification</li>
+							<li>input plugin resumes and can start appending more data</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure - Memory limiting failures</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						The results of this memory buffer limiting as you can imagine is not quite the solution to solve
+						the backpressure issues we are dealing with. While it does prevent the pipeline pod from
+						failing completely due to high memory usage as it pauses ingesting new records, but it is also
+						potentially losing data during those pauses as the input plugin clears its buffers. Once the
+						buffers are cleared, the ingestion of new records resumes.<br />
+						<br />
+						In the next lab, we'll see how to achieve both data safety and memory safety by configuring a
+						better buffering solution with Fluent Bit.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 230px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+									$ kubectl --context rancher-desktop -n logging get pods
+
+								NAME                          READY   STATUS    RESTARTS   AGE
+								fluent-bit-6c8f9b7d4c-abcde   1/1     Running   0          40s
+
+								$ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+
+								...
+								{"date":1753280450.742,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah"}
+								[2026/07/23 14:20:52.108] [ warn] [input] dummy.0 paused (mem buf overlimit)
+								[2026/07/23 14:20:52.108] [ info] [input] pausing dummy.0
+								[2026/07/23 14:20:52.640] [ info] [input] dummy.0 resume (mem buf overlimit)
+								[2026/07/23 14:20:52.640] [ info] [input] resume dummy.0
+								{"date":1753280453.216,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah"}
+								...
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; font-size: xx-large">
+						Next up, avoiding telemetry data loss...
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://github.com/fluent/fluent-bit/blob/master/README.md" target="_blank">Fluent Bit repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Technology Advocate Lead<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab06.html" target="_blank">Lab 6 - Avoiding telemetry data loss</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

@@ -1,0 +1,745 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Prometheus workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Lab 3 - Services Kubernetes</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-PW25SPMWGG"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-PW25SPMWGG');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 3 - Installing the Services Demo (Kubernetes)</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>This lab guides you through running the services demo on your local Kubernetes (k3s)
+							cluster and having Prometheus scrape it, providing more realistic data for querying.</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Kubernetes installation notes</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						This lab guides you through deploying the services demo onto the local Kubernetes cluster
+						provided by Rancher Desktop. This workshop assumes you have a working cluster and a
+						<code><b>workshop-prometheus</b></code> Helm release running in the
+						<code><b>prometheus</b></code> namespace from earlier labs in this workshop.<br />
+						<br />
+						Note: if you need to install any of that, see the earlier lab for
+						<a href="lab02-rancher.html" target="_blank">installing Prometheus on Kubernetes</a> and return
+						here when done. Leave the <code><b>kubectl port-forward</b></code> for port 9090 from that lab
+						running, we need it for the rest of this workshop.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Downloading the project</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						To deploy the services demo on Kubernetes we'll need the source project to build our
+						container image. We're providing a self-contained project you can download, unzip,
+						and use to build an image:<br />
+						<br />
+						<a href="https://gitlab.com/o11y-workshops/prometheus-service-demo-installer/-/archive/v1.0/prometheus-service-demo-installer-v1.0.zip" target="_blank">
+							Click here to download the Prometheus Services Demo Installer.</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Unzipping the project</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Once you have downloaded the project using the link provided previously, just unzip into its
+						own directory as shown (Note: examples shown are on Mac OS X system):
+					</div>
+					<div style="height: 170px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ unzip prometheus-service-demo-installer-v1.0.zip
+
+								creating: prometheus-service-demo-installer-v1.0/
+								inflating: prometheus-service-demo-installer-v1.0/.gitignore
+								inflating: prometheus-service-demo-installer-v1.0/README.md
+								creating: prometheus-service-demo-installer-v1.0/docs/
+								creating: prometheus-service-demo-installer-v1.0/docs/demo-images/
+								inflating: prometheus-service-demo-installer-v1.0/docs/demo-images/workshop.png
+								inflating: prometheus-service-demo-installer-v1.0/init.sh
+								creating: prometheus-service-demo-installer-v1.0/installs/
+								inflating: prometheus-service-demo-installer-v1.0/installs/README
+								creating: prometheus-service-demo-installer-v1.0/installs/demo/
+								inflating: prometheus-service-demo-installer-v1.0/installs/demo/Buildfile
+								inflating: prometheus-service-demo-installer-v1.0/installs/demo/Dockerfile
+								inflating: prometheus-service-demo-installer-v1.0/installs/demo/LICENSE
+								inflating: prometheus-service-demo-installer-v1.0/installs/demo/README.md
+								...
+								creating: prometheus-service-demo-installer-v1.0/support/
+								extracting: prometheus-service-demo-installer-v1.0/support/README
+								inflating: prometheus-service-demo-installer-v1.0/support/unzip.vbs
+								inflating: prometheus-service-demo-installer-v1.0/support/workshop-prometheus.yml
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Building an image the cluster can see</h3>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: x-large;">
+						Kubernetes pulls images from a registry, and we never push this one anywhere. The trick is to
+						build it straight into the image store your cluster reads from. Rancher Desktop ships two
+						container engines, so first check which one you are running under
+						<i>Preferences &gt; Container Engine</i>, then use the matching command:
+					</div>
+					<div style="height: 130px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Container engine set to dockerd (moby) - k3s reads the docker image store directly.
+								#
+								$ docker build --load -t prometheus_services_demo:v1 -f installs/demo/Buildfile <mark>installs/demo</mark>
+
+								# Container engine set to containerd - build into the k8s namespace.
+								#
+								$ nerdctl --namespace k8s.io build -t prometheus_services_demo:v1 -f installs/demo/Buildfile <mark>installs/demo</mark>
+							</code>
+						</pre>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Three things bite here. That trailing <code><b>installs/demo</b></code> is the build context, and
+						it is <b>not</b> a typo for <code><b>.</b></code>, the Go sources and
+						<code><b>go.mod</b></code> live in that subdirectory and the build fails without it. On
+						containerd the <code><b>--namespace k8s.io</b></code> is not optional, k3s only looks in that
+						namespace, so a plain <code><b>nerdctl build</b></code> hides the image from your pod, and it
+						sits in <code><b>ErrImagePull</b></code> forever. And on dockerd, if your Docker CLI defaults to
+						a <code><b>docker-container</b></code> buildx builder, a plain <code><b>docker build</b></code>
+						only leaves the result in the BuildKit cache, never in <code><b>docker images</b></code>, hence
+						the <code><b>--load</b></code>.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Verifying the built image</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Looking up our built image to verify everything went well. Ask for it by name, a bare
+						<code><b>docker images</b></code> lists every image on your machine and the one we care about
+						is lost in the noise:
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ docker images prometheus_services_demo
+
+								IMAGE                         ID             DISK USAGE   CONTENT SIZE
+								prometheus_services_demo:v1   d039d73640e2       31.8MB         10.1MB
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						On a containerd set up the command is
+						<code><b>nerdctl --namespace k8s.io images prometheus_services_demo</b></code>.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - A Kubernetes deployment</h3>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: x-large;">
+						Using any editor you like, create a file named <code><b>services-demo.yaml</b></code> and
+						cut-and-paste the following deployment into it (be sure to save the results):
+					</div>
+					<div style="height: 300px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								apiVersion: apps/v1
+								kind: Deployment
+								metadata:
+								  name: services-demo
+								spec:
+								  replicas: 1
+								  selector:
+								    matchLabels:
+								      app: services-demo
+								  template:
+								    metadata:
+								      labels:
+								        app: services-demo
+								    spec:
+								      containers:
+								      - name: services-demo
+								        image: prometheus_services_demo:v1
+								        imagePullPolicy: <mark>IfNotPresent</mark>
+								        ports:
+								        - containerPort: 8080
+							</code>
+						</pre>
+					</div>
+					<div style="height: 90px; text-align: left; font-size: x-large;">
+						<b>Do not skip the <code>imagePullPolicy</code>.</b> The default is <code><b>Always</b></code>,
+						which sends Kubernetes off to a registry looking for an image that only exists on your machine.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Adding a service</h3>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: x-large;">
+						A pod on its own has no stable name to scrape, so add a service to the bottom of the same
+						<code><b>services-demo.yaml</b></code> file:
+					</div>
+					<div style="height: 180px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								---
+								apiVersion: v1
+								kind: Service
+								metadata:
+								  name: services-demo
+								spec:
+								  selector:
+								    app: services-demo
+								  ports:
+								  - port: 8080
+								    targetPort: 8080
+							</code>
+						</pre>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: x-large;">
+						Now apply the whole thing:
+					</div>
+					<div style="height: 120px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl apply -f services-demo.yaml -n prometheus
+
+								deployment.apps/services-demo created
+								service/services-demo created
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Verifying the deployment</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						Our demo landed in the same namespace as Prometheus, next to the server from lab 2:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl get pods,svc -n prometheus
+
+								NAME                                              READY   STATUS    RESTARTS   AGE
+								pod/workshop-prometheus-server-6d4f8b9c7d-x2n8k   2/2     Running   0          21m
+								pod/services-demo-7c9d5f6b84-mq4vt                1/1     Running   0          18s
+
+								NAME                                 TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
+								service/workshop-prometheus-server   ClusterIP   10.43.68.240   none          9090/TCP   21h
+								service/services-demo                ClusterIP   10.43.115.94   none          8080/TCP   53s
+							</code>
+						</pre>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Keeping both in the <code><b>prometheus</b></code> namespace means Prometheus can reach the
+						demo by the short name <code><b>services-demo</b></code>, no full DNS name needed.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Testing the metrics</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						The demo is running inside the cluster, so it needs a port-forward of its own to be reachable
+						from your browser. Open a new terminal window and leave this running:
+					</div>
+					<div style="height: 60px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								kubectl port-forward -n prometheus svc/services-demo 8080:8080
+							</code>
+						</pre>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: x-large;">
+						Now test at <a href="http://localhost:8080/metrics" target="_blank"><code><b>http://localhost:8080/metrics</b></code></a>:
+					</div>
+					<div style="height: 300px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# HELP demo_api_http_requests_in_progress The current number of API HTTP requests in progress.
+								# TYPE demo_api_http_requests_in_progress gauge
+								demo_api_http_requests_in_progress 1
+								# HELP demo_api_request_duration_seconds A histogram of the API HTTP request durations in seconds.
+								# TYPE demo_api_request_duration_seconds histogram
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0001"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.00015000000000000001"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.00022500000000000002"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0003375"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.00050625"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.000759375"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0011390624999999999"} 0
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Prometheus configuration updates</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						There is no container IP address to hunt down here, in-cluster DNS does that work for us. Open
+						the <code><b>workshop-values.yaml</b></code> file from lab 2 and add a job to the existing
+						<code><b>scrapeConfigs</b></code> block:
+					</div>
+					<div style="height: 150px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Scraping only Prometheus.
+								scrapeConfigs:
+								  ...                                        &lt;&lt;&lt;&lt; LEAVE WHAT IS ALREADY THERE
+
+								  # Scraping services demo.
+								  services:                                  &lt;&lt;&lt;&lt; ADD THESE FIVE LINES
+								    job_name: services
+								    static_configs:
+								      - targets:
+								        - services-demo:8080
+							</code>
+						</pre>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Add it <b>inside</b> the block you already have, two spaces in, below whatever is there
+						(the switched-off Kubernetes jobs, plus the <code><b>prometheus</b></code> job if you fixed
+						the broken target exercise back in lab 2). A second <code><b>scrapeConfigs:</b></code> key
+						further down the file silently wins and throws away everything above it.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Applying the configuration</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						No image to rebuild and no signal to send, you re-run the exact same
+						<code><b>helm upgrade --install</b></code> command from lab 2 and the
+						<code><b>configmap-reload</b></code> sidecar tells Prometheus to reload itself:
+					</div>
+					<div style="height: 220px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm upgrade --install workshop-prometheus prometheus-community/prometheus \
+								    --version 29.20.0 \
+								    --namespace prometheus --create-namespace \
+								    -f workshop-values.yaml
+
+								Release "workshop-prometheus" has been upgraded. Happy Helming!
+								NAME: workshop-prometheus
+								NAMESPACE: prometheus
+								STATUS: deployed
+								REVISION: 3
+							</code>
+						</pre>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						This is the Kubernetes answer to the <code><b>kill -s HUP</b></code> of the source path and to
+						the rebuild-and-restart of the container path. Same lesson, three very different mechanics.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Configuration applied</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Validate the new configuration was picked up by checking the log output, you should see
+						something like this:
+					</div>
+					<div style="height: 100px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl logs -n prometheus deploy/workshop-prometheus-server -c prometheus-server
+
+								...
+								time=2026-08-03T13:41:16.902Z level=INFO source=main.go:1678 msg="Loading configuration file" filename=/etc/config/prometheus.yml
+								time=2026-08-03T13:41:16.903Z level=INFO source=main.go:1717 msg="Completed loading of configuration file" db_storage=4.708µs remote_storage=2.916µs web_handler=584ns query_engine=1.875µs scrape=128.75µs scrape_sd=21.416µs notify=1.833µs notify_sd=1.375µs rules=182.417µs tracing=4.125µs filename=/etc/config/prometheus.yml totalDuration=873.25µs
+								...
+							</code>
+						</pre>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						<b>Be patient, this is not instant.</b> Helm updates the ConfigMap the moment the command
+						returns, but Kubernetes copies it into the running pod on its own schedule, and only then does
+						<code><b>configmap-reload</b></code> notice and trigger the reload. Up to a minute between a
+						successful <code><b>helm upgrade</b></code> and Prometheus actually using your change is
+						normal.<br />
+						<br />
+						Until that happens, the console keeps serving the <i>old</i> configuration, so a target you just
+						fixed can still be sitting there red with the error it had before you edited anything. Do not
+						start changing things again. Wait for the two lines above to appear in the log, that is the
+						moment the new configuration is live, and only then judge the targets page.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Opening the Prometheus console</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						Time to look at the results in the Prometheus console, but there is nothing listening on your
+						machine yet. The server only has a <code><b>ClusterIP</b></code> service, reachable from inside
+						the cluster, so the port-forward from lab 2 is what puts it on
+						<code><b>localhost:9090</b></code>. If you still have that terminal window open, skip ahead. If
+						you closed it, or it dropped while you were deploying, start it again:
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl port-forward -n prometheus svc/workshop-prometheus-server 9090:9090
+
+								Forwarding from 127.0.0.1:9090 -> 9090
+								Forwarding from [::1]:9090 -> 9090
+							</code>
+						</pre>
+					</div>
+					<div style="height: 320px; text-align: left; font-size: x-large;">
+						Now load <a href="http://localhost:9090" target="_blank">http://localhost:9090</a> in your
+						browser. Before querying, use the <code><b>STATUS</b></code> drop-down and pick
+						<code><b>TARGETS</b></code>, you should see the <code><b>services</b></code> job listed and
+						<code><b>UP</b></code> alongside the <code><b>prometheus</b></code> one. An empty graph on the
+						next slide almost always means this page is showing the target as down.<br />
+						<br />
+						<b>Do not click the target links.</b> That page shows each target's scrape URL written from
+						Prometheus's point of view, from inside the cluster, so
+						<code><b>http://services-demo:8080/metrics</b></code> is a name only the cluster can resolve
+						and your browser lands on nothing. That is not a broken target, the
+						<code><b>UP</b></code> next to it is Prometheus telling you it fetched that endpoint just
+						fine. To read those metrics yourself, use your port-forwards on
+						<code><b>localhost:8080</b></code> instead.<br />
+						<br />
+						You are up to three terminal windows now, one port-forward each for Prometheus and the services
+						demo, plus the one you type in. That is normal for this path, closing any of the forwards just
+						cuts that connection, nothing in the cluster is harmed.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Validating setup</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						The last check to make sure it's working, execute <b><code>demo_api_http_requests_in_progress</code></b>
+						in the Prometheus console to generate a graph output something like the following (note, this has
+						been running awhile, hence the full graph):
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab03-17.png" alt="services metrics"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Configuring second demo instance</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						A single target is a thin demonstration, so let's scrape two. We need a second copy of the
+						manifest <code><b>services-demo-2.yaml</b></code> with every name changed as shown below:
+					</div>
+					<div style="height: 180px; font-size: large;">
+						<pre>
+							<code data-trim data-noescape>
+								apiVersion: apps/v1
+								kind: Deployment
+								metadata:
+								  <mark>name: services-demo-2</mark>
+								spec:
+								  replicas: 1
+								  selector:
+									matchLabels:
+									  <mark>app: services-demo-2</mark>
+								  template:
+									metadata:
+									  labels:
+										<mark>app: services-demo-2</mark>
+									spec:
+									  containers:
+									  <mark>- name: services-demo-2</mark>
+										image: prometheus_services_demo:v1
+										imagePullPolicy: IfNotPresent
+										ports:
+										- containerPort: 8080
+
+								---
+								apiVersion: v1
+								kind: Service
+								metadata:
+								  <mark>name: services-demo-2</mark>
+								spec:
+								  selector:
+								    <mark>app: services-demo-2</mark>
+								  ports:
+								  - port: 8080
+								    targetPort: 8080
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Starting a second demo instance</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Now run the second services application as shown:
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl apply -f services-demo-2.yaml -n prometheus
+
+								deployment.apps/services-demo-2 created
+								service/services-demo-2 created
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Testing the metrics</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Same story as the first instance, it needs its own port-forward in its own terminal window:
+					</div>
+					<div style="height: 60px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl port-forward -n prometheus svc/services-demo-2 8081:8080
+							</code>
+						</pre>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: x-large;">
+						This time we map it to local port 8081 and test at <a href="http://localhost:8081/metrics" target="_blank">
+						<code><b>http://localhost:8081/metrics</b></code></a>:
+					</div>
+					<div style="height: 100px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# HELP demo_api_http_requests_in_progress The current number of API HTTP requests in progress.
+								# TYPE demo_api_http_requests_in_progress gauge
+								demo_api_http_requests_in_progress 1
+								# HELP demo_api_request_duration_seconds A histogram of the API HTTP request durations in seconds.
+								# TYPE demo_api_request_duration_seconds histogram
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0001"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.00015000000000000001"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.00022500000000000002"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0003375"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.00050625"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.000759375"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0011390624999999999"} 0
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Prometheus configuration updates</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Now we need to update our <code><b>workshop-values.yaml</b></code> file to add the new
+						services demo instance as a second target in the same job:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								scrapeConfigs:
+								  ...
+
+								  # Scraping services demo.
+								  services:
+								    job_name: services
+								    static_configs:
+								      - targets:
+								        - services-demo:8080
+								        - services-demo-2:8080         &lt;&lt;&lt;&lt; ADD THIS LINE
+							</code>
+						</pre>
+					</div>
+					<div style="height: 90px; text-align: left; font-size: x-large;">
+						Note both targets sit under one job. Prometheus scrapes them separately and tells them apart by
+						the <code><b>instance</b></code> label it attaches to every sample.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Applying the configuration</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Nothing new here, the same command as before picks up the edited values file:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm upgrade --install workshop-prometheus prometheus-community/prometheus \
+								    --version 29.20.0 \
+								    --namespace prometheus --create-namespace \
+								    -f workshop-values.yaml
+
+								Release "workshop-prometheus" has been upgraded. Happy Helming!
+								NAME: workshop-prometheus
+								NAMESPACE: prometheus
+								STATUS: deployed
+								REVISION: 4
+							</code>
+						</pre>
+					</div>
+					<div style="height: 180px; text-align: left; font-size: x-large;">
+						Note the <code><b>REVISION</b></code> number increased again, a running tally of how many times
+						you have changed this release.<br />
+						<br />
+						Same waiting game as before, give it up to a minute and watch for the reload lines in
+						<code><b>kubectl logs -n prometheus deploy/workshop-prometheus-server -c
+						prometheus-server</b></code> before you decide whether the second target is working.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Validating setup</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						The last check makes sure it's working by executing <code><b>up{job="services"}</b></code>
+						in the Prometheus console validating both instances are being scraped:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab03-18.png" alt="services up"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Removing second demo instance</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						The final exercise is for you to remove the second services demo from your cluster, remove its
+						target from your <code><b>workshop-values.yaml</b></code> file, and apply the configuration
+						again so that Prometheus is only scraping itself and one services demo:
+					</div>
+					<div style="height: 100px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete -f services-demo-2.yaml -n prometheus
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 400px; font-size: xx-large">
+						<img src="images/lab03-17.png" alt="completed">
+						<br />
+						Next up, exploring basic queries...
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://youtu.be/KJvUyP4c1NQ" target="_blank">Video introduction to workshop (Open Source Edinburgh meetup)</a></li>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-prometheus" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://prometheus.io" target="_blank">Prometheus project</a></li>
+							<li><a href="https://github.com/prometheus/promlens" target="_blank">PromLens project (archived, now the Prometheus EXPLAIN tab)</a></li>
+							<li><a href="https://github.com/perses/perses" target="_blank">Perses project</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-prometheus/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Director Evangelism<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop... </h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab04.html" target="_blank">Lab 4 - Exploring Basic Queries</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMenu, RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+	</body>
+</html>

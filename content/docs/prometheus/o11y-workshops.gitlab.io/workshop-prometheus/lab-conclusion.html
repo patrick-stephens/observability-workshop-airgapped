@@ -1,0 +1,728 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Prometheus workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Conclusion - Prometheus</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-PW25SPMWGG"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-PW25SPMWGG');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Metrics Monitoring at Scale</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>This lab helps you understand some of the pain points with Prometheus that arise as you start
+							to scale out your observability architecture and start caring more about reliability.</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Metrics at Scale - Where we left off</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						Remember we talked about monitoring at scale back in the introduction? To refresh, we left it
+						with each Prometheus server operating independently and storing data locally without clustering
+						or replication. When you need to set up high availability (HA), for example with alerting, for
+						your observability solution you'll quickly discover the design has limits:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab01-17.png" alt="prometheus"><br />
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						As promised, let's take a look at the storyline when you start to scale your cloud native
+						observability...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Single instance - Everyone starts simple</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						Getting into some of the pain points with Prometheus that arise as you start to scale out your
+						instances, or you start caring more about reliability. Initially when you start out, all data
+						by default goes into the single Prometheus instance:
+					</div>
+					<div style="height: 200px;">
+						<img src="images/lab-conclusion-1.png" alt="single instance">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Single instance - Adding alerts and dashboards</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						You add in alerts and visualization features and your cloud native observability is working
+						great:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab-conclusion-2.png" alt="single instance">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Single instance - Failure is absolute</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						So what happens if Prometheus goes down, for whatever reason:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab-conclusion-3.png" alt="failure">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Single instance - Losing real time  monitoring</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						In this case you not only lose active real time monitoring (scraping) of your services...
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab-conclusion-4.png" alt="scraping">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Single instance - Losing alerting ability</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						You also lose the ability to generate alerts...
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab-conclusion-5.png" alt="alerting">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Single instance - Losing historical views</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						And you lose visibility into what is going on, along with access to all of your
+						historical data. This is really a significant point of failure with the out-of-the-box setup:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab-conclusion-6.png" alt="historical">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Replication - Fixing scaling with replication?</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Recommend solution is to run multiple instances that both scrape the same endpoints. Let's
+						see what this looks like, starting with one Prometheus instance again:
+					</div>
+					<div style="height: 200px;">
+						<img src="images/lab-conclusion-1.png" alt="single">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Replication - Duplicating metrics data</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						With two instances, if one goes down you still have a copy of your metrics:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab-conclusion-7.png" alt="replication">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Replication alerting - Alerting in replication</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Adding in alerting seems straight forward. Note that the alert manager component is a single
+						binary, so adding it in once and letting it handle both instances might seem right, but this
+						won't work:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab-conclusion-8.png" alt="alerting">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Replication alerting - Results missing alerts</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						The alert manager would only see one alert if both Prometheus instances were to alert:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab-conclusion-9.png" alt="missing alerts">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Replication alerting - Adding more alert managers</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						You are going to need two alerting instances, and they would trigger alerts for their respective
+						Prometheus instances:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab-conclusion-10.png" alt="replication">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Replication alerting - Coordinating alert managers</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						They would coordinate between each other so if both Prometheus instances were to alert, then you would
+						only see one alert:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab-conclusion-11.png" alt="coordination">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Replication visualization - What about dashboards?</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						What about dashboards when you start to use Prometheus replication? Let's start here with the
+						single Prometheus instance, and it's visualization dashboards, and then start adding in more
+						instances to uncover the issues involved:
+					</div>
+					<div style="height: 300px;">
+						<img src="images/lab-conclusion-12.png" alt="dashboards">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Replication visualization - Adding second instance</h3>
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab-conclusion-13.png" alt="replication">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Replication visualization - Dashboard per instance</h3>
+					</div>
+					<div style="height: 190px; text-align: left; font-size: xx-large;">
+						When comes to viewing data from a dashboard, it becomes trickier. Have you figured out the problem
+						as this scales? First off, each dashboard is tied to an instance, and you have to go to the
+						right dashboard to get the right instance data. If one instance fails, that means it's
+						dashboard fails (or is empty). This does not work at scale:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab-conclusion-14.png" alt="replication">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Replication visualization - Back to drawing board</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						Starting back with replicated Prometheus instances, what can we now do to solve the problem
+						of so many dashboards having to be accessed to find our instance metrics data?
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab-conclusion-7.png" alt="replication">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Replication visualization - Load balancing instances</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						A traditional solution that typically works well is putting a load balancer between the instances:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab-conclusion-15.png" alt="replication">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Replication visualization - Presenting single data view</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						This generally works for reliability in the sense that you get one copy of the data:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab-conclusion-16.png" alt="replication">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Replication visualization - Always on dashboards</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						Point the dashboard instance to the load balancer and read requests get balanced between the
+						Prometheus instances, so that if one goes down, you’re still able to fulfill the requests:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab-conclusion-17.png" alt="replication">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Replication visualization - Another dashboard problem</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						As stated, this generally works for reliability of your data. The problem you'll start to
+						notice sooner or later is, that if you are doing rolling restarts of your Prometheus instances,
+						you’ll come across a gap in your data while a Prometheus instance is restarting.<br />
+						<br />
+						The following slide shows two dashboards with running metrics data in a graph... notice the
+						missing data gaps?
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Replication visualization - Missing data from restarts</h3>
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab-conclusion-18.png" alt="replication">
+						<img src="images/lab-conclusion-19.png" alt="replication">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Scaling surges - Metrics surges at scale</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						That gives you the basics of some of the issues that you are going to start seeing as you try
+						to run Prometheus at scale. A whole other set of problems comes from scaling up Prometheus. The
+						common use case for this is when monitoring certain services and all of a sudden a service starts
+						producing a lot more metrics that overwhelms what a single Prometheus instance can handle.<br />
+						<br />
+						The following slides walk you through this scenario...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Scaling surges - Before the metrics surge</h3>
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab-conclusion-20.png" alt="all ok">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Scaling surges - Starting metrics surge</h3>
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab-conclusion-21.png" alt="all ok">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Scaling surges - Struggling with metrics surge</h3>
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab-conclusion-22.png" alt="all ok">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Scaling surges - Broken metrics collection</h3>
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab-conclusion-23.png" alt="all ok">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Sharding - Protecting against metrics surges</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						A recommended way to get around this is to dynamically create a separate Prometheus instance
+						when a surge starts and have that instance store and scape metrics from the offending service
+						only. This lets the original Prometheus instance store and scrape metrics for the other
+						services.<br />
+						<br />
+						Let's see how this scenario plays out in the following slides...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Sharding - Normal metrics collection day</h3>
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab-conclusion-20.png" alt="all ok">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Sharding - Metrics flood detection</h3>
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab-conclusion-21.png" alt="all ok">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Sharding - Spin up new instance</h3>
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab-conclusion-24.png" alt="all ok">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Sharding - Pass load to instance</h3>
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab-conclusion-25.png" alt="all ok">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Sharding - Other services not effected</h3>
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab-conclusion-26.png" alt="all ok">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Sharding dashboards - Scaling snowballs complexity</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						The previous scenario will manually shard the load across a fleet of Prometheus instances as
+						necessary, but this gets tricky for a few reasons.<br />
+						<br />
+						The problems start with dashboards and alerting. Let's take a look at how this becomes a
+						problem with dashboards first...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Sharding dashboards - Dealing with change</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						The issue with dashboards is that you need to tell each dashboard which Prometheus instance to
+						point to get the data. All the dashboards were originally pointed to the first instance as
+						shown here:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab-conclusion-27.png" alt="all ok">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Sharding dashboards - Here comes the surge</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Now the metrics surge has started:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab-conclusion-28.png" alt="surging">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Sharding dashboards - New instance coming up</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						A new instance is sharded out to pick up the surging Service C:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab-conclusion-29.png" alt="all ok">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Sharding dashboards - Service C picked up</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						The problem is now that the data set is sharded between two Prometheus instances:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab-conclusion-30.png" alt="all ok">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Sharding dashboards - Change dashboard sources</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						To start picking up the new metrics data from Service C you need to change the source in your
+						dashboards for where the data is coming in for all data for Service C. Another problem is that
+						all historical data was not transferred together with Service C, so you only get new data from
+						that new Prometheus instance:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab-conclusion-31.png" alt="all ok">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Sharding alerts - Initial alerting setup</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						The same problem occurs with alerting, with here the original setup that needs to be adjusted
+						once the data for Service C is sharded to a new Prometheus instance:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab-conclusion-32.png" alt="all ok">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Sharding alerts - Gap in alerting history</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						The same problem that all historical data was not transferred together with Service C exists,
+						so alerting might be effected with resetting alert thresholds on new metrics data collection:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab-conclusion-33.png" alt="all ok">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Federating - Data from two instances</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						When a single dashboard or alert needs data from both Prometheus instances (ie summing data
+						across services), you need to make sure all the data goes in a single place. So you add another
+						(data balancing) Prometheus instance as shown:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab-conclusion-34.png" alt="all ok">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Federating - Starts getting out of hand quickly</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: x-large;">
+						The new instance picks a subset of data from the original instances, allowing you to query the
+						third instance with a subset of data from all services. The problem, however, is that you still
+						only have a subset of data in the federated instance. if you need more data that what’s in that
+						node, you need to also query and point dashboards and alert managers to the original instances.
+						Management of this, knowing which instance has which data, and which ones have an overlap of
+						data gets out of hand quickly:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab-conclusion-35.png" alt="all ok">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Food for thought on cloud data</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						It should be noted before we go off even deeper into federated architectures to scale your
+						cloud native observability that cloud data is a problem here. We are happily scaling up our
+						monitoring of cloud native applications and services, which are emitting metrics and exploding
+						dimensions, and collecting all this metrics data.<br />
+						<br />
+						All this data is costing us to collect and store, so it's real good idea to stop here, pause,
+						and think about this aspect of the cloud. The costs associated can be just data, but usually it's
+						also a matter of resources being siphoned off to maintain your expanding observability
+						infrastructure.<br />
+						<br />
+						Let's look at the data aspect first. To give you an idea of the amount of data being generated
+						and why your cloud native observability will need to scale as you grow, let's look at a simple
+						experiment on the next slide...
+
+					</div>
+				</section>
+
+				<section data-background="images/shocking-data-discovery.jpg">
+					<div style="height: 80px; text-align: right">
+						<h5 style="color: white;">
+							Metrics data from simple hello world
+						</h5>
+					</div>
+					<div style="height: 350px; text-align: right; font-size: x-large; color: white;">
+						An experiment found online (you can find others):<br />
+						<br />
+						Results of data collection on a simple<br />
+						hello world app on 4 node Kubernetes cluster <br />
+						with Tracing, End User Metrics (EUM), Logs, <br />
+						Metrics (containers / nodes):<br />
+						<br />
+						<b style="font-size: xxx-large;">30 days ==  +450 GB</b><br />
+						<br />
+						<br />
+						(Source:
+						<a href="https://community.ibm.com/community/user/aiops/blogs/trent-shupe/2022/02/25/the-hidden-cost-of-observability-data-volume" target="_blank">
+							The Hidden Cost of Data ObservabilityZ
+						</a> )
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Federating - At cloud native scale</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Organizations scale up into a mess of extra infrastructure and management efforts that are no
+						longer focused on their core business. We can’t even display long term storage in this slide...
+						with all this federation going on, think about the resources from your DevOps teams that are
+						going to be spending more time on infrastructure than on engineering tasks:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab-conclusion-36.png" alt="cn-federation">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Storage - Remote storage at scale</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						Prometheus is aware that they did not provide any type of metrics storage at scale, so they
+						provided an API to allow you to plug in scalable remote storage. This does not solve the
+						federation issues nor does is reduce the resources needed to manage your growing
+						observability infrastructure. On the contrary, you've now added more complexity to your
+						ever-growing observability infrastructure:
+					</div>
+					<div style="height: 300px;">
+						<img src="images/lab-conclusion-37.png" alt="storage">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Storage - Issues to watch for at scale</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						Observability storage issue start to show up at scale, with some of the following being
+						indicators that the struggle is real to scale your observability effectively:<br />
+						<br />
+						<ul style="font-size: smaller;">
+							<li>Dashboard performance degrading due to high cardinality data (volume query results)</li>
+							<li>Storage scaling with your Prometheus means more infrastructure needs</li>
+							<li>Query performance degrades as observability infrastructure grows</li>
+							<li>Less return on the data as it grows, so the cost is exceeding the value at scale</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Reviewing - Prometheus pain at scale</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						<ul>
+							<li><b>Reliability</b></li>
+							<ul style="font-size: smaller">
+								<li>Not designed to handle regional failures.</li>
+								<li>Inconsistency with high availability model.</li>
+							</ul>
+							<li><b>Scalability</b></li>
+							<ul style="font-size: smaller">
+								<li>Management overhead in data storage backend.</li>
+								<li>Federation management & configuration (very) difficult at scale.</li>
+							</ul>
+							<li><b>Efficiency</b></li>
+							<ul style="font-size: smaller">
+								<li>No down sampling of metrics.</li>
+								<li>Not efficient for long term metric storage.</li>
+							</ul>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Want more hands-on learning?</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="https://o11y-workshops.gitlab.io" target="_blank">
+							Try the getting started with another workshop from our collection!
+						</a>
+					</div>
+				</section>
+
+				<section data-background="images/graduated.jpg" data-background-size="cover">
+					<div style="height: 400px;">
+					</div>
+					<div style="height: 100px;">
+						<h3 style="color: white;" class="r-fit-text">Congratulations!</h3>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMenu, RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+	</body>
+</html>

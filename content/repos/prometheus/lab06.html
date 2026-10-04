@@ -1,0 +1,1806 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Prometheus workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Lab 6 - Prometheus</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-PW25SPMWGG"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-PW25SPMWGG');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 6 - Relabeling Metrics in Prometheus</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>The lab teaches you how relabeling metrics work in Prometheus and how to apply them when
+							mapping, aggregating, dropping, or filtering scraped metrics.</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Requirements - Setting up for lab</h3>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: x-large;">
+						To start this lab you'll need to have the following running:<br />
+						<br />
+						<ul>
+							<li>a
+								<a href="https://gitlab.com/o11y-workshops/prometheus-service-demo-installer" target="_blank">
+									services demo instance
+								</a> on port 8080</li>
+							<li>a
+								<a href="https://gitlab.com/o11y-workshops/prometheus-service-demo-installer" target="_blank">
+								services demo instance
+								</a> on port 8088</li>
+							<li>a
+								<a href="https://o11y-workshops.gitlab.io/workshop-prometheus/lab02.html" target="_blank">
+									Prometheus instance
+								</a> collecting metrics from these instances</li>
+						</ul><br />
+						<br />
+						Let's quickly walk through getting this all running assuming you've already installed these
+						projects as shown in previous labs. The screenshots in this lab were captured on the container
+						path, so on the source and Kubernetes (k3s) paths your <code><b>instance</b></code> label values
+						will read differently than what's pictured. For source installations, use
+						<code><b>localhost:PORT_NUMBER</b></code> for all configuration targets. For Kubernetes (k3s)
+						installations, there is no <code><b>workshop-prometheus.yml</b></code> to edit, everything shown
+						in this lab instead lives in the <code><b>workshop-values.yaml</b></code> file's
+						<code><b>scrapeConfigs</b></code> block, and you apply the two services demo manifests from lab 3
+						instead of running podman containers.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Requirements - Starting services on 8080</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						From a terminal in the services demo project root directory, start the first services demo
+						instance:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# source install.
+								$ ./installs/demo/services_demo
+
+								# container install.
+								$ podman run -p 8080:8080 prometheus_services_demo:v1
+
+								# Kubernetes (k3s) install.
+								$ kubectl apply -f services-demo.yaml -n prometheus
+
+								$ kubectl port-forward -n prometheus svc/services-demo 8080:8080
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						After starting, the services demo instance should have metrics scraping end points available.
+						Test at <code><b>http://localhost:8080/metrics</b></code>:
+					</div>
+					<div style="height: 100px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# HELP demo_api_http_requests_in_progress The current number of API HTTP requests in progress.
+								# TYPE demo_api_http_requests_in_progress gauge
+								demo_api_http_requests_in_progress 1
+								# HELP demo_api_request_duration_seconds A histogram of the API HTTP request durations in seconds.
+								# TYPE demo_api_request_duration_seconds histogram
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0001"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.00015000000000000001"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.00022500000000000002"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0003375"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.00050625"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.000759375"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0011390624999999999"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0017085937499999998"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0025628906249999996"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0038443359374999994"} 0
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Requirements - Starting services on 8088</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: large;">
+						From a different terminal window, start the second services demo instance on port 8088 (any
+						unoccupied port will work if there is a conflict). On Kubernetes you re-apply the
+						<code><b>services-demo-2.yaml</b></code> file from lab 3, the port number is a port-forward
+						detail only, the cluster still scrapes it on 8080:
+					</div>
+					<div style="height: 160px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# source install.
+								$ ./installs/demo/services_demo --listen-address localhost:8088
+
+								# container install.
+								$ podman run -p 8088:8080 prometheus_services_demo:v1
+
+								# Kubernetes (k3s) install.
+								$ kubectl apply -f services-demo-2.yaml -n prometheus
+
+								$ kubectl port-forward -n prometheus svc/services-demo-2 8081:8080
+							</code>
+						</pre>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: large;">
+						After starting, the second services demo instance should have metrics scraping end points
+						available. Test at <code><b>http://localhost:8088/metrics</b></code> (on Kubernetes that's
+						<code><b>http://localhost:8081/metrics</b></code>, whatever port you gave the port-forward
+						above):
+					</div>
+					<div style="height: 100px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# HELP demo_api_http_requests_in_progress The current number of API HTTP requests in progress.
+								# TYPE demo_api_http_requests_in_progress gauge
+								demo_api_http_requests_in_progress 1
+								# HELP demo_api_request_duration_seconds A histogram of the API HTTP request durations in seconds.
+								# TYPE demo_api_request_duration_seconds histogram
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0001"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.00015000000000000001"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.00022500000000000002"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0003375"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.00050625"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.000759375"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0011390624999999999"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0017085937499999998"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0025628906249999996"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0038443359374999994"} 0
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Discovering container IP addresses</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						When using containers, Prometheus needs their container IP address as it can not resolve
+						localhost to different containers. To do this we can use the following variable provided
+						by Podman to update our Prometheus configuration <code><b>target</b></code> lines to
+						automatically use the assigned IP address:
+					</div>
+					<div style="height: 70px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								- target ["<mark>host.containers.internal</mark>:PORT_NUMBER"]
+							</code>
+						</pre>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: x-large;">
+						Note: if you are using Docker tooling, then your configuration should use the following variable
+						to automatically use the assigned IP address:
+					</div>
+					<div style="height: 70px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								- target ["<mark>host.docker.internal</mark>:PORT_NUMBER"]
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 70px;">
+						<h3 class="r-fit-text">Requirements - Baseline configuration for Prometheus</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						Before you start Prometheus, you need to ensure the baseline configuration is set to scrape
+						these services instances. On the source and container paths, verify that your Prometheus
+						configuration file (we've been working in this workshop with one called
+						<code><b>workshop-prometheus.yml</b></code>) matches the following (if using the Kubernetes path,
+						see the next slide instead):
+					</div>
+					<div style="height: 70px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# workshop config
+								global:
+									scrape_interval: 5s
+
+								scrape_configs:
+
+									# Scraping Prometheus.
+									- job_name: "prometheus"
+									  static_configs:
+									    - targets: ["localhost:9090"]
+
+									# Scraping services demo.
+									- job_name: "services"
+									  static_configs:
+									    - targets: ["host.containers.internal:8080"]
+									    - targets: ["host.containers.internal:8088"]
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 70px;">
+						<h3 class="r-fit-text">Requirements - Baseline configuration on Kubernetes</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						On the Kubernetes path there is no <code><b>workshop-prometheus.yml</b></code> to edit. Open the
+						<code><b>workshop-values.yaml</b></code> file from lab 2 and verify the <code><b>services</b></code>
+						job under <code><b>scrapeConfigs</b></code> lists both targets, exactly as you left it in lab 3.
+						In-cluster DNS resolves the names, so the port stays 8080:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Scraping only Prometheus.
+								scrapeConfigs:
+								  ...                                        &lt;&lt;&lt;&lt; LEAVE WHAT IS ALREADY THERE
+
+								  # Scraping services demo.
+								  services:
+								    job_name: services
+								    static_configs:
+								      - targets:
+								        - services-demo:8080
+								        - services-demo-2:8080
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Requirements - Starting your Prometheus instance</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						After rebuilding the Prometheus image, start it with the following command:
+					</div>
+					<div style="height: 250px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# source install.
+								$ ./prometheus --config.file=support/workshop-prometheus.yml
+
+								# container install.
+								$ podman run -p 9090:9090 workshop-prometheus:v3.13 --config.file=/etc/prometheus/workshop-prometheus.yml
+
+								# Kubernetes (k3s) install.
+								$ helm upgrade --install workshop-prometheus prometheus-community/prometheus \
+								    --version 29.20.0 \
+								    --namespace prometheus --create-namespace \
+								    -f workshop-values.yaml
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Requirements - Reaching Prometheus on Kubernetes</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						The Prometheus server only has a <code><b>ClusterIP</b></code> service on the Kubernetes path, so
+						it's not reachable until you port-forward it, in its own terminal window:
+					</div>
+					<div style="height: 50px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl port-forward -n prometheus svc/workshop-prometheus-server 9090:9090
+							</code>
+						</pre>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						On the source and container paths, Prometheus is already bound to <code><b>localhost:9090</b></code>
+						and there is nothing to do here.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Requirements - Inspecting all instance health</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						You should see two services instances and a Prometheus instance, all actively being scraped as
+						indicated with a 1 using the <code><b>up</b></code> metric in the Prometheus expression browser
+						at <code><b>http://localhost:9090</b></code>:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab06-1.png" alt="requirements">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Relabeling - Why would you?</h3>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: x-large;">
+						Prometheus scrapes targets you configure to collect metrics. These metrics have labels, either
+						auto instrumented or assigned, and alerts have labels they pass on to their alert destinations.
+						Eventually, you're going to want to manipulate or filter metrics based on their label values.
+						A few examples:<br />
+						<br />
+						<ul>
+							<li>monitor only certain targets based on annotation indicating they should be scrapped.</li>
+							<li>to add an HTTP query parameter to the scrape request for a target.</li>
+							<li>limit cost by storing only a filtered subset of the samples scraped from a given target.</li>
+							<li>remove a duplicate label from alerts sent to the Alert Manager.</li>
+							<li>combine two label values of a scraped series into a single label.</li>
+						</ul><br />
+						<br />
+						Relabeling is a concept that allows you to configure transformations and filtering rules.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Relabeling - How it works</h3>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: x-large;">
+						Relabeling is implemented as a series of transformation steps applied in different sections of
+						a Prometheus configuration file. They filter or modify a list of labeled objects. You can apply
+						relabeling to the following types of labeled objects:<br />
+						<br />
+						<ul>
+							<li>discovered scrape targets.</li>
+							<li>individual samples from scrapes</li>
+							<li>alerts sent to the Alert Manager, would be found in <code><b>alert_relabel_configs</b></code>
+								section in the <code><b>alertmanager_config</b></code> section.</li>
+							<li>samples written to remote storage systems, would be found in
+								<code><b>write_relabel_configs</b></code> section in the <code><b>remote_write</b></code> section.</li>
+						</ul><br />
+						<br />
+						The first two will be covered in this lab in detail, so let's dig into their configuration
+						layouts.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Relabeling - Configuration layout</h3>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: x-large;">
+						Using relabeling to discover scraping targets and dealing with individual samples from scrapes
+						are worth a closer look. Let's see how they are applied in the Prometheus configuration file:<br />
+						<br />
+						<ul>
+							<li>for discovered scrape targets, nested sections layout:</li>
+							<ul>
+								<li><code><b>scrape_config</b></code></li>
+								<ul>
+									<li><code><b>relabel_configs</b></code></li>
+								</ul>
+							</ul>
+							<li>for individual samples from scrapes, nested sections layout:</li>
+							<ul>
+								<li><code><b>scrape_config</b></code></li>
+								<ul>
+									<li><code><b>metric_relabel_configs</b></code></li>
+								</ul>
+							</ul>
+						</ul><br />
+						<br />
+						Now you know the layout, but how do relabeling rules work?
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Where this lives on Kubernetes</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						On the Kubernetes (k3s) path there is no <code><b>workshop-prometheus.yml</b></code>. Everything
+						this lab shows you under <code><b>scrape_configs → services</b></code> instead lives under the
+						<code><b>services</b></code> entry in the <code><b>workshop-values.yaml</b></code> file's
+						<code><b>scrapeConfigs</b></code> block, nested one level differently but using the exact same
+						field names: <code><b>relabel_configs</b></code>, <code><b>action</b></code>,
+						<code><b>source_labels</b></code>, <code><b>regex</b></code>, <code><b>replacement</b></code>,
+						<code><b>target_label</b></code>, and so on.<br />
+						<br />
+						Every relabeling rule in this lab drops in under that <code><b>services</b></code> entry
+						unchanged. To apply a change, re-run the same <code><b>helm upgrade --install</b></code>
+						command from the requirements section instead of rebuilding and restarting, the
+						<code><b>configmap-reload</b></code> sidecar tells Prometheus to reload itself.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Relabeling - How modify rules work</h3>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: x-large;">
+						A relabeling configuration section consists of a list of rules that are applied in sequence to
+						each labeled object. Each rule in the chain may either modify or drop a labeled object. Here's
+						an example of transforming to modify an object:<br />
+						<br />
+						<ul>
+							<li>INITIAL OBJECT passed to first rule →</li>
+							<ul>
+								<li><code>Rule 1 applied -> results object passed -></code></li>
+								<li><code>Rule 2 applied -> results object passed -></code></li>
+								<li><code>Rule 3 applied -> results object passed -></code></li>
+								<li><code>Rule N applied -> results object passed -></code></li>
+							</ul>
+							<li>OUTPUT OBJECT</li>
+						</ul><br />
+						<br />
+						On the next page is an example of an object transformation that leads to it being dropped.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Relabeling - How dropping works</h3>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: x-large;">
+						Here's an example of transforming that leads to dropping an object:<br />
+						<br />
+						<ul>
+							<li>INITIAL OBJECT passed to first rule </li>
+							<ul>
+								<li><code>Rule 1 applied -> results object passed -></code></li>
+								<li><code>Rule 2 applied, object dropped, execution aborted...</code></li>
+								<li><code>Rule N...</code></li>
+							</ul>
+						</ul><br />
+						<br />
+						A relabeling rule may keep or drop an object based on a regular expression match, may modify
+						labels, or may map a whole set of labels to another set. Once relabeling drops a labeled object
+						no further relabeling steps are executed, and it's deleted from the output list, usually meaning
+						it's not going to be scrapped.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Touring hidden labels</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						Labels starting with a double underscore, <code>__some-label</code>, are automatically removed
+						after the last relabeling rule and thus do not make it into the final labels of any object.
+						These specially prefixed labels can be used for storing and passing extra metadata during the
+						relabeling phase to make relabeling decisions or changes to the object's labels.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Hidden labels controlling scraping</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						For scraping targets some hidden labels have a special meaning for controlling how Prometheus
+						scrapes a target:<br />
+						<br />
+						<ul>
+							<li><b><code>__address__</code></b>: contains the TCP address that should be scrapped for a
+								target. After any relabeling, Prometheus sets the instance label to the value of
+								<b><code>__address__</code></b> if you do not set the instance label explicitly to another
+								value before that.</li>
+							<li><b><code>__scheme__</code></b>: contains HTTP scheme (http or https) with which the
+								target should be scrapped. Defaults to http.</li>
+							<li><b><code>__metrics_path__</code></b>: contains HTTP path to scrape metrics from.
+								Defaults to /metrics.</li>
+							<li><b><code>__param_[name]</code></b>: contains HTTP query parameter names and their values
+								that should be sent along with a scrape request. Possible to set or override each label
+								using relabeling rules to produce custom scrape behaviors for individual targets.</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Hidden labels from service discovery</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						Service discovery has not yet been handled, so this is a preview on the subject just covering
+						its usage of hidden labels. It provides a set of labels starting with <b><code>__meta_</code></b>
+						that contain discovery-specific metadata about a target.<br />
+						<br />
+						Examples of what labels a specific service discovery mechanism generates and uses can be found
+						in their configuration documentation.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Temporary label usage</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						Most programming languages and scripting languages allow you to pass temporary values in variables
+						that are not recognized outside a certain scope that you control. Think of a local variable that
+						you use to store a value for use within a single method or class.<br />
+						<br />
+						You might find that you have a need to store a temporary label value in a relabeling step for
+						use in a subsequent relabeling step. You can use the <b><code>__tmp</code></b> label name prefix.
+						Labels starting with <b><code>__tmp</code></b> are never used by Prometheus itself.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Available fields for rules</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						Relabeling is done with relabeling rules which can contain any number of the following fields
+						depending on the <b><code>ACTION</code></b> you desire:<br />
+						<br />
+						<ul>
+							<li><b><code>action:</code></b> a relabeling action</li>
+							<li><b><code>source_labels:</code></b> list of source label names</li>
+							<li><b><code>separator:</code></b> a source label separator</li>
+							<li><b><code>target_label:</code></b> a target label</li>
+							<li><b><code>regex:</code></b> a regular expression</li>
+							<li><b><code>modulus:</code></b> a modulus value</li>
+							<li><b><code>replacement:</code></b> some replacement string</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Action field (part 1)</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						The <b><code>action</code></b> field is used to define the relabeling action to be taken. If
+						none is specified the default is to <b><code>replace</code></b>. The following options is the
+						first part, part two will be on the next slide:<br />
+						<br />
+						<ul>
+							<li><b><code>replace</code></b> - match regex against <code>source_labels</code>, if match
+							then sets <code>target_label</code> to <code>replacement</code> value. If no match, no
+							replacement.</li>
+							<li><b><code>lowercase</code></b> - maps <code>source_label</code> to lowercase</li>
+							<li><b><code>uppercase</code></b> - maps <code>source_label</code> to uppercase</li>
+							<li><b><code>keep</code></b> - drop targets when <code>regex</code> does not match
+								<code>source_labels</code></li>
+							<li><b><code>drop</code></b> - drop targets when <code>regex</code> matches
+								<code>source_labels</code></li>
+							<li><b><code>hashmod</code></b> - set <code>target_label</code> to the MODULUS of a HASH of
+								the <code>source_labels</code></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Action field (part 2)</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						This is the second part of the possible values for the <b><code>action</code></b> field:<br />
+						<br />
+						<ul>
+							<li><b><code>keepequal</code></b> - drop targets when <code>source_labels</code> does not
+								match <code>target_label</code></li>
+							<li><b><code>labelkeep</code></b> - match <code>regex</code> against all label names, if
+								label does not match, remove from the set of labels</li>
+							<li><b><code>dropequal</code></b> - drop targets when <code>source_labels</code> match
+								<code>target_label</code></li>
+							<li><b><code>labeldrop</code></b> - match <code>regex</code> against all label names, if
+								label matches, remove from the set of labels</li>
+							<li><b><code>labelmap</code></b> - match <code>regex</code> against ALL source label names,
+								copy values of matching labels to label names given by <code>replacement</code></li>
+						</ul><br />
+						<br />
+						Warning: careful with <code>labeldrop</code> and <code>labelkeep</code> to ensure metrics are
+						uniquely labeled after any labels are removed.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Relabeling - Source labels field</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						The <code><b>source_labels</b></code> field contains a list of label names that are separated
+						using the <code><b>separator</b></code> field string (which defaults to a semicolon ";") and
+						matched against the provided regular expression found in the <code>regex</code> field.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Relabeling - Separator and target label fields</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						The <code><b>separator</b></code> field string (which defaults to a semicolon ";") is used for
+						separating the <code><b>source_labels</b></code> when concatenating matching labels.<br />
+						<br />
+						The <code><b>target_label</b></code> field contains the name of the label that should be
+						overwritten when using the <code><b>replace</b></code> or <code><b>hashmod</b></code> relabel
+						actions.
+					</div>
+				</section>
+
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Relabeling - Regex and modulus fields</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						The <code><b>regex</b></code> field contains a regular expression to match against the list
+						found in <code><b>source_labels</b></code>. The default is "(.*)", matching any
+						<code><b>source_labels</b></code>.<br />
+						<br />
+						The <code><b>modulus</b></code> field contains the modulus to take off a hash of the
+						concatenated <code><b>source_labels</b></code>. A useful thing to do when using horizontal
+						sharding of Prometheus instances.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Relabeling - The replacement field</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						The <code><b>replacement</b></code> field contains a replacement string that is written to the
+						<code><b>target_label</b></code> for <code><b>replace</b></code> relabel actions. It can also
+						refer to regular expression capture groups that were captured by the <code><b>regex</b></code>
+						field.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Relabeling - Use cases for replacement</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						Time for you to try relabeling... but what would be a good use case for relabeling?<br />
+						<br />
+						Let's start with a basic one, that of setting an existing label value to a new fixed value.
+						Before we do that, we will need to add some labels to modify the current services demo
+						configuration in your Prometheus instance. This far along in the workshop, you should be able to
+						edit, update, and restart your Prometheus configuration on your own. Let's update you're
+						configuration as shown on the next slide.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Setting a few static labels</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Make sure the services static config section in your Prometheus configuration file matches what
+						is shown here (you're adding two new labels). Reload your configuration to apply the changes:
+						rebuild your Prometheus image and restart on the source and container paths, re-run the
+						<code><b>helm upgrade --install</b></code> command on Kubernetes:
+					</div>
+					<div style="height: 70px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Scraping services demo.
+								- job_name: "services"
+								  static_configs:
+								    - targets: ["host.containers.internal:8080"]
+								      labels:
+								        service: "demo1"
+								        owner: "teamD"
+
+								    - targets: ["host.containers.internal:8088"]
+								      labels:
+								        service: "demo2"
+								        owner: "teamA"
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Verify static labels applied</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Verify by querying all services in the Prometheus query console:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								up{job="services"}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab06-2.png" alt="static metrics">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Back to use case replacement</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						Now that we have set up Prometheus to collect labels, we can try out the use case for
+						<b><code>replace</code></b> by setting an existing label value to a new fixed value.<br />
+						<br />
+						What if we decided for the upcoming vacation period, that team B would be the team to cover
+						services support as owner while the rest are gone? We could set a temporary relabeling rule to
+						replace all instances of the owner to team B. Imagine if you had thousands of services deployed
+						needing this change? When the vacation is over, you just remove or turn off this relabeling
+						rule.<br />
+						<br />
+						Good solution! Let's try it...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Replace rule structure</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						The <b><code>replace</code></b> relabeling rule structure with all possible fields looks like
+						this, and note you don't need to use all the fields for each use:
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								- action: 'replace'
+								  source_labels: [list_of_source_labels]
+								  separator: some_separator        # Default is ';'
+								  regex: some_regular_expression   # Defaults to '(.*)' matching any value
+								  replacement: replace_string      # Defaults to '$1' the first capturing group
+								  target_label: some_existing_target_label
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Vacation for teams</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Let's relabel all services instances during the vacation to the owner being team B. Add the
+						new section <b><code>relabel_configs</code></b> just after the services
+						<b><code>static_configs</code></b> section as shown. Reload your configuration to verify changes
+						(rebuild and restart on source/container, re-run the helm upgrade on Kubernetes):
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Scraping services demo.
+								  - job_name: "services"
+								    static_configs:
+								      - targets: ["host.containers.internal:8080"]
+								        labels:
+								          service: "demo1"
+								          owner: "teamD"
+
+								      - targets: ["host.containers.internal:8088"]
+								        labels:
+								          service: "demo2"
+								          owner: "teamA"
+
+								    relabel_configs:
+
+								      # Relabeling owner for teamA vacation.
+								      - action: "replace"
+								        replacement: "teamB"
+								        target_label: "owner"
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Verify vacation for team A</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Verify by querying all services in the Prometheus query console:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								up{job="services"}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab06-3.png" alt="relabeling">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Why are there still 4 services?</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: x-large;">
+						If using source or Kubernetes installs, you might notice that you are seeing 4 services, how's
+						that possible?<br />
+						<br />
+						The thing is, you are querying all existing metrics data that Prometheus has collected. The
+						service owned by team A and the service owned by team B where already in the metrics TSDB. With
+						the new relabeling, you're seeing Prometheus collecting two new metrics entries in your TSDB
+						showing up as team B (twice, you renamed both existing labels!). Let's see if we can filter
+						our query to just show the current service owners since the other teams started vacations...<br />
+						<br />
+						Note: this only applies to the source and Kubernetes paths, where a config reload does not
+						restart Prometheus. If you stop and restart a container image of Prometheus, you lose the
+						historical data in your TSDB, so you won't see older entries of the services there.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Verify services owners now</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Verify by querying services <b>since 1m</b> in the Prometheus query console, noting that they
+						are only showing team B owners for both of our services:
+					</div>
+					<div style="height: 500px;">
+						<img src="images/lab06-4.png" alt="relabeling">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Visual validation team B</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Visually verify relabeling is working after team D label changed by filtering the
+						graph view and selecting team B owned service. Note it's relabeled from the point where team D
+						stopped (or, on the container path, from whenever you restarted the container image):
+					</div>
+					<div style="height: 450px;">
+						<img src="images/lab06-6.png" alt="teamB">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Eventually services view updates</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						Note that over time, something like 10 minutes of replacing the owner label with team B, you'll
+						see that the default behavior of the UP query is to not report older metrics data. It shows the
+						two relabeled to team B service entries and if using the source or Kubernetes paths you'll
+						need to add a larger time selection (such as [1hr]) to find the older metrics data:
+					</div>
+					<div style="height: 300px;">
+						<img src="images/lab06-7.png" alt="two services">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Vacation is over</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Now assume the vacation period is over, so you can remove (better yet, comment out) the relabeling
+						rule. Adjust your Prometheus configuration as shown below, then reload it to verify changes
+						(rebuild and restart on source/container, re-run the helm upgrade on Kubernetes):
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Scraping services demo.
+								  - job_name: "services"
+									static_configs:
+									  - targets: ["host.containers.internal:8080"]
+										labels:
+										  service: demo1
+										  owner: teamD
+
+									  - targets: ["host.containers.internal:8088"]
+										labels:
+										  service: demo2
+										  owner: teamA
+
+									relabel_configs:
+
+								#	# Relabeling owner for teamA vacation.
+								#	- action: 'replace'
+								#	  replacement: 'teamB'
+								#	  target_label: 'owner'
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Verifying vacation over</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						Verify by querying all services in the Prometheus query console, noting that owners are not
+						only team B:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								up{job="services"}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab06-8.png" alt="relabeling">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Aggregating labels</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						One more exercise is to combine metric labels using relabeling rules. Let's use relabeling to
+						create a new metric label for use by humans reading them. Update your
+						<b><code>relabel_config</code></b> section as shown, then reload your configuration to verify
+						changes (rebuild and restart on source/container, re-run the helm upgrade on Kubernetes):
+					</div>
+					<div style="height: 100px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								relabel_configs:
+
+								# # Relabeling owner for teamA vacation.
+								# - action: 'replace'
+								#   replacement: 'teamB'
+								#   target_label: 'owner'
+
+								# Relabeling creating new service details label.
+								- source_labels: ['service', 'owner']
+								  separator: ';'
+								  regex: '(.*);(.*)'
+								  replacement: '${1} is owned by ${2}'
+								  target_label: 'service_details'
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Verifying aggregating labels</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Verify by querying all services in the Prometheus query console, noting that the new human
+						language label <b><code>service_details</code></b> is now combining the <b><code>owner</code></b>
+						and <b><code>service</code></b> labels:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								up{job="services"}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab06-9.png" alt="relabeling">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Drop or keep use cases</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						The next relabeling action we will explore is <b><code>drop</code></b> or <b><code>keep</code></b>.
+						These are used when you want to control, by dropping or keeping, entire labeled objects. These
+						actions allow you to:<br />
+						<br />
+						<ul>
+							<li>set targets coming from service discovery (not covered here) get scraped</li>
+							<li>set specific samples to scrape from a target or send to remote storage</li>
+							<li>set which alerts to sent to Alertmanager</li>
+						</ul><br />
+						<br />
+						Note: <b><code>keepequals</code></b> and <b><code>dropequals</code></b> are use cases that are
+						uncommon, so won't cover them.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Drop or keep rule structure</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						The <b><code>drop</code></b> relabeling rule structure (same for <b><code>keep</code></b>) looks
+						like this, and note you don't need to use all the fields for each use:
+					</div>
+					<div style="height: 130px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								- action: 'drop'
+								  source_labels: [list_of_source_labels]
+								  separator: some_separator          # Default is ';'
+								  regex: some_regular_expression     # Defaults to '(.*)' matching any value
+							</code>
+						</pre>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						It works as follows (<b><code>keep</code></b> works opposite to this):<br />
+						<br />
+						<ul>
+							<li>concatenates values of labels in <b><code>source_labels</code></b></li>
+							<li>tests if regular expression in <b><code>regex</code></b> matches:</li>
+							<ul>
+								<li>If no match, object is put in final output list</li>
+								<li>If a match, the object is dropped</li>
+							</ul>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Example dropping objects</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						Let's look at an exercise where team D released new services updates, and they are spiking
+						on metrics cardinality, meaning we are getting flooded with too many metrics labels. To stop
+						rampant metrics collection (and the cost spike), configure the dropping of all services metrics
+						where the <b><code>owner</code></b> is listed as team D as follows (reload your configuration to
+						verify: rebuild and restart on source/container, re-run the helm upgrade on Kubernetes):
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								relabel_configs:
+
+								# # Relabeling owner for teamA vacation.
+								# - action: 'replace'
+								#   replacement: 'teamB'
+								#   target_label: 'owner'
+
+								# Relabeling creating new service details label.
+								- source_labels: ['service', 'owner']
+								  separator: ';'
+								  regex: '(.*);(.*)'
+								  replacement: '${1} is owned by ${2}'
+								  target_label: 'service_details'
+
+								# Dropping team D services.
+								- action: 'drop'
+								  source_labels: ['owner']
+								  regex: 'teamD'
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Verifying dropping services</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						Verify by querying all services in the Prometheus query console, noting that no services where
+						the <b><code>owner</code></b> is team D appear in the list:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								up{job="services"}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab06-10.png" alt="relabeling">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Removing dropping services config</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Some time later, team D rolls back their services updates, so you can remove the dropping of all
+						services metrics. Comment out the drop rule as shown below (reload your configuration to verify:
+						rebuild and restart on source/container, re-run the helm upgrade on Kubernetes):
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								relabel_configs:
+
+								# # Relabeling owner for teamA vacation.
+								# - action: 'replace'
+								#   replacement: 'teamB'
+								#   target_label: 'owner'
+
+								# Relabeling creating new service details label.
+								- source_labels: ['service', 'owner']
+									separator: ';'
+									regex: '(.*);(.*)'
+									replacement: '${1} is owned by ${2}'
+									target_label: 'service_details'
+
+								# # Dropping team D services.
+								# - action: 'drop'
+								#   source_labels: ['owner']
+								#   regex: 'teamD'
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Verifying dropping services removed</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Verify by querying all services in the Prometheus query console, noting that both services
+						instances metrics labels are again being collected:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								up{job="services"}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab06-9.png" alt="relabeling">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Mapping sets of labels</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						There is a use case where you want to take a set of source labels and map their values into a
+						new set of label names. The <code><b>labelmap</b></code> action allows you to do this. This is
+						commonly done when using service discovery sources taking a group of __meta-prefixed metadata
+						labels and mapping them into permanent target labels (not covered here). The structure is as
+						follows:
+					</div>
+					<div style="height: 130px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								- action: 'labelmap'
+								  regex: some_regular_expression      # Defaults to '(.*)'
+								  replacement: replacement_string     # Defaults to '$1'
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Example mapping labels</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						As mentioned the main use case is automated mapping of service discovery sources , so here
+						you'll create a new metric label by mapping based on existing service demo metric labels. Set up
+						mapping to a new <b><code>mapped_OWNER</code></b> label by leveraging the
+						<b><code>owner</code></b> label as shown (reload to verify: rebuild and restart on
+						source/container, re-run the helm upgrade on Kubernetes):
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								relabel_configs:
+
+								# Relabeling creating new service details label.
+								- source_labels: ['service', 'owner']
+									separator: ';'
+									regex: '(.*);(.*)'
+									replacement: '${1} is owned by ${2}'
+									target_label: 'service_details'
+
+								# # Dropping team D services.
+								# - action: 'drop'
+								#   source_labels: ['owner']
+								#   regex: 'teamD'
+
+								# Relabeling service labels with labelmap.
+								- source_labels: ['service', 'owner']
+								  action: 'labelmap'
+								  regex: 'owner'
+								  replacement: 'mapped_${0}'
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Verifying mapped labels</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Verify by querying all services in the Prometheus query console, noting that the newly mapped
+						<b><code>mapped_owner</code></b> label has appeared on services where the
+						<b><code>owner</code></b> label was found:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								up{job="services"}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab06-11.png" alt="relabeling">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Removing mapping config</h3>
+					</div>
+					<div style="height: 90px; text-align: left; font-size: x-large;">
+						To clean out the mapping rule, just comment out as shown below before proceeding with the lab
+						(reload to verify: rebuild and restart on source/container, re-run the helm upgrade on
+						Kubernetes):
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								relabel_configs:
+
+								# Relabeling creating new service details label.
+								- source_labels: ['service', 'owner']
+								  separator: ';'
+								  regex: '(.*);(.*)'
+								  replacement: '${1} is owned by ${2}'
+								  target_label: 'service_details'
+
+								# # Dropping team D services.
+								# - action: 'drop'
+								#   source_labels: ['owner']
+								# 	regex: 'teamD'
+
+								# # Relabeling service labels with labelmap.
+								# - source_labels: ['service', 'owner']
+								#   action: 'labelmap'
+								#   regex: 'owner'
+								#   replacement: 'mapped_${0}'
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Verifying removal mapping config</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Verify by querying all services in the Prometheus query console, noting that both services
+						instances metrics labels are again being collected:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								up{job="services"}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab06-9.png" alt="relabeling">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Dropping labels not objects</h3>
+					</div>
+					<div style="height: 230px; text-align: left; font-size: xx-large;">
+						Sometimes you may just want to remove or keep individual labels instead of entire objects being
+						targeted. Maybe a target you're scrapping supplies a lot of unnecessary labels (unused by your
+						organization, yet) both polluting the TSDB and costing you in storage fees. Enter the
+						<b><code>labeldrop</code></b> and <b><code>labelkeep</code></b> actions, structured as follows:
+					</div>
+					<div style="height: 130px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								- action: 'labeldrop'
+								  regex: some_regular_expression      # Defaults to '(.*)'
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Example dropping labels</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						The <b><code>labeldrop</code></b> action processes as follows:<br />
+						<br />
+						<ul>
+							<li> if the regular expression matches, then</li>
+							<ul>
+								<li>drops (or keeps) the labels that match</li>
+							</ul>
+						</ul><br />
+						<br />
+						Let's try dropping the <b><code>owner</code></b> and <b><code>service</code></b> labels from
+						our services objects, as they are represented in the <b><code>service_details</code></b>
+						aggregate label you set up earlier (reload to verify: rebuild and restart on
+						source/container, re-run the helm upgrade on Kubernetes):
+					</div>
+					<div style="height: 150px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								relabel_configs:
+
+								...
+								# # Relabeling service labels with labelmap.
+								# - source_labels: ['service', 'owner']
+								#   action: 'labelmap'
+								#   regex: 'owner'
+								#   replacement: 'mapped_${0}'
+
+								# Dropping labels.
+								- action: 'labeldrop'
+								  regex: 'owner|service'
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Verifying dropping labels</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Verify by querying all services in the Prometheus query console, noting there are no longer any
+						<b><code>owner</code></b> or <b><code>service</code></b> labels in the services objects:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								up{job="services"}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab06-12.png" alt="dropping">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Removing drop config</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						To clean out the drop rule, just comment out as shown below before proceeding with the lab
+						(reload to verify: rebuild and restart on source/container, re-run the helm upgrade on
+						Kubernetes):
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								relabel_configs:
+
+								# # Dropping team D services.
+								# - action: 'drop'
+								#   source_labels: ['owner']
+								# 	regex: 'teamD'
+
+								# # Relabeling service labels with labelmap.
+								# - source_labels: ['service', 'owner']
+								#   action: 'labelmap'
+								#   regex: 'owner'
+								#   replacement: 'mapped_${0}'
+
+								# # Dropping labels.
+								# - action: 'drop'
+								#   regex: 'owner|service'
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Verifying removal drop config</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Verify by querying all services in the Prometheus query console, noting that both services
+						instances metrics labels are again being collected:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								up{job="services"}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab06-9.png" alt="removed">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - HA example for dropping label</h3>
+					</div>
+					<div style="height: 370px; text-align: left; font-size: xx-large;">
+						Imagine you are running two Prometheus servers trying to create some high availability (HA) for
+						your metrics observability. It's normal to identify each server using the
+						<code><b>external_labels</b></code> configuration, for example creating a
+						<code><b>ha_prom</b></code> label. Let's say you label them <code><b>ha_prom: 1</b></code> and
+						<code><b>ha_prom: 2</b></code>, but if they are sending alerts to their Alertmanager instance,
+						you need to first drop the label <code><b>ha_prom</b></code> or you get two alerts for the same
+						notification.<br />
+						<br />
+						This is fixed if with the following labeldrop alert relabeling rule:
+					</div>
+					<div style="height: 130px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								- action: 'labeldrop'
+								  regex: 'ha_prom'
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Final example for dropping labels</h3>
+					</div>
+					<div style="height: 330px; text-align: left; font-size: xx-large;">
+						The last example shares how you can clean up metrics labels that might be generated by targets
+						that are not critical to your observability needs (just providing extra information). Imagine
+						a target that generates labels that start with <b><code>info_</code></b> and further provides
+						a multitude of extra metrics you don't want to keep.<br />
+						<br />
+						To remove any labels starting with, for example, the <b><code>info_</code></b> labels mentioned
+						above, you'd apply a metric relabeling rule such as:
+					</div>
+					<div style="height: 130px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								- action: 'labeldrop'
+								  regex: 'info.*'
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Upper and lower case</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						There are two interesting relabeling actions available to you for situations where you might
+						want to change the case of a label value. Imagine you have one label value you want to compare
+						to another, but the first one is upper case and the second is lower case. You have the option
+						with <b><code>uppercase</code></b> or <b><code>lowercase</code></b> actions to change one of
+						them using the following rule structure:
+					</div>
+					<div style="height: 130px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								- action: 'uppercase'
+								  source_labels: [ list_of_source_labels ]
+								  target_label: some_target_label
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Example of upper case</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						The <b><code>uppercase</code></b> action processes as follows:<br />
+						<br />
+						<ul>
+							<li>gathers a list of values of the label values listed in <b><code>source_labels</code></b></li>
+							<li>changes the values to upper case and stores them in the provided <b><code>target_label</code></b></li>
+						</ul><br />
+						<br />
+						Let's try upper-casing the <b><code>service</code></b> label values from our services objects.
+						Update your Prometheus configuration with the following relabeling rule (reload to verify:
+						rebuild and restart on source/container, re-run the helm upgrade on Kubernetes):
+					</div>
+					<div style="height: 250px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								relabel_configs:
+
+								...
+								# Dropping labels.
+								# - action: 'drop'
+								#   regex: 'owner|service'
+
+								# Upper case for service labels.
+								- action: 'uppercase'
+								  source_labels: ['service']
+								  target_label: 'service'
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Verifying upper case label value</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Verify by querying all services in the Prometheus query console, noting the value of the
+						<b><code>service</code></b> labels are upper case now in the services objects:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								up{job="services"}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab06-13.png" alt="dropping">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Example of lower case</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Just for fun, let's try lower casing the <b><code>service</code></b> label values right after
+						we just upper-cased them. Update your Prometheus configuration with the following relabeling
+						rule (reload to verify: rebuild and restart on source/container, re-run the helm upgrade on
+						Kubernetes):
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								relabel_configs:
+
+								# Dropping labels.
+								# - action: 'drop'
+								#   regex: 'owner|service'
+
+								# Upper case for service labels.
+								- action: 'uppercase'
+								  source_labels: ['service']
+								  target_label: 'service'
+
+								# Lower case for service labels.
+								- action: 'lowercase'
+								  source_labels: ['service']
+								  target_label: 'service'
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Verifying lower case label value</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Verify by querying all services in the Prometheus query console, noting the value of the
+						<b><code>service</code></b> labels are once again lower case now in the services objects:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								up{job="services"}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab06-9.png" alt="lower casing">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Removing both case config</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Finally, comment out as shown below before proceeding with the lab (reload to verify: rebuild
+						and restart on source/container, re-run the helm upgrade on Kubernetes):
+					</div>
+					<div style="height: 00px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								relabel_configs:
+
+								# Dropping labels.
+								# - action: 'drop'
+								#   regex: 'owner|service'
+
+								# Upper case for service labels.
+								# - action: 'uppercase'
+								#   source_labels: ['service']
+								#   target_label: 'service'
+
+								# Lower case for service labels.
+								# - action: 'lowercase'
+								#  source_labels: ['service']
+								#  target_label: 'service'
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Verifying removal case configs</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Verify by querying all services in the Prometheus query console, noting that both services
+						instances metrics labels are again being collected:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								up{job="services"}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab06-9.png" alt="removed">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Advanced case for hashing and sharding</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						To dig into the usage of the <b><code>hashmod</code></b> relabeling rule, imagine the use
+						case where you are scaling your Prometheus set up by running multiple instances. In this case
+						you only want to scrape a subset of all targets of a service, so you can use the relabeling
+						<b><code>hashmod</code></b> action together with the <b><code>keep</code></b> action to
+						<b>shard</b> your targets. The structure for this relabeling rule is as follows:
+					</div>
+					<div style="height: 130px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								- action: 'hashmod'
+								  source_labels: [ list_of_source_labels ]
+								  modulus: some_modulus_value
+								  target_label: some_target_label
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - How hashmod works</h3>
+					</div>
+					<div style="height: 220px; text-align: left; font-size: xx-large;">
+						The <b><code>hashmod</code></b> action processes as follows:<br />
+						<br />
+						<ul>
+							<li>gathers the values of the labels listed in <b><code>source_labels</code></b></li>
+							<li>calculates the hash of the concatenated string</li>
+							<li>applies the modulus to the hash (operation: hash % modulus) creating the hash value
+								between 0 and modulus - 1</li>
+							<li>stores the modulus value from the previous step in the <b><code>target_label</code></b></li>
+						</ul><br />
+						<br />
+						In the next slide we'll explore a fictitious example scenario and apply
+						<b><code>hashmod</code></b>...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Relabeling - Example sharding targets in a service</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						In this fictitious use case, we'll show you how to use <b><code>hashmod</code></b> to split up
+						the overall group of targets of a service into shards for each instance in your scaled
+						Prometheus set up. First, we are calculating the hash-based modulus for each target based on one
+						or more of its labels. Then we want to only keep the targets that have a specific modulus value.<br />
+						<br />
+						In our example, we are sharding targets on their instance label and only want to keep the
+						instances for shard 2 (out of 10 shards). We can combine a <b><code>hashmod</code></b> with a
+						<b><code>keep</code></b> action as follows:
+					</div>
+					<div style="height: 100px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								- action: 'hashmod'
+								  source_labels: [instance]
+								  modulus: 10
+								  target_label: __tmp_hashmod
+
+								- action: keep
+								  source_labels: [__tmp_hashmod]
+								  regex: 2
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 400px; font-size: xx-large">
+						<img src="images/lab06-9.png" alt="relabeling">
+						<br />
+						Next up, dashboards and visualization workshop...
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://youtu.be/KJvUyP4c1NQ" target="_blank">Video introduction to workshop (Open Source Edinburgh meetup)</a></li>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-prometheus" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://prometheus.io" target="_blank">Prometheus project</a></li>
+							<li><a href="https://github.com/prometheus/promlens" target="_blank">PromLens project (archived, now the Prometheus EXPLAIN tab)</a></li>
+							<li><a href="https://github.com/perses/perses" target="_blank">Perses project</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-prometheus/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Director Evangelism<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 200px;">
+						<h2 class="r-fit-text">Up next in workshop... </h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab07.html" target="_blank">Lab 7 - Discovering Service Targets</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMenu, RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+	</body>
+</html>

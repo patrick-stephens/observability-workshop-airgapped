@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Perses workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Visualization Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-BGV1XYZ1ND"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-BGV1XYZ1ND');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Evaluating the end results</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						If you want to just upload a fully completed lab result to see what the final dashboard looks
+						like without completing the lab work, just apply the file found in
+						<code><b>support/dashboard-lab5.json</b></code> in the
+						<a href="https://gitlab.com/o11y-workshops/perses-install-demo" target="_blank">
+							Perses Easy Install project
+						</a>. It's a resource defining a dashboard as worked out in this lab and can be applied as
+						follows:
+					</div>
+					<div style="height: 100px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./support/bin/percli apply -f support/dashboard-lab5.json
+
+								object "Dashboard" "MyFirstDashboard"
+									 has been applied in the
+									project "workshopproject"
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Opening the starting dashboard</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Click on the listing <code><b>MyFirstDashboard</b></code>, which gets us to the starting point
+						for the next lab (note we've set the time span to be the LAST 15 MINUTES at the top due to
+						the short running time of our Prometheus instance):
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-3.png" alt="opening">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - About the instance variable list</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						You will find at the top a drop-down menu that contains all the instance values we can target
+						in our queries. This is how variables are defined and this is a list of
+						<code><b>instance</b></code> values we can then use with a variable in our queries (more on this
+						later). Default is <code><b>localhost:9090</b></code>:
+					</div>
+					<div style="height: 250px; text-align: center;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-4.png" alt="instances">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - About the jobs variable list</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						A second variable list at the top is shown as a drop-down menu containing all the job values we
+						can target in our queries. This is how variables are defined and this is a list of
+						<code><b>job</b></code> values we can then use with a variable in our queries (more on this
+						later). Default is <code><b>prometheus</b></code>:
+					</div>
+					<div style="height: 250px; text-align: center;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-5.png" alt="jobs">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Variable choices matter</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						The initial dashboard view works with a stat chart <code><b>Memory usage</b></code> that has
+						a backing PromQL query using the variables <code><b>instance</b></code> and
+						<code><b>job</b></code>, both filled by the choices you make in the drop-down menus at the top
+						of this dashboard:
+					</div>
+					<div style="height: 450px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-3.png" alt="editing">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Changing job variable matters</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Changing them matters, for example, change <code><b>job</b></code> to <code><b>node</b></code>
+						and notice that this results in no data being returned. This is because this job does not exist
+						for the <code><b>instance</b></code> value of <code><b>localhost:9090</b></code>:
+					</div>
+					<div style="height: 450px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-6.png" alt="editing">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Working variable combinations</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						For these specific combinations of <code><b>instance</b></code> and <code><b>job</b></code>
+						values, you will have data returned and a working stat chart (below the combinations are
+						presented):<br />
+						<br />
+						<ul>
+							<li>localhost:9090 + prometheus</li>
+							<li>localhost:9100 + node</li>
+						</ul>
+					</div>
+					<div style="height: 250px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-7.png" alt="prom">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-8.png" alt="node">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Modifying existing dashboard</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Now on to the work at hand, first resetting your dashboard as shown below. You're going to edit
+						the stat chart <code><b>Memory usage</b></code>, removing the graph being displayed, adjusting
+						the displayed numbers, and resize the stat chart to make room for more panels later:
+					</div>
+					<div style="height: 450px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-3.png" alt="editing">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Opening dashboard for editing</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						First, open the current dashboard for editing by clicking on the <code><b>EDIT</b></code> button
+						on the top right:
+					</div>
+					<div style="height: 250px; text-align: right;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-9.png" alt="editing">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Renaming a panel group</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Notice all the pencil icons that are now available to edit all parts of the dashboard? Let's
+						rename the first and only panel group from <code><b>Panel Group</b></code> to
+						<code><b>My First Row</b></code>. Click on the <code><b>PENCIL ICON</b></code> found on the far
+						right of the <code><b>Panel Group</b></code> to edit:
+					</div>
+					<div style="height: 450px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-10.png" alt="renaming">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Panel group pop-up</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Modify in the <code><b>EDIT PANEL GROUP</b></code> pop-up as shown. Note the
+						<code><b>Collapse State</b></code> can be open or closed, which refers to the display
+						desired when the dashboard is initially opened. We'll ignore the <code><b>Repeat Variable</b></code>
+						field for now. Click on <code><b>APPLY</b></code> button to complete your modifications:
+					</div>
+					<div style="height: 250px; text-align: right;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-11.png" alt="first row">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Always saving dashboard changes</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						It is very important to note here that all changes will be applied, and you see the first row
+						has been renamed. Did you also notice that the dashboard is still in <code><b>EDIT</b></code>
+						mode with pencil icons available? Nothing has been finalized until you save your changes, so
+						get in the habit of doing that by clicking on the <code><b>SAVE</b></code> button on the top
+						right (and accept the pop-up suggestion to save current 15m time range as default):
+					</div>
+					<div style="height: 450px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-12.png" alt="saving">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - After saving dashboard changes</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						After saving your changes, the pencil icons are gone, and you are ready to move on to the next
+						change you want to make. Get in the habit of saving each change you make to a dashboard as you
+						work, you'll be happier for it:
+					</div>
+					<div style="height: 450px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-13.png" alt="saved">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Modifying memory usage panel</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Now let's tackle the changes you want in the <code><b>Memory usage</b></code> panel by opening the
+						dashboard for editing, then clicking on the <code><b>PENCIL ICON</b></code> found on the
+						<code><b>Memory usage</b></code> panel to open the graphical <code><b>EDIT PANEL</b></code>
+						pop-up:
+					</div>
+					<div style="height: 450px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-12.png" alt="edit panel">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Modifying the panel name</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						At the top you find <code><b>Name</b></code>, <code>Group</code>, <code><b>Description</b></code>,
+						and <code><b>Type</b></code> fields. Modify the name to <code><b>Memory Usage</b></code> noting
+						the <code><b>PREVIEW</b></code> section updates as you type:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-14.png" alt="preview">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Exploring the panel query</h3>
+					</div>
+					<div style="height:80px; text-align: left; font-size: xx-large;">
+						Scroll down, and you'll find the <code><b>QUERY</b></code> section and several more tabs with
+						<code><b>SETTINGS</b></code>, <code><b>VALUE MAPPING</b></code>, <code><b>LINKS</b></code>,
+						and <code><b>JSON</b></code>:
+					</div>
+					<div style="height: 350px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-15.png" alt="query">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - The panel query...</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Data is gathered for a panel using the <code><b>PromQL</b></code> query shown here, it's used to
+						gather the metrics data needed for this stat chart. You will be provided with more working queries
+						to use when creating dashboards in this workshop, all without explanation. These target the
+						specific data that was scraped from the data sources specified in this project.
+					</div>
+					<div style="height: 80px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								100 - ((go_memstats_sys_bytes{instance='$instance', job='$job'} * 100) /
+								(go_memstats_alloc_bytes_total{instance='$instance', job='$job'}))
+							</code>
+						</pre>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						If you want to learn more about these <code>PromQL</code> queries, please try out the
+						<a href="https://o11y-workshops.gitlab.io/workshop-prometheus/" target="_blank">
+							<b>Getting started with Prometheus</b>
+						</a>
+						workshop which has specific labs dedicated to this topic.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Removing sparkline in settings</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Click on the <code><b>SETTINGS</b></code> tab to open this view showing details on how this stat
+						chart is displayed. Let's remove the graph by turning off the <code><b>SPARKLINE</b></code>
+						switch, removing the graph. The preview updates to this view:
+					</div>
+					<div style="height: 350px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-16.png" alt="big number">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Adjusting font in settings</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Now the numeric value is way too big! Let's reduce that to take up less space in our dashboard
+						using the <code><b>FONT SIZE</b></code> drop down menu and select size 28, resulting in this
+						preview:
+					</div>
+					<div style="height: 380px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-17.png" alt="font">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Adding links</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Open the <code><b>LINKS</b></code> tab and click on the '+' to add an entry. This will be a link
+						from the Memory Usage stat chart directly to the website being monitored, so we enter the details
+						of the site we are monitoring (fill in any valid URL you like). Note the 'open in new tab' button
+						on the resulting preview:
+					</div>
+					<div style="height: 380px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-18.png" alt="links">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Applying panel changes</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						To see all of our changes in this panel, just click on the <code><b>APPLY</b></code> button on
+						the top right, and you are dropped back to the dashboard to preview your changes (they are
+						<code><b>not saved to the dashboard yet!</b></code>):
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-19.png" alt="font">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Resizing memory usage panel</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						The memory usage panel is taking up too much space for the percentage number it's displaying.
+						Let's grab the bottom right and drag it up to the left to resize (mouse click and hold the
+						panel corner, then drag). When finished it should look something like this:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-20.png" alt="resized">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Saving dashboard changes</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Now you can <code><b>SAVE</b></code> this change. This is done by clicking the
+						<code><b>SAVE</b></code> button found on the top right. Note the edit buttons are gone:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-21.png" alt="save">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Viewing the details</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						If you hover with your mouse on the memory usage components, you get an informational popup with
+						the message shown. This was the text you saw in the <code><b>DESCRIPTION</b></code> field in
+						the <code><b>EDIT PANEL</b></code>. Hover on the <code><b>LINKS</b></code> icon and note clicking
+						opens a new tab with the monitored website:
+					</div>
+					<div style="height: 300px; text-align: right;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-22.png" alt="info">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-23.png" alt="info">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Creating total memory panel</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						You've explored an existing panel and modified the layout and presentation of the
+						<code><b>Memory Usage</b></code> stat chart. Now it's time to create one from scratch, to
+						capture and display <code><b>Total Memory</b></code> consumption. Start by opening the dashboard
+						for editing with <code><b>EDIT</b></code> button in top right:
+					</div>
+					<div style="height: 350px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-20.png" alt="new panel">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Which new panel button?</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						You'll notice there are two options presented as buttons to add a new panel. One is part of the
+						top menu and allows you to add a panel to any available group, the other is part of the header
+						menus for group <code><b>My First Row</b></code> and will add a panel configured to appear in
+						this group:
+					</div>
+					<div style="height: 100px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-24.png" alt="edit panel">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-25.png" alt="edit panel">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Adding new panel details</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						Click on the add panel menu in the header for the group <code><b>My First Row</b></code> and
+						start filling in the <code><b>Add Panel</b></code> details as shown:
+					</div>
+					<div style="height: 250px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-26.png" alt="details">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Adding new panel query</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Scroll down and in the first query field add the following PromQL query:
+					</div>
+					<div style="height: 50px;">
+						<pre>
+							<code data-trim data-noescape>
+								go_memstats_alloc_bytes_total{instance='$instance', job='$job'}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 300px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-27.png" alt="query">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Previewing new panel query</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Click on the <code><b>RUN QUERY</b></code> button and notice the preview is a graph of the total
+						memory used in bytes, but we want this to be a number, not a graph, so click on the tab
+						<code><b>SETTINGS</b></code> under the graph:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-28.png" alt="preview">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Adjusting new panel settings</h3>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: xx-large;">
+						Adjust the settings for this stat chart as shown to remove the sparkline, short values, unit,
+						decimals, and right size the font displayed as shown:
+					</div>
+					<div style="height: 450px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-29.png" alt="preview">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Saving the new panel</h3>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: xx-large;">
+						To apply the changes to this new panel and add it to the existing dashboard group by clicking on
+						<code><b>ADD</b></code> button at the top. Results in a weird layout:
+					</div>
+					<div style="height: 350px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-30.png" alt="saving">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Adjusting memory total location</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						You can resize the panel using bottom right corner (click and drag), but you can also move the
+						entire panel around to any location within the group using the <code><b>MOVE</b></code> icon
+						top right (also click and drag). Try a few location as shown:
+					</div>
+					<div style="height: 150px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-31.png" alt="move1"><br />
+					</div>
+					<div style="height: 120px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-32.png" alt="move2">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-33.png" alt="move3">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First dashboard - Finalizing the changes made</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						To finalize you can resize both panels for uniformity, arrange them as shown, and save the
+						changes using the <code><b>SAVE</b></code> button:
+					</div>
+					<div style="height: 450px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-34.png" alt="final">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 450px; font-size: xx-large">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-34.png" alt="final">
+						<br />
+						Next up, creating a more advanced dashboard...
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="reference">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://github.com/perses/perses" target="_blank">Perses project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-perses" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-perses/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Director Evangelism<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab06.html" target="_blank">Lab 6 - Building advanced dashboard</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

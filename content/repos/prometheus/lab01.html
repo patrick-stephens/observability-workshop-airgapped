@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Prometheus workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Lab 1 - Prometheus</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-PW25SPMWGG"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-PW25SPMWGG');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 1 - Introduction to Prometheus</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>This lab introduces you to the Prometheus project and provides you with an
+							understanding of its role in the cloud native observability community.</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 130px;">
+						<h3 class="r-fit-text">Under the CNCF umbrella</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						Prometheus is an open-source systems monitoring and alerting toolkit originally built at
+						SoundCloud in 2016. Prometheus joined the Cloud Native Computing Foundation (CNCF) on 9 May 2016
+						as the second hosted project, after Kubernetes, and it's obtained <b>Graduated</b> project status:<br /><br />
+						<ul>
+							<li><a href="https://prometheus.io" target="_blank">Prometheus project</a></li>
+							<li><a href="https://prometheus.io/community" target="_blank">Community and contributing guide</a></li>
+							<li>First commit: <a href="https://github.com/prometheus/prometheus/commit/734d28b515026ca9f429eba0a7d09954bceb6387" target="_blank">24 Nov 2012 (Matt T. Proud)</a></li>
+						</ul>
+					</div>
+					<div style="height: 250px; text-align: left">
+						<img src="images/lab01-1.png" alt="CNCF Prom">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h3 class="r-fit-text">First, what's a data point?</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						Before we get into Prometheus, let's take a moment to look at what these data points are that
+						Prometheus is collecting. Observability data has a lifecycle with a number of different stages
+						that all present interesting challenges:<br /><br />
+						<ul>
+							<li>Collection - deploy, discover and scale to match the workload</li>
+							<li>Transport and store reliably</li>
+							<li>Ability to query in a performant way</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h3 class="r-fit-text">Life of a data point (collection)</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						A bee collecting nectar from flowers in a field makes a great analogy as to how data,
+						data points, collection, transport and storage work with Prometheus. The flowers in the field
+						hold the nectar to be collected. These monitoring targets (flowers) hold the data points
+						(nectar) that the bee collects (scraping) and then transports (exports) back to the hive (storage).
+					</div>
+					<div style="height: 200px; text-align: left;">
+						<img src="images/lab01-2.jpg" alt="bee">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h3 class="r-fit-text">Life of a data point (transport)</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						Prometheus has the ability to find and scrape targets for data and collect them in a data
+						storage format for later analysis (query and alerts). Using exporters it can transport the
+						data back to time-series storage, just as bees are the transport mechanism for nectar back to
+						the hive.
+					</div>
+					<div style="height: 200px;">
+						<img src="images/lab01-3.jpg" alt="bee flying">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h3 class="r-fit-text">Life of a data point (query)</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Once in storage, Prometheus provides a query language that can then be used on this data
+						collection to generate reports, dashboard visualizations, and monitoring alerts. This is how
+						we turn our collected nectar (data points) into honey (visualizations).
+					</div>
+					<div style="height: 200px; text-align: right;">
+						<img src="images/lab01-4.jpg" alt="hive">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h3 class="r-fit-text">What is Prometheus?</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						Prometheus is a metrics-based monitoring and alerting stack that provides libraries and server
+						components for:<br /><br />
+						<ul>
+							<li>Tracking and exposing metrics (instrumentation)</li>
+							<li>Collecting metrics</li>
+							<li>Storing metrics</li>
+							<li>Querying metrics for alerting, dashboard and visualization, etc</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 130px;">
+						<h3 class="r-fit-text">Why we are exploring Prometheus?</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						There are good reasons as to why you might want to try out Prometheus as you metrics
+						collection tooling as part of your open cloud native observability stack:<br /><br />
+						<ul style="font-size: x-large">
+							<li>Part of CNCF - graduated project, meaning in use across industries</li>
+							<li>Easy getting started - very low bar to entry, single binary installations</li>
+							<li><b>Open source standards</b> - ingestion protocol and query language (PromQL)</li>
+							<li>End point discovery - dynamic discovery on many platforms</li>
+							<li>Ecosystem of exporters - integration with many projects and languages</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 130px;">
+						<h3 class="r-fit-text">Quick look at Prometheus</h3>
+					</div>
+					<div style="height: 40px; text-align: left; font-size: xx-large;">
+						Prometheus as a user views a dashboard based on a PromQL query:
+					</div>
+					<div style="height: 450px;">
+						<img src="images/lab01-5.png" alt="prometheus">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 130px;">
+						<h3 class="r-fit-text">What does Prometheus not do?</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						It's also important to understand what Prometheus explicitly does not aim to solve:<br /><br />
+						<ul>
+							<li>Logging or tracing - only handles numeric metrics, known as time series</li>
+							<li>Machine learning or AI-based anomaly detection</li>
+							<li>Horizontally scalable, cluster storage</li>
+						</ul>
+						<br /><br />
+						These features are left to other systems to tackle alongside Prometheus in your architecture.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic architecture - Prometheus</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						Let's walk through the basic overview of how Prometheus is most commonly used, starting with
+						first deploying Prometheus with its default in memory time series database (TSDB):<br /><br />
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab01-6.png" alt="prometheus">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic architecture - Instrumented services</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						You can configure Prometheus to scrape instrumented services that use a specific client library:<br /><br />
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab01-7.png" alt="prometheus">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic architecture - Third-party services</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						You can configure Prometheus to scrape third-party services using one of many available exporters:<br /><br />
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab01-8.png" alt="prometheus">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic architecture - Device metrics</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						You can configure Prometheus to scrape devices using one of many available exporters:<br /><br />
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab01-9.png" alt="prometheus">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic architecture - Service discovery</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						Instead of static configuration for each service, device, pod, or container, Prometheus offers
+						a service discovery mechanism to detect dynamic endpoints (pods, containers, services, etc.) as
+						they spin up:<br /><br />
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab01-10.png" alt="prometheus">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic architecture - Dashboard and visualization</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Dashboards provide users visual representations of the gathered metrics data and is pulled from
+						the TSDB using the Prometheus Query Language (PromQL). The Prometheus console ships with a
+						built-in PromQL query builder, analyzer, and visualizer, great for learning PromQL:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab01-11.png" alt="prometheus">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic architecture - Alert manager</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						Alert Manager uses queries to decide when notifications need to trigger by setting thresholds
+						that cause actions to be defined when they are reached:<br /><br />
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab01-12.png" alt="prometheus">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Basic architecture - Sending notifications</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						Notifications that trigger through the Alert Manager can be sent to many different options as
+						shown:<br /><br />
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab01-13.png" alt="prometheus">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">What's in the Prometheus toolbox?</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						Prometheus has powerful tools and features to assist you in monitoring your distributed systems:<br /><br />
+						<ul style="font-size: x-large;">
+							<li><b>Dimensional data model</b> - for multi-faceted tracking of metrics</li>
+							<li><b>Query language</b> - PromQL provides a powerful syntax to gather flexible answers
+							across your gathered metrics data</li>
+							<li><b>Time series processing</b> - integration of metrics time series data processing and alerting</li>
+							<li><b>Service discovery</b> - integrated discovery of systems and services in dynamic environments</li>
+							<li><b>Simplicity and efficiency</b> - operational ease combined with implementation in Go language</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Dimensional data model</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Prometheus has defined a data model for tracking metrics known as time series, or streams of
+						numeric values sampled over continuous timestamps. A visual representation below shows how each
+						series (flow of values) is sampled over set time intervals:<br /><br />
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab01-14.png" alt="prometheus">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Time series - Identifiers and sample values</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						A time series is made up of an <code>identifier</code> and a set of <code>sample values</code>.
+						Below you see an example for each one:<br />
+						<br />
+						<ul>
+							<li><b>Time series identifier</b></li>
+							<code>http_requests_total{job="apiserver", handler="/api/comments"}</code>
+							<br />
+							<br />
+							<li><b>Sample values (timestamp, value)</b></li>
+							<code>(t1, v1), (t2, v2), ...</code>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Time series - Metric name and labels </h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						Breaking down the <code>identifier</code> further, we get to the <code>metric name</code> and
+						<code>labels</code> as shown below with the previous example:<br />
+						<br />
+						<ul>
+							<li><b>Metric name</b></li>
+							<code>http_requests_total</code>
+							<br />
+							<br />
+							<li><b>Labels</b></li>
+							<ul>
+								<li><code>job="apiserver"</code></li>
+								<ul style="font-size: large;">
+									<li>label name = job</li>
+									<li>label value = "apiserver"</li>
+								</ul>
+								<li><code>handler="/api/comments"</code></li>
+								<ul style="font-size: large;">
+									<li>label name = handler</li>
+									<li>label value = "/api/comments"</li>
+								</ul>
+							</ul>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">What do metrics look like in transit?</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Say you are running a service and having Prometheus scrape metrics from an exposed HTTP
+						endpoint. The output of this endpoint is very human-readable, for example:
+					</div>
+					<div style="height: 150px;">
+						<pre><code data-trim data-noescape>
+							# HELP demo_num_cpus The number of CPUs.
+							# TYPE demo_num_cpus gauge
+							demo_num_cpus 4
+							...
+						</code></pre>
+
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<a href="http://demo.promlabs.com:10000/metrics" target="_blank">PromLabs provides an example
+							endpoint (click here to open)</a> where you can view the output in your browser.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h3 class="r-fit-text">Prometheus - Query language</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						Now that we have data collected by Prometheus, what can we do with it? Luckily, there's PromQL,
+						a functional language that is optimized for evaluating flexible and efficient computations on
+						time series data. In contrast to SQL-like languages, PromQL is only used for reading data, not
+						for inserting, updating, or deleting data. The Prometheus console gives you a query tree and an
+						<code><b>EXPLAIN</b></code> tab for learning and ease of use. In a later lab you will become
+						familiar with PromQL.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">What does PromQL look like?</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						For now let's just take a quick look at what a simple query on a metric looks like. The tool
+						pictured here is <b>PromLens</b>, a standalone project that was archived in 2026 after its query
+						view was merged into the Prometheus console. That console is what you'll be using later in this
+						workshop, so treat this as a look at where the tooling came from:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab01-15.png" alt="prometheus">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Time series processing</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: x-large;">
+						Prometheus provides an integrated alerting engine for processing PromQL based alerting rules. An
+						example rule for alerting could look like this:
+					</div>
+					<div style="height: 300px;">
+						<pre><code data-trim data-noescape>
+							groups:
+							- name: example
+							  rules:
+							  - alert: HighRequestLatency
+							    expr: job:request_latency_seconds:mean5m{job="myjob"} > 0.5
+							    for: 10m
+							    labels:
+							      severity: page
+							    annotations:
+							      summary: High request latency
+						</code></pre>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						This alert rule fires if Prometheus finds a latency for "myjob" greater than 0.5s and the alert
+						continues to be active during each evaluation for 10m. The labels allow adding a set of
+						additional labels to an alert. We'll explore alerts further later in this workshop.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Prometheus - Service discovery</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Modern infrastructure architectures are both dynamic and challenging with cloud native leading
+						the way in the level of dynamic complexity it generates for observability. Cloud environments,
+						virtual machines, container orchestration, and microservices are all needs for integration with
+						common cloud native service discovery providers.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Service discovery architecture</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Prometheus integrates service discovery to achieve the following:<br /><br />
+						<ul style="font-size: x-large;">
+							<li>Create view of what targets should exist, to alert if any are missing</li>
+							<li>Obtain technical insights into how to pull metrics from any target via HTTP</li>
+							<li>Enriching collected time series data with labeled metrics about the target</li>
+						</ul>
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab01-16.png" alt="prometheus">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Simplicity and efficiency</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						Prometheus is designed to be conceptually simple and easy to operate due to the following:<br /><br />
+						<ul>
+							<li>Written in Go, released static binaries deployed without dependencies</li>
+							<li>No external runtime (JVM) or shared system libraries needed</li>
+							<li>Highly optimized scraping and parsing of incoming metrics</li>
+							<li>Highly optimized reading and writing to its TSDB</li>
+							<li>Highly optimized evaluation of PromQL queries on TSDB data</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - What about at cloud native scale?</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Each Prometheus server operates independently and is storing data locally without clustering
+						or replication. When you need to set up high availability (HA), for example with alerting, for
+						your observability solution you'll quickly discover the design has limits. Below the simple
+						design of Prometheus in a HA setup, it's now generating duplicate alerts:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab01-17.png" alt="prometheus"><br />
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Don't worry, running Prometheus at scale is covered in later lab in this workshop!
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						You have gained a basic understanding of the Prometheus project, what it is designed to do,
+						what it can not do. We looked at what a data point is, walked through the Prometheus
+						architecture, metrics, time series data, and touched on the PromQL query language. Finally,
+						we learned what service discovery and finally touched on the simple design limits on Prometheus
+						at scale.<br />
+						<br />
+						Next up, installing Prometheus project on your machine...
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://youtu.be/KJvUyP4c1NQ" target="_blank">Video introduction to workshop (Open Source Edinburgh meetup)</a></li>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-prometheus" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://prometheus.io" target="_blank">Prometheus project</a></li>
+							<li><a href="https://github.com/prometheus/promlens" target="_blank">PromLens project (archived, now the Prometheus EXPLAIN tab)</a></li>
+							<li><a href="https://github.com/perses/perses" target="_blank">Perses project</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-prometheus/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Director Evangelism<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop... </h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab02.html" target="_blank">Lab 2 - Installing Prometheus</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMenu, RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+	</body>
+</html>

@@ -1,0 +1,69 @@
+opentelemetry/lab02-rancher.html: multiple embedded Dockerfiles; syntax/base-image scan is best-effort
+opentelemetry/lab02-rancher.html: build context is missing or outside the repository: workshop-opentelemetry/intro-to-instrument-VERSION
+opentelemetry/lab02-rancher.html: multiple embedded Dockerfiles; syntax/base-image scan is best-effort
+opentelemetry/lab02-rancher.html: build context is missing or outside the repository: workshop-opentelemetry/intro-to-instrument-VERSION
+opentelemetry/lab02-rancher.html: multiple embedded Dockerfiles; syntax/base-image scan is best-effort
+opentelemetry/lab02-rancher.html: build context is missing or outside the repository: workshop-opentelemetry/intro-to-instrument-VERSION
+opentelemetry/lab02.html: multiple embedded Dockerfiles; syntax/base-image scan is best-effort
+opentelemetry/lab02.html: build context is missing or outside the repository: workshop-opentelemetry/intro-to-instrument-[VERSION]
+opentelemetry/lab02.html: multiple embedded Dockerfiles; syntax/base-image scan is best-effort
+opentelemetry/lab02.html: build context is missing or outside the repository: workshop-opentelemetry/intro-to-instrument-[VERSION]
+opentelemetry/lab02.html: multiple embedded Dockerfiles; syntax/base-image scan is best-effort
+opentelemetry/lab02.html: build context is missing or outside the repository: workshop-opentelemetry/intro-to-instrument-[VERSION]
+opentelemetry/lab03-rancher.html: multiple embedded Dockerfiles; syntax/base-image scan is best-effort
+opentelemetry/lab03-rancher.html: multiple embedded Dockerfiles; syntax/base-image scan is best-effort
+opentelemetry/lab03.html: multiple embedded Dockerfiles; syntax/base-image scan is best-effort
+opentelemetry/lab03.html: multiple embedded Dockerfiles; syntax/base-image scan is best-effort
+opentelemetry/lab06-rancher.html: multiple embedded Dockerfiles; syntax/base-image scan is best-effort
+opentelemetry/lab06-rancher.html: multiple embedded Dockerfiles; syntax/base-image scan is best-effort
+opentelemetry/lab06-rancher.html: multiple embedded Dockerfiles; syntax/base-image scan is best-effort
+opentelemetry/lab06-rancher.html: multiple embedded Dockerfiles; syntax/base-image scan is best-effort
+opentelemetry/lab06.html: multiple embedded Dockerfiles; syntax/base-image scan is best-effort
+opentelemetry/lab06.html: multiple embedded Dockerfiles; syntax/base-image scan is best-effort
+opentelemetry/lab06.html: multiple embedded Dockerfiles; syntax/base-image scan is best-effort
+opentelemetry/lab06.html: multiple embedded Dockerfiles; syntax/base-image scan is best-effort
+otel-developers/lab02-rancher.html: multiple embedded Dockerfiles; syntax/base-image scan is best-effort
+otel-developers/lab02-rancher.html: build context is missing or outside the repository: opentelemetry-java-tracing-demo-{VERSION}
+otel-developers/lab02-rancher.html: multiple embedded Dockerfiles; syntax/base-image scan is best-effort
+otel-developers/lab02-rancher.html: build context is missing or outside the repository: opentelemetry-java-tracing-demo-{VERSION}
+otel-developers/lab02-rancher.html: multiple embedded Dockerfiles; syntax/base-image scan is best-effort
+otel-developers/lab02-rancher.html: build context is missing or outside the repository: opentelemetry-java-tracing-demo-{VERSION}
+otel-developers/lab02-rancher.html: multiple embedded Dockerfiles; syntax/base-image scan is best-effort
+otel-developers/lab02-rancher.html: build context is missing or outside the repository: opentelemetry-java-tracing-demo-{VERSION}
+otel-developers/lab02.html: multiple embedded Dockerfiles; syntax/base-image scan is best-effort
+otel-developers/lab02.html: build context is missing or outside the repository: opentelemetry-java-tracing-demo-{VERSION}
+otel-developers/lab02.html: multiple embedded Dockerfiles; syntax/base-image scan is best-effort
+otel-developers/lab02.html: build context is missing or outside the repository: opentelemetry-java-tracing-demo-{VERSION}
+otel-developers/lab02.html: multiple embedded Dockerfiles; syntax/base-image scan is best-effort
+otel-developers/lab02.html: build context is missing or outside the repository: opentelemetry-java-tracing-demo-{VERSION}
+otel-developers/lab05-rancher.html: no readable or embedded Dockerfile for build context .
+otel-developers/lab05-rancher.html: no readable or embedded Dockerfile for build context .
+otel-developers/lab05-rancher.html: no readable or embedded Dockerfile for build context .
+otel-developers/lab05-rancher.html: no readable or embedded Dockerfile for build context .
+prometheus/lab02-podman.html: build context is missing or outside the repository: workshop-prometheus
+prometheus/lab02-podman.html: build context is missing or outside the repository: workshop-prometheus
+prometheus/lab03-rancher.html: build context is missing or outside the repository: installs/demo
+prometheus/lab03-rancher.html: no readable or embedded Dockerfile for build context installs/demo
+prometheus/lab07-podman.html: no readable or embedded Dockerfile for build context .
+prometheus/lab07-rancher.html: build context is missing or outside the repository: installs/demo
+prometheus/lab07-rancher.html: no readable or embedded Dockerfile for build context installs/demo
+prometheus/lab08-podman.html: build context is missing or outside the repository: prometheus-java-metrics-demo-v0.5
+prometheus/lab08-podman.html: build context is missing or outside the repository: prometheus-java-metrics-demo-v0.5
+prometheus/lab08-podman.html: build context is missing or outside the repository: prometheus-java-metrics-demo-v0.5
+prometheus/lab08-podman.html: build context is missing or outside the repository: prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5
+prometheus/lab08-podman.html: build context is missing or outside the repository: prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5
+prometheus/lab08-podman.html: build context is missing or outside the repository: prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5
+prometheus/lab08-podman.html: build context is missing or outside the repository: prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5
+prometheus/lab08-podman.html: build context is missing or outside the repository: prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5
+prometheus/lab08-podman.html: build context is missing or outside the repository: prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5
+prometheus/lab08-podman.html: build context is missing or outside the repository: prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5
+prometheus/lab08-podman.html: build context is missing or outside the repository: prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5
+prometheus/lab08-rancher.html: build context is missing or outside the repository: prometheus-java-metrics-demo-v0.5
+prometheus/lab08-rancher.html: build context is missing or outside the repository: prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5
+prometheus/lab08-rancher.html: build context is missing or outside the repository: prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5
+prometheus/lab08-rancher.html: build context is missing or outside the repository: prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5
+prometheus/lab08-rancher.html: build context is missing or outside the repository: prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5
+prometheus/lab08-rancher.html: build context is missing or outside the repository: prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5
+prometheus/lab08-rancher.html: build context is missing or outside the repository: prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5
+prometheus/lab08-rancher.html: build context is missing or outside the repository: prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5
+fluentbit/lab09.html: no readable or embedded Dockerfile for build context .

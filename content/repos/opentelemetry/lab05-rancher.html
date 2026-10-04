@@ -1,0 +1,741 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="OpenTelemetry Workshop">
+		<meta name="author" content="Paige Cruz">
+
+		<title>Lab 5 - Manual Instrumentation (Rancher k3s)</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-33MFF345ZY"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-33MFF345ZY');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Rancher k3s prerequisites</h2>
+					</div>
+					<div style="height: 160px; text-align: left; font-size: xx-large;">
+						This path builds the demo application image with
+						<a href="https://podman.io/" target="_blank">Podman</a> and runs it on a local
+						<a href="https://rancherdesktop.io/" target="_blank">Rancher Desktop</a> k3s cluster, with
+						<code>kubectl</code> and <code>nerdctl</code> on your PATH. Start Rancher Desktop if it is not
+						already running:
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ rdctl start
+							</code>
+						</pre>
+					</div>
+					<div style="height: 180px; text-align: left; font-size: xx-large;">
+						<ul>
+							<li>In <b>Preferences → Kubernetes</b>, confirm "Enable Kubernetes" is checked (k3s)</li>
+							<li>In <b>Container Engine</b>, confirm "containerd" is selected</li>
+							<li>Wait for the status indicator to turn green and show "Kubernetes is running"</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Verifying the cluster</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Confirm the cluster is up and <code>kubectl</code> is pointed at it (versions shown might
+						differ for you):
+					</div>
+					<div style="height: 150px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl config current-context
+								rancher-desktop
+
+								$ kubectl get nodes
+								NAME                   STATUS   ROLES                  AGE   VERSION
+								lima-rancher-desktop   Ready    control-plane,master   2d    v1.36.2+k3s1
+							</code>
+						</pre>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: xx-large;">
+						Now that you have the tooling, let's get started...
+					</div>
+				</section>
+
+                <section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Instrumentation by hand</h2>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						<p>Automatic and programmatic instrumentation gets you <em>most</em> of the way to tracing
+						   system interactions, but being able to manually instrument and add metadata specific to your
+						   application or business will allow you to derive better insights faster. </p>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Adding Span Attribute</h2>
+					</div>
+					<div style="height: 280px; text-align: left; font-size: xx-large;">
+						Attributes are key-value pairs that contain metadata to annotate a span with information about the operation it is tracking <br />
+						<br />
+						<ul>
+							<li><code><b>span.set_attribute("KEY","VALUE")</b></code> </li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Adding a Span Attribute</h2>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Open <strong>manual/app.py</strong> and import get_current_span from the API
+						<br/><br/>
+						Then add an attribute tracking the count of homepage loads to the index() method:
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								<mark>from opentelemetry import trace</mark>
+								from opentelemetry.trace import set_tracer_provider, <mark>get_current_span</mark>
+								from opentelemetry.sdk.trace import TracerProvider
+								from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+								from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+								...
+								...
+							@app.route('/')
+							def index():
+								<mark>span = trace.get_current_span()</mark>
+								global HITS
+								HITS = HITS + 1
+								<mark>span.set_attribute("hits", HITS)</mark>
+								msg = f'This webpage has been viewed {HITS} times'
+								return msg
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Manual - Build image & run on k3s</h2>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: x-large;">
+						Podman builds the image locally, but k3s runs inside Rancher Desktop's own VM with a separate
+						containerd image store, so the image has to be exported and loaded into the VM's
+						<code>k8s.io</code> namespace where kubelet looks for it. The pod is then recreated to pick up
+						the new image. <b>You will repeat this same cycle after every code change in this lab</b>. The
+						Jaeger image is pulled from the registry, so <code>kubectl wait</code> blocks until the pod is
+						ready - without it <code>port-forward</code> fails with "unable to forward port because pod is
+						not running". Note <code>port-forward</code> holds its terminal and dies with the pod, so it is
+						restarted each time:
+					</div>
+					<div style="height: 260px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t hello-otel:manual -f manual/Buildfile-manual
+
+								$ podman save localhost/hello-otel:manual -o hello-otel-manual.tar
+
+								$ nerdctl --namespace k8s.io load -i hello-otel-manual.tar
+
+								$ kubectl delete -f manual/app_pod.yaml --ignore-not-found
+
+								$ kubectl apply -f manual/app_pod.yaml
+
+								$ kubectl wait --for=condition=Ready pod/hello-otel-manual --timeout=180s
+
+								$ kubectl port-forward pod/hello-otel-manual 8001:5000 16686:16686
+							</code>
+						</pre>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: large;">
+						Note: if <code>nerdctl</code> fails with "cannot access containerd socket", your Container
+						Engine is set to <b>dockerd</b> instead of containerd - either switch it in Preferences, or
+						use <code>docker load -i hello-otel-manual.tar</code> for every import in this lab.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Generate Traces</h2>
+					</div>
+					<div style="height: 280px; text-align: left;">
+						In a second terminal or a browser, make a few requests to the home page
+						<a href="http://localhost:8001" target="_blank">http://localhost:8001</a> <br/><br/>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Verify Span Attribute</h2>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						Open the Jaeger UI at <a href="http://localhost:16686" target="_blank">http://localhost:16686</a>
+						and search for traces for the operation <code><b>/</b></code>:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab05-trace-search.png" alt="span attr">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Verify Span Attribute</h2>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: xx-large;">
+						Click on a trace and confirm the <code><b>hits</b></code> attribute is in span details:
+					</div>
+					<div style="height: 380px;">
+						<img src="images/lab05-span-attr.png" alt="span attr">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Deleting the pod</h2>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						Stop the <code>port-forward</code> with CTRL-C, then delete the pod and look to adding manually
+						instrumented nested spans:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete -f manual/app_pod.yaml
+								pod "hello-otel-manual" deleted
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Manual - Enhancing programmatic instrumentation</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						The instrumented <em>requests</em> library provides data about requests to the Dog API
+						but not custom methods <strong>get_breed()</strong> or <strong>validate_breed()</strong>. To
+						capture that work in <strong>/doggo</strong> traces we can manually instrument nested spans to
+						reflect the hierarchical relationship:<br/>
+						<br/>
+						<ul>
+							<li><code><b>tracer.start_as_current_span()</b></code> - creates a new span within the
+								current trace context.</li>
+						</ul>
+					</div>
+
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Access tracer</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Open <strong>manual/app.py</strong> and get access to the global tracer - this is what actually
+						creates and manages spans:
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								app = Flask("hello-otel")
+
+								FlaskInstrumentor().instrument_app(app)
+								Jinja2Instrumentor().instrument()
+								RequestsInstrumentor().instrument()
+								<mark>tracer = provider.get_tracer(app.name)</mark>
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Instrument nested span</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Continue on down the file by navigating to <strong>get_breed()</strong> and create
+						a nested span:
+					</div>
+					<div style="height: 80px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								def get_breed(url):
+								    <mark>with tracer.start_as_current_span("get_breed"):</mark>
+										    path = urllib3.util.parse_url(url).path
+										    match = re.search(r"/breeds/([^/]+)/", path)
+										    if match:
+											    result = match.group(1)
+											  return result
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Manual - Rebuild and run on k3s</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Run the rebuild cycle again so the cluster picks up your change:
+					</div>
+					<div style="height: 380px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t hello-otel:manual -f manual/Buildfile-manual
+
+								$ podman save localhost/hello-otel:manual -o hello-otel-manual.tar
+
+								$ nerdctl --namespace k8s.io load -i hello-otel-manual.tar
+
+								$ kubectl delete -f manual/app_pod.yaml --ignore-not-found
+
+								$ kubectl apply -f manual/app_pod.yaml
+
+								$ kubectl wait --for=condition=Ready pod/hello-otel-manual --timeout=180s
+
+								$ kubectl port-forward pod/hello-otel-manual 8001:5000 16686:16686
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Generating several traces</h2>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						In a browser, make a few requests to
+						<a href="http://localhost:8001/doggo" target="_blank">http://localhost:8001/doggo</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Verify nested span</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Open the Jaeger UI at <a href="http://localhost:16686" target="_blank">http://localhost:16686</a>
+						and search for traces for the operation <code><b>/doggo</b></code>. You should see that the span
+						count has increased but to confirm, click on a trace:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab-05-nested-trace-search.png" alt="span attr">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Verify nested span</h2>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						The trace waterfall should show one span for the overall request to <code><b>/doggo</b></code>,
+						the <code><b>GET</b></code> request to the Dog API, and the operation
+						<code><b>get_breed()</b></code> to give a fuller picture of where time is spent
+						fulfilling requests to <code><b>/doggo</b></code>:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab-05-nested-span-get-breed.png" alt="span attr">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Visualizing a trace graph</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						The trace waterfall is one of many ways to visualize a trace. Click on the menu in the upper right
+						corner and select Trace Graph:
+					</div>
+					<div style="height: 350px; text-align: center;">
+						<img src="images/lab-05-trace-graph-doggo.png" alt="trace graph">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Trace graph by time</h2>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: xx-large;">
+						<p>Clicking on the <code><b>T</b></code> over on the right hand vertical menu bar colors the
+							<code><b>critical path</b></code>, or the spans that directly contribute to the slowest path of
+							processing this request:
+						</p>
+					</div>
+					<div style="height: 400px; text-align: center;">
+						<img src="images/lab-05-doggo-trace-graph-by-time.png" alt="trace graph">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Visualizing complex trace graphs</h2>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: xx-large;">
+						While we are working with small traces today, this example with 160 spans shows how powerful
+						this birds eye view can be for more complex traces:
+					</div>
+					<div style="height: 350px; text-align: center;">
+						<img src="images/lab05-tracegraph-example.png" alt="trace graph">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Deleting the pod</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Stop the <code>port-forward</code> with CTRL-C, then delete the pod and move on to adding more
+						span events:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete -f manual/app_pod.yaml
+								pod "hello-otel-manual" deleted
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Adding span events</h2>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						An event contains a structured log with a name and 1+ attributes and a timestamp:<br />
+						<br />
+						<ul>
+							<li><code><b>span.add_event(name, attributes)</b></code> - adds structured annotation to current span</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Add span event</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Open <strong>manual/app.py</strong> and add a span event representing the result of the dice roll to
+						the <strong>roll_dice()</strong> method:
+					</div>
+					<div style="height: 120px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								@app.route("/rolldice")
+								def roll_dice():
+									<mark>sp = trace.get_current_span()</mark>
+									result = do_roll()
+									<mark>sp.add_event("rolled dice",attributes={"result":result})</mark>
+									return result
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Manual - Rebuild and run on k3s</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Run the rebuild cycle again so the cluster picks up your change:
+					</div>
+					<div style="height: 380px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t hello-otel:manual -f manual/Buildfile-manual
+
+								$ podman save localhost/hello-otel:manual -o hello-otel-manual.tar
+
+								$ nerdctl --namespace k8s.io load -i hello-otel-manual.tar
+
+								$ kubectl delete -f manual/app_pod.yaml --ignore-not-found
+
+								$ kubectl apply -f manual/app_pod.yaml
+
+								$ kubectl wait --for=condition=Ready pod/hello-otel-manual --timeout=180s
+
+								$ kubectl port-forward pod/hello-otel-manual 8001:5000 16686:16686
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Generate traces</h2>
+					</div>
+					<div style="height: 150px; text-align: left;">
+						Open a browser and make a couple of requests to:
+						<a href="http://localhost:8001/rolldice" target="_blank">http://localhost:8001/rolldice</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Verify span event</h2>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						Open the Jaeger UI at <a href="http://localhost:16686" target="_blank">http://localhost:16686</a>
+						and search for traces to <code><b>/rolldice</b></code> and click on a trace:
+					</div>
+					<div style="height: 350px; text-align: center;">
+						<img src="images/lab05-spanevent-traces.png" alt="hello-otel">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Verify Span Event</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Note that the timestamp associated with this span event is relative to the start time of the
+						trace itself:
+					</div>
+					<div style="height: 300px; text-align: center;">
+						<img src="images/lab05-spanevent-detail.png" alt="span event">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Deleting the pod</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Stop the <code>port-forward</code> with CTRL-C, then delete the pod and move on to exploring
+						span status:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete -f manual/app_pod.yaml
+								pod "hello-otel-manual" deleted
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - What is Span status</h2>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						A span status is typically used to identify spans that have not completed successfully and can
+						be set any time before the span is finished.<br />
+						<br/>Spans can have a status of: Unset, OK, or Error.<br/>
+						<br />
+						<ul>
+							<li>span.set_status(status,description)</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Span status for /doggo</h2>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						The <strong>/doggo</strong> page allows users to search for images of a specific dog breed.
+						If the search term is invalid, an error message is returned to the user and the request
+						successfully returns 200 OK.<br />
+						<br/>
+						If we consider invalid searches to be errors, we need to instrument <strong>validate_breed()</strong>. This will not make the
+						entire trace "failed" but noting the error on a span will be helpful visibility!
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Adding a Span status</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Open <strong>manual/app.py</strong> and locate <strong>validate_breed()</strong> - create a
+						nested span and add an attribute for breed to help us understand what the user was searching for:
+					</div>
+					<div style="height: 220px; text-align: left; font-size:xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								def validate_breed(breed):
+								  <mark>with tracer.start_as_current_span("validate_breed") as span:</mark>
+									  <mark>span.set_attribute("breed", breed)</mark>
+									  if breed not in breeds:
+									    raise ValueError("No breed found.")
+								    return
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Manual - Rebuild and run on k3s</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Run the rebuild cycle one last time so the cluster picks up your change:
+					</div>
+					<div style="height: 380px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t hello-otel:manual -f manual/Buildfile-manual
+
+								$ podman save localhost/hello-otel:manual -o hello-otel-manual.tar
+
+								$ nerdctl --namespace k8s.io load -i hello-otel-manual.tar
+
+								$ kubectl delete -f manual/app_pod.yaml --ignore-not-found
+
+								$ kubectl apply -f manual/app_pod.yaml
+
+								$ kubectl wait --for=condition=Ready pod/hello-otel-manual --timeout=180s
+
+								$ kubectl port-forward pod/hello-otel-manual 8001:5000 16686:16686
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Generating several traces</h2>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						Open a browser and make several requests to the <code><b>/doggo</b></code> endpoint:<br />
+						<br />
+						<a href="http://localhost:8001/doggo" target="_blank">http://localhost:8001/doggo</a><br/>
+						<br/>
+						Search for valid dog breeds like "doberman" or "Akita" and nonsense terms like "woof":
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab05-invalid-search-after.png" alt="invalid after search">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Verify span status</h2>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						Open the Jaeger UI at <a href="http://localhost:16686" target="_blank">http://localhost:16686</a>
+						and search for traces for the operation <code><b>/doggo</b></code>. Verify that there is at
+						least one trace with a successful request marked with an error. Click that trace to see the
+						detail view:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab05-recorderror.png" alt="record error">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Verify span status</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Confirm that the error message is recorded on the search_breed span and that the
+						breed is recorded as a span attribute:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab-05-span-status-detail.png" alt="details error">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 100px; font-size: x-large;">
+						We combined programmatic and manual instrumentation to enhance the visibility provided by traces
+						including created nested spans, adding attributes, recording errors and searching the
+						OpenTelemetry registry.
+					</div>
+					<div style="height: 320px; padding-bottom: 30px;">
+						<img src="images/lab-05-span-status-detail.png" alt="details error">
+					</div>
+					<div style="height: 50px; font-size: x-large;">
+						Next up, linking distributed traces to application metrics!
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://rancherdesktop.io/" target="_blank">Rancher Desktop</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-opentelemetry" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact – are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Technology Advocate Lead<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab06.html" target="_blank">Lab 6 - Traces &amp; Metrics</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

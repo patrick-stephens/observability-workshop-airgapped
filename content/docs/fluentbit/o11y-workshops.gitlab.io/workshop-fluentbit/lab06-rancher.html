@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Fluent Bit workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Telemetry Pipelines Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-799E08H5WD"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-799E08H5WD');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+
+<!--
+				<section>
+					<h3 class="r-fit-text">Lab 6 - Avoiding telemetry data loss (k3s)</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>
+							This lab explores how to avoid losing telemetry data in your telemetry pipeline with
+							Fluent Bit, this time running on Kubernetes (k3s) with Rancher Desktop.
+						</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss - The problem statement</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: x-large;">
+						In the previous lab we explored how input plugins can hit their ingestion limits when our
+						telemetry pipelines scale beyond memory limits when using default in-memory buffering of our
+						events.<br />
+						<br />
+						We also saw that we can limit the size of our input plugin buffers to prevent our pipeline from
+						failing on out-of-memory errors. We also saw the pausing of the ingestion can also lead to data loss
+						if the clearing of the input buffers takes too long.<br />
+						<br />
+						In this lab, we'll explore another buffering solution that Fluent Bit offers to ensure data and
+						memory safety at scale by configuring
+						<a href="https://docs.fluentbit.io/manual/administration/buffering-and-storage" target="_blank">
+							filesystem buffering
+						</a>.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss - The solution background</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: x-large;">
+						Let's explore how the Fluent Bit engine processes data that input plugins emit. When an input
+						plugin emits events, the engine groups them in a
+						<b><a href="https://docs.fluentbit.io/manual/administration/buffering-and-storage#chunks-memory-filesystem-and-backpressure" target="_blank">
+							Chunk
+						</a></b>. A Chunk size is around 2MB. The default is for the engine to place this Chunk only
+						in memory.<br />
+						<br />
+						We saw that limiting in-memory buffer size did not solve the problem, so we are looking at
+						modifying this default behavior of only placing Chunk's into memory. This is done by changing
+						the property <code><b>storage.type</b></code> from the default <code><b>Memory</b></code> to
+						<code><b>Filesystem</b></code>.<br />
+						<br />
+						It's important to understand that <code><b>Memory</b></code> and <code><b>Filesystem</b></code>
+						buffering mechanisms are not mutually exclusive. By enabling filesystem buffering for our input
+						plugin we automatically get performance and data safety.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Filesystem configuration tips</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						By changing our buffering from memory to filesystem with the property
+						<code><b>storage.type filesystem</b></code>, the settings for <code><b>mem_buf_limit</b></code>
+						are ignored.<br />
+						<br />
+						Instead, we need to use the property <code><b>storage.max_chunks_up</b></code> for controlling
+						the size of our memory buffer. Shockingly, when using the default settings the property
+						<code><b>storage.pause_on_chunks_overlimit</b></code> is set to <code><b>off</b></code>, causing
+						the input plugins not to pause. Instead, input plugins will switch to buffering into the
+						filesystem only. We can control the amount of disk space used with
+						<code><b>storage.total_limit_size</b></code>.<br />
+						<br />
+						If the property <code><b>storage.pause_on_chunks_overlimit</b></code> is set to
+						<code><b>on</b></code>, then the buffering mechanism to the filesystem behaves just like our
+						<code><b>mem_buf_limit</b></code> scenario demonstrated in the previous lab.
+					</div>
+				</section>
+-->
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss - Same OOM, different mechanism</h3>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: x-large;">
+						Just as in the backpressure lab, the OOM kill on Kubernetes is not a container-runtime feature,
+						it is the Linux kernel <code><b>cgroup</b></code> memory limit and its OOM killer. On the Podman
+						path we set that limit with <code><b>--memory</b></code>. On Kubernetes we set it with
+						<code><b>resources.limits.memory</b></code> on the pod's container.<br />
+						<br />
+						We again assume you deployed Fluent Bit onto k3s with Rancher Desktop back in labs 3 - 5, so it is
+						already running from the Helm values file <code><b>workshop-fb-helm.yaml</b></code>. If not, make sure
+						you have Rancher Desktop running before continuing. We'll first reproduce the data loss (OOMKilled)
+						pipeline, then fix it with filesystem buffering.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss - Configuration inputs (k3s)</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						We begin with the <code><b>INPUT</b></code> phase, a simple dummy plugin generating a large
+						amount of entries to flood our pipeline (note the previous <code><b>mem_buf_limit</b></code>
+						fix is commented out). Update the <code><b>extraFiles</b></code> block in
+						<code><b>workshop-fb-helm.yaml</b></code>, keeping the <code><b>http_server</b></code> lines so
+						the liveness probe on port <code><b>2020</b></code> keeps passing:
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								args:
+								  - --workdir=/fluent-bit/etc
+								  - --config=/fluent-bit/etc/conf/fluent-bit.yaml
+
+								config:
+								  extraFiles:
+								    fluent-bit.yaml: |
+								      service:
+								        flush: 1
+								        log_level: info
+								        http_server: on
+								        http_listen: 0.0.0.0
+								        http_port: 2020
+
+								      pipeline:
+								        inputs:
+								          # This entry generates a large amount of success messages for the workshop.
+								          - name:  dummy
+								            tag:   big.data
+								            copies: 15000
+								            dummy: '{"message":"true 200 success", "big_data": "blah blah blah blah blah blah blah blah"}'
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss - Configuring outputs (k3s)</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Continuing in the same file, add the outputs section below the inputs, directing all tags to the
+						pod's console (stdout):
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								      pipeline:
+								        inputs:
+								          ...
+
+								        outputs:
+								          # This entry directs all tags to the console (pod stdout).
+								          - name: stdout
+								            match: '*'
+								            format: json_lines
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss - Constraining the pod memory</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						To cause the OOM we constrict the pod's memory. Add a <code><b>resources</b></code> block to the
+						same <code><b>workshop-fb-helm.yaml</b></code> values file, giving the container a tight limit
+						(here around <code><b>13Mi</b></code>, adjust on your machine until you see it run a bit of
+						logging before being killed):
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								resources:
+								  limits:
+								    memory: 13Mi
+								  requests:
+								    memory: 13Mi
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss - Rolling out stressed pipeline (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Apply the updated configuration with a <code><b>helm upgrade</b></code> from the
+						<code><b>fluentbit-install-demo</b></code> root directory. This rolls out a new Fluent Bit pod
+						with our flooding pipeline and the tight memory limit:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+								       --set image.tag=5.1.1 \
+								       --namespace logging --create-namespace \
+								       --values workshop-fb-helm.yaml
+
+								Release "fluent-bit" has been upgraded. Happy Helming!
+								NAME: fluent-bit
+								NAMESPACE: logging
+								STATUS: deployed
+								REVISION: 7
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss - Watching the pod fail (k3s)</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Watch the pod in the <code><b>logging</b></code> namespace. It runs for a moment, floods memory,
+						and Kubernetes kills it. Unlike the one-shot Podman container, a Helm-managed pod restarts,
+						so you will see it cycle into <code><b>OOMKilled</b></code> and then
+						<code><b>CrashLoopBackOff</b></code>:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging get pods -w
+
+								NAME                            READY   STATUS            RESTARTS   AGE
+								log-generator-cf9d79d46-xgvc9   1/1     Running           1          3m
+								fluent-bit-6c8f9                1/1     Running           0          3s
+								fluent-bit-6c8f9                0/1     OOMKilled         0          6s
+								fluent-bit-6c8f9                0/1     CrashLoopBackOff  1         20s
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss - Validating stressed == OOM (k3s)</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						To validate our data loss scenario worked, describe the pod and inspect the last container state.
+						The following shows that the kernel killed our container due to an OOM error, reported as
+						<code><b>OOMKilled</b></code> with exit code <code><b>137</b></code>:
+					</div>
+					<div style="height: 220px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging describe pod -l app.kubernetes.io/name=fluent-bit
+
+								...
+								Last State:     Terminated
+								  <mark>Reason:       OOMKilled</mark>
+								  <mark>Exit Code:    137</mark>
+								  Started:      ...
+								  Finished:     ...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss - Confirming the OOM (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						You can also confirm the OOM kill in a scriptable way by reading the terminated container's last
+						state directly from the pod status, which reliably reports <code><b>OOMKilled</b></code>:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging get pod \
+										-l app.kubernetes.io/name=fluent-bit \
+										-o jsonpath='{.items[0].status.containerStatuses[0].lastState.terminated.reason}'
+
+								OOMKilled
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss - Prevention with filesystem buffering</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						What we've seen is that when a channel floods with too many events to process, our pipeline
+						pod fails. From that point onwards we are now unable to collect, process, or deliver any
+						more events.<br />
+						<br />
+						Already having tried in a previous lab to manage this with <code><b>mem_buf_limit</b></code>
+						settings, we've seen that this also is not the real fix. To prevent data loss, we need to enable
+						filesystem buffering so that overloading the memory buffer means that events will be buffered in
+						the filesystem until there is memory free to process them. Let's try this...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss - Filesystem buffering (k3s)</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						The <code><b>INPUT</b></code> phase needs a slight adjustment by adding
+						<code><b>storage.type: filesystem</b></code> as shown, along with a few
+						<code><b>SERVICE</b></code> section attributes to enable it, all inside the same
+						<code><b>extraFiles</b></code> block:
+					</div>
+					<div style="height: 220px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								config:
+								  extraFiles:
+								    fluent-bit.yaml: |
+								      service:
+								        flush: 1
+								        log_level: info
+								        http_server: on
+								        http_listen: 0.0.0.0
+								        http_port: 2020
+								        <mark>storage.path: /tmp/fluentbit-storage</mark>
+								        <mark>storage.sync: normal</mark>
+								        <mark>storage.checksum: off</mark>
+								        <mark>storage.max_chunks_up: 5</mark>
+
+								      pipeline:
+								        inputs:
+								          # This entry generates a large amount of success messages for the workshop.
+								          - name:  dummy
+								            tag:   big.data
+								            copies: 15000
+								            dummy: '{"message":"true 200 success", "big_data": "blah blah blah blah blah blah blah blah"}'
+								            <mark>storage.type: filesystem</mark>
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss - Notes about SERVICE section</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						The properties that might need some explanation are:<br />
+						<br />
+						<ul>
+							<li><b>storage.path</b> – putting filesystem buffering in the tmp filesystem</li>
+							<li><b>storage.sync</b> – using normal and turning off checksum processing</li>
+							<li><b>storage.max_chunks_up</b> – set to ~10MB, amount of allowed memory for events</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss - Rolling out filesystem pipeline (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						With filesystem buffering in place the pod survives, spilling events to disk instead of
+						overrunning memory. Adjust to give it a touch more headroom in <code><b>workshop-fb-helm.yaml</b></code>
+						than before (for me around <code><b>15Mi</b></code>, tune on your machine) and roll it out again:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+								       --set image.tag=5.1.1 \
+								       --namespace logging --create-namespace \
+								       --values workshop-fb-helm.yaml
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss - Console output filesystem pipeline (k3s)</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						First confirm the pod is actually surviving (<code><b>RESTARTS</b></code> should stay at 0), then
+						follow its logs in the <code><b>logging</b></code> namespace. The pipeline now runs without
+						failing, with events rolling by steadily as the filesystem absorbs the overflow (exit with
+						CTRL-C):
+					</div>
+					<div style="height: 200px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+
+								...
+								{"date":1753280450.742,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah blah"}
+								{"date":1753280450.742,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah blah"}
+								{"date":1753280450.743,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah blah"}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss - Validating filesystem buffering (k3s)</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						The Fluent Bit image is distroless (no shell, no <code><b>ls</b></code>), so instead of poking at
+						the buffer files we ask Fluent Bit itself. Its HTTP server on port <code><b>2020</b></code> is already
+						enabled, and the Kubernetes API server can proxy an HTTP GET straight to the <code><b>fluent-bit</b></code>
+						service &mdash; no port-forward needed. Query <code><b>/api/v1/storage</b></code> and pipe to your local
+						<code><b>jq</b></code>; a non-zero <code><b>fs_chunks</b></code> count proves filesystem buffering:
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Ask the API server to proxy an HTTP GET to the fluent-bit service on port 2020.
+								$ kubectl --context rancher-desktop -n logging get --raw \
+										'/api/v1/namespaces/logging/services/fluent-bit:2020/proxy/api/v1/storage' \
+										| jq '.storage_layer.chunks'
+
+								{
+								  "total_chunks": 42,
+								  "mem_chunks": 5,
+								  <mark>"fs_chunks": 37,</mark>
+								  <mark>"fs_chunks_up": 5,</mark>
+								  <mark>"fs_chunks_down": 32</mark>
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss - Thoughts on filesystem solution</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						This solution is the way to deal with backpressure and other issues that might flood your
+						telemetry pipeline and causing it to crash. It's worth noting that using a filesystem to buffer
+						the events also introduces the limits of the filesystem being used.<br />
+						<br />
+						It's important to understand that just as memory can run out, so too can the filesystem storage
+						reach its limits. It's best to have a plan to address any possible filesystem challenges when
+						using this solution, but this is outside the scope of this workshop.
+					</div>
+				</section>
+
+				<section data-background="images/lab03-2.jpg">
+					<div style="height: 400px;">
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<h1 class="r-fit-text" style="color: white;">Data loss solution for pipelines completed!</h1>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 230px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Ask the API server to proxy an HTTP GET to the fluent-bit service on port 2020.
+								$ kubectl --context rancher-desktop -n logging get --raw \
+										'/api/v1/namespaces/logging/services/fluent-bit:2020/proxy/api/v1/storage' \
+										| jq '.storage_layer.chunks'
+
+								{
+								  "total_chunks": 42,
+								  "mem_chunks": 5,
+								  <mark>"fs_chunks": 37,</mark>
+								  <mark>"fs_chunks_up": 5,</mark>
+								  <mark>"fs_chunks_down": 32</mark>
+								}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; font-size: xx-large">
+						Next up, pipeline integration with OpenTelemetry...
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://github.com/fluent/fluent-bit/blob/master/README.md" target="_blank">Fluent Bit repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Technology Advocate Lead<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 200px;">
+						<h2 class="r-fit-text">Up next in the workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab07.html" target="_blank">Lab 7 - Pipeline integration with OpenTelemetry</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

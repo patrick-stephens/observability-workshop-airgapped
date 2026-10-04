@@ -74,3 +74,14 @@ image.hey-loadgen registry.lab.local:5000/demo/hey:v0.1.4@sha256:ebf6de9ae1b0c6b
 image.demo-app registry.lab.local:5000/demo/app:v0.1.0@sha256:6c63cc710b3732d2f713d0e53142a9083fa1837ba19733dd68efff109cd8e5d4 - Reproducibly built frontend, api, backend, and sensor-sim from app/ via images/app/Dockerfile.
 image.local-registry docker.io/library/registry:2.8.3@sha256:46faa9a1ae6813194b53921a370f2f4f8c5e1aae228a89bceafef5847a6a3278 - Local OCI registry endpoint used by the offline demo preflight.
 image.skopeo quay.io/skopeo/stable:v1.20.0@sha256:47853bb9fb24202af9110531ebd6e43c5f97701254ca290596640290d17942f4 - Copies images into bundle/oci on the build node and seeds the local registry on the replay node.
+workshop.repo.opentelemetry a9bca59cd766da5dc07e007a5d1a6524a93edec5 - GitLab source HEAD SHA
+workshop.docs.opentelemetry 2026-10-04 - GitLab Pages mirror date
+workshop.repo.otel-developers ce3840fb30a221bc8ccf9baa22e03e75b4fbb8df - GitLab source HEAD SHA
+workshop.docs.otel-developers 2026-10-04 - GitLab Pages mirror date
+workshop.repo.prometheus a24bdd7baaaedac550570a10b3d36ea9f9d9adba - GitLab source HEAD SHA
+workshop.docs.prometheus 2026-10-04 - GitLab Pages mirror date
+workshop.repo.fluentbit dcbbb50daa24e860a86ecc9bc9e41e62c9ce509d - GitLab source HEAD SHA
+workshop.docs.fluentbit 2026-10-04 - GitLab Pages mirror date
+workshop.repo.perses 5c93d0fada4dcabaacfe24feacb4a75b78d1c3bb - GitLab source HEAD SHA
+workshop.docs.perses 2026-10-04 - GitLab Pages mirror date
+workshop.compose-v2 5.6.0 - source=https://github.com/docker/compose/releases/download/v5.6.0/docker-compose-linux-x86_64 sha256=40343e21ca777173e69cff5dbafeb37c6f81f3b0d57d9e597f036e95eb63e76a

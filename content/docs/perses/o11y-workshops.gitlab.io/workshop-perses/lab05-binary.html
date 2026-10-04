@@ -1,0 +1,354 @@
+<!doctype html>
+<!--suppress HtmlDeprecatedAttribute -->
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Perses workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Visualization Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-BGV1XYZ1ND"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-BGV1XYZ1ND');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus install - Download a binary</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						We will be using a local binary, so the first step is to download (one that matches our local
+						machine operating system) from the list below:<br />
+						<br />
+						<ul>
+							<li>
+								Prometheus 3.13.1
+								<a href="https://github.com/prometheus/prometheus/releases/download/v3.13.1/prometheus-3.13.1.darwin-amd64.tar.gz" target="_blank">amd64</a>
+								or
+								<a href="https://github.com/prometheus/prometheus/releases/download/v3.13.1/prometheus-3.13.1.darwin-arm64.tar.gz" target="_blank">arm64</a>
+								(Mac OSX / Darwin)
+							</li>
+							<li>
+								Prometheus 3.13.1
+								<a href="https://github.com/prometheus/prometheus/releases/download/v3.13.1/prometheus-3.13.1.linux-amd64.tar.gz" target="_blank"> amd64</a>,
+								<a href="https://github.com/prometheus/prometheus/releases/download/v3.13.1/prometheus-3.13.1.linux-arm64.tar.gz" target="_blank">arm64</a>
+								or
+								<a href="https://github.com/prometheus/prometheus/releases/download/v3.13.1/prometheus-3.13.1.linux-386.tar.gz" target="_blank">i386</a>
+								(Linux)
+							</li>
+							<li>
+								Prometheus 3.13.1
+								<a href="https://github.com/prometheus/prometheus/releases/download/v3.13.1/prometheus-3.13.1.windows-amd64.zip" target="_blank">amd64</a>
+								or
+								<a href="https://github.com/prometheus/prometheus/releases/download/v3.13.1/prometheus-3.13.1.windows-386.zip" target="_blank">i386</a>
+								(Windows)
+							</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus install - Unpacking the binary </h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Place the binary download into our Perses Easy install projects <code><b>installs</b></code>
+						directory before unpacking it. It should look something like this:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ mv [PATH-TO-DOWNLOAD]/prometheus-3.13.1.darwin-amd64.tar.gz ./installs
+
+								$ tar -xzvf installs/prometheus-3.13.1.darwin-amd64.tar.gz -C ./installs/
+
+								x prometheus-3.13.1.darwin-amd64/
+								x prometheus-3.13.1.darwin-amd64/LICENSE
+								x prometheus-3.13.1.darwin-amd64/prometheus.yml
+								x prometheus-3.13.1.darwin-amd64/promtool
+								x prometheus-3.13.1.darwin-amd64/prometheus
+								x prometheus-3.13.1.darwin-amd64/NOTICE
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus install - The configuration</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Before we can run our Prometheus instance, we need to explore the lab setup in the provided
+						configuration shown below:
+					</div>
+					<div style="height: 250px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ cat support/workshop-prometheus.yml
+
+								# workshop config
+								global:
+								  scrape_interval: 5s
+
+								scrape_configs:
+
+								  # Scraping prometheus.
+								  - job_name: "prometheus"
+									static_configs:
+									  - targets: ["localhost:9090"]
+
+								  # Scraping node exporter.
+								  - job_name: "node"
+									static_configs:
+									  - targets: ["localhost:9100"]
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus install - Some thoughts on config</h3>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						Normally you are monitoring other targets over HTTP and scraping their endpoints, but we are
+						going to start with Prometheus as it also exposes its own metrics endpoints and an instance of
+						the Node Exporter. Monitoring these are only an exercise for this workshop. Also note that
+						scraping metrics every 5 seconds is a bit over the top, commonly you would see 10-60 seconds,
+						but we want our data to flow in a steady stream for this workshop.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus install - Start your metrics engines!</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Now it's time to start the Prometheus server. We will point to our config file using a flag, if
+						you don't it's going to grab the default <code><b>prometheus.yml</b></code> file. Also note, the in
+						memory database is stored by default in <code><b>./data</b></code>. Note: might need to approve the
+						file in security settings if it fails to start. (scroll to view log):
+					</div>
+					<div style="height: 170px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./installs/prometheus-3.13.1.darwin-amd64/prometheus --config.file support/workshop-prometheus.yml
+
+								...
+								time=2026-08-25T12:48:44.620+02:00 level=INFO source=main.go:1724 msg="updated GOGC" old=100 new=75
+								time=2026-08-25T12:48:44.621+02:00 level=INFO source=main.go:789 msg="Leaving GOMAXPROCS=18: CPU quota undefined" component=automaxprocs
+								time=2026-08-25T12:48:44.621+02:00 level=INFO source=memlimit.go:198 msg="GOMEMLIMIT is updated" component=automemlimit package=github.com/KimMachineGun/automemlimit/memlimit GOMEMLIMIT=46385646796 previous=9223372036854775807
+								time=2026-08-25T12:48:44.621+02:00 level=INFO source=main.go:896 msg="Starting Prometheus Server" mode=server version="(version=3.13.1, branch=HEAD, revision=73ff57ce2b8161059ac7fe5188f03f1c3d22b29a)"
+								time=2026-08-25T12:48:44.621+02:00 level=INFO source=main.go:901 msg="operational information" build_context="(go=go1.26.5, platform=darwin/amd64, user=root@bbc9c3b11b52, date=20260710-08:17:53, tags=netgo,builtinassets)" host_details=(darwin) fd_limits="(soft=184320, hard=unlimited)" vm_limits="(soft=unlimited, hard=unlimited)"
+								time=2026-08-25T12:48:44.708+02:00 level=INFO source=web.go:727 msg="Start listening for connections" component=web address=0.0.0.0:9090
+								time=2026-08-25T12:48:44.708+02:00 level=INFO source=main.go:1456 msg="Starting TSDB ..."
+								time=2026-08-25T12:48:44.710+02:00 level=INFO source=tls_config.go:354 msg="Listening on" component=web address=[::]:9090
+								time=2026-08-25T12:48:44.711+02:00 level=INFO source=tls_config.go:357 msg="TLS is disabled." component=web http2=false address=[::]:9090
+								time=2026-08-25T12:48:44.716+02:00 level=INFO source=head.go:709 msg="Replaying on-disk memory mappable chunks if any" component=tsdb
+								time=2026-08-25T12:48:44.716+02:00 level=INFO source=head.go:795 msg="On-disk memory mappable chunks replay completed" component=tsdb duration=13.292µs
+								time=2026-08-25T12:48:44.716+02:00 level=INFO source=head.go:803 msg="Replaying WAL, this may take a while" component=tsdb
+								time=2026-08-25T12:48:44.719+02:00 level=INFO source=head.go:898 msg="WAL segment loaded" component=tsdb segment=0 maxSegment=0 duration=2.433833ms
+								time=2026-08-25T12:48:44.719+02:00 level=INFO source=head.go:935 msg="WAL replay completed" component=tsdb checkpoint_replay_duration=136.708µs wal_replay_duration=2.456084ms wbl_replay_duration=51.875µs chunk_snapshot_load_duration=0s mmap_chunk_replay_duration=13.292µs total_replay_duration=2.674541ms
+								time=2026-08-25T12:48:44.720+02:00 level=INFO source=main.go:1477 msg="filesystem information" fs_type=1a
+								time=2026-08-25T12:48:44.720+02:00 level=INFO source=main.go:1480 msg="TSDB started"
+								time=2026-08-25T12:48:44.720+02:00 level=INFO source=main.go:1678 msg="Loading configuration file" filename=support/workshop-prometheus.yml
+								time=2026-08-25T12:48:44.720+02:00 level=INFO source=main.go:1094 msg="TSDB retention updated" duration=15d size=0B percentage=0
+								time=2026-08-25T12:48:44.767+02:00 level=INFO source=main.go:1717 msg="Completed loading of configuration file" db_storage=22.417µs remote_storage=6.542µs web_handler=917ns query_engine=917ns scrape=46.064917ms scrape_sd=51.5µs notify=4.417µs notify_sd=833ns rules=29.417µs tracing=19.75µs filename=support/workshop-prometheus.yml totalDuration=46.723916ms
+								time=2026-08-25T12:48:44.767+02:00 level=INFO source=main.go:1441 msg="Server is ready to receive web requests."
+								time=2026-08-25T12:48:44.767+02:00 level=INFO source=manager.go:211 msg="Starting rule manager..." component="rule manager"
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus install - Verifying instance</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						Now let's see if our Prometheus server is up and running on our local machine by loading the
+						status page in our browser at <a href="http://localhost:9090" target="_blank">http://localhost:9090</a>,
+						noting it needs to run a little bit to collect some data from its own HTTP metrics endpoint. Click
+						on the menu items STATUS -> TARGET HEALTH to verify it is collecting Prometheus metrics and not
+						yet connecting to the Node Exporter instance (as not yet started):
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab05-1.png" alt="status"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Node exporter install - Download a binary </h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						We will be using a local binary, so the first step is to download (one that matches our local
+						machine operating system) from the list below:<br />
+						<br />
+						<ul>
+							<li>
+								Node exporter 1.12.1
+								<a href="https://github.com/prometheus/node_exporter/releases/download/v1.12.1/node_exporter-1.12.1.darwin-amd64.tar.gz" target="_blank">amd64</a>
+								or
+								<a href="https://github.com/prometheus/node_exporter/releases/download/v1.12.1/node_exporter-1.12.1.darwin-arm64.tar.gz" target="_blank">arm64</a>
+								(Mac OSX / Darwin)
+							</li>
+							<li>
+								Node exporter 1.12.1
+								<a href="https://github.com/prometheus/node_exporter/releases/download/v1.12.1/node_exporter-1.12.1.linux-amd64.tar.gz" target="_blank">amd64</a>,
+								<a href="https://github.com/prometheus/node_exporter/releases/download/v1.12.1/node_exporter-1.12.1.linux-arm64.tar.gz" target="_blank">arm64</a>
+								or
+								<a href="https://github.com/prometheus/node_exporter/releases/download/v1.12.1/node_exporter-1.12.1.linux-386.tar.gz" target="_blank">i386</a>
+								(Linux)
+							</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Node exporter install - Unpacking the binary </h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Place the binary download into our Perses Easy install projects <code><b>installs</b></code>
+						directory before unpacking it. It should look something like this:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ mv [PATH-TO-DOWNLOAD]/node_exporter-1.12.1.darwin-amd64.tar.gz ./installs
+
+								$ tar -xzvf installs/node_exporter-1.12.1.darwin-amd64.tar.gz -C ./installs/
+
+								x node_exporter-1.12.1.darwin-amd64/
+								x node_exporter-1.12.1.darwin-amd64/node_exporter
+								x node_exporter-1.12.1.darwin-amd64/LICENSE
+								x node_exporter-1.12.1.darwin-amd64/NOTICE
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Node exporter install - Start your node engines!</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Now it's time to start the node exporter instance for Prometheus to start scraping. There is no
+						configuration file needed, so start it as shown below in a new console window:
+					</div>
+					<div style="height: 170px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./installs/node_exporter-1.12.1.darwin-amd64/node_exporter
+
+								...
+								time=2026-08-25T12:49:54.182+02:00 level=INFO source=node_exporter.go:217 msg="Starting node_exporter" version="(version=1.12.1, branch=HEAD, revision=6044da783597cc3b57aef7580ddcdcff58a4ee99)"
+								time=2026-08-25T12:49:54.183+02:00 level=INFO source=node_exporter.go:218 msg="Build context" build_context="(go=go1.25.12, platform=darwin/amd64, user=root@7fdf63c9c5dc, date=20260714-12:07:33, tags=unknown)"
+								time=2026-08-25T12:49:54.186+02:00 level=INFO source=filesystem_common.go:263 msg="Parsed flag --collector.filesystem.mount-points-exclude" collector=filesystem flag=^/(dev)($|/)
+								time=2026-08-25T12:49:54.186+02:00 level=INFO source=filesystem_common.go:292 msg="Parsed flag --collector.filesystem.fs-types-exclude" collector=filesystem flag=^devfs$
+								time=2026-08-25T12:49:54.186+02:00 level=INFO source=node_exporter.go:136 msg="Enabled collectors"
+								time=2026-08-25T12:49:54.186+02:00 level=INFO source=node_exporter.go:142 msg=boottime
+								time=2026-08-25T12:49:54.186+02:00 level=INFO source=node_exporter.go:142 msg=cpu
+								time=2026-08-25T12:49:54.186+02:00 level=INFO source=node_exporter.go:142 msg=diskstats
+								time=2026-08-25T12:49:54.186+02:00 level=INFO source=node_exporter.go:142 msg=filesystem
+								time=2026-08-25T12:49:54.186+02:00 level=INFO source=node_exporter.go:142 msg=loadavg
+								time=2026-08-25T12:49:54.186+02:00 level=INFO source=node_exporter.go:142 msg=meminfo
+								time=2026-08-25T12:49:54.186+02:00 level=INFO source=node_exporter.go:142 msg=netdev
+								time=2026-08-25T12:49:54.186+02:00 level=INFO source=node_exporter.go:142 msg=os
+								time=2026-08-25T12:49:54.186+02:00 level=INFO source=node_exporter.go:142 msg=powersupplyclass
+								time=2026-08-25T12:49:54.186+02:00 level=INFO source=node_exporter.go:142 msg=textfile
+								time=2026-08-25T12:49:54.186+02:00 level=INFO source=node_exporter.go:142 msg=thermal
+								time=2026-08-25T12:49:54.186+02:00 level=INFO source=node_exporter.go:142 msg=time
+								time=2026-08-25T12:49:54.186+02:00 level=INFO source=node_exporter.go:142 msg=uname
+								time=2026-08-25T12:49:54.188+02:00 level=INFO source=tls_config.go:372 msg="Listening on" address=[::]:9100
+								time=2026-08-25T12:49:54.189+02:00 level=INFO source=tls_config.go:375 msg="TLS is disabled." http2=false address=[::]:9100
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Node exporter install - Verifying instance</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Now let's see if our Prometheus server picked up our node instance in our browser at
+						<a href="http://localhost:9090" target="_blank">http://localhost:9090</a>, and clicking on the
+						menu items STATUS -> TARGET HEALTH to verify it is collecting Prometheus and Node Exporter
+						metrics (look for the green UP state on the right side):
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab05-2.png" alt="status"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h3 class="r-fit-text">Data source installed - Results</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						Prometheus is scraping itself and the node exporter, and both are reachable from your
+						browser. That is everything Perses needs.<br />
+						<br />
+						Leave both console windows running for the rest of the workshop, they are what your
+						dashboards are going to be querying.<br />
+						<br />
+						Next up, building your first dashboard...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab05b.html" target="_blank">Building your first dashboard</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

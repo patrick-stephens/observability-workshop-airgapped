@@ -1,0 +1,405 @@
+<!doctype html>
+<!--suppress HtmlDeprecatedAttribute -->
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Perses workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Visualization Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-BGV1XYZ1ND"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-BGV1XYZ1ND');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Sandbox - Using the online demo</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						This is not really an installation, but using a hosted online version of Perses. This can be
+						used for this workshop, but the example images and example results shown in the rest of this
+						workshop do not show the sandbox demo.<br />
+						<br />
+						In this lab you'll log in to the instance from your browser, authenticating a user, set up the
+						Perses commandline tooling, and authenticate the same user. This allows you to complete all the
+						following labs, noting that the featured Perses instance on <code><b>localhost</b></code> for
+						all examples is instead the <code><b>demo.perses.dev</b></code> instance.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Sandbox - Connect a browser</h3>
+					</div>
+					<div style="height: 50px; text-align: center; font-size: xx-large;">
+						<code><a href="https://demo.perses.dev" target="_blank">https://demo.perses.dev</a></code>
+					</div>
+					<div style="height: 300px; padding-bottom: 30px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab02-7.png" alt="saas">
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						This is the login screen for the Perses sandbox. There are options for username + password,
+						Google, or GitHub authentication. Let's sign in with our Google user by clicking that button.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Sandbox - The hosted Perses instance</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						You should see something similar to this dashboard in your Perses instance, with any number of
+						projects:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab02-8.png" alt="perses">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Sandbox - Setting up API access</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						In the next lab we will be exploring the Perses API using browser URL, a browser extension API
+						tool, and the Perses command line tooling. Let's test each one of these before moving to the
+						next lab. You can view the configured projects on your Perses sandbox instance, just enter this URL:
+					</div>
+					<div style="height: 70px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								https://demo.perses.dev/api/v1/projects
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						This shows you un-formatted JSON output of the available projects on the sandbox instance:
+					</div>
+					<div style="height: 200px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab02-9.png" alt="API">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Sandbox - Using browser extension (YARC)</h3>
+					</div>
+					<div style="height: 160px; text-align: left; font-size: xx-large;">
+						Next, let's use a REST Client (YARC) that automatically formats all responses, but you can use
+						your preferred client. Enter <code><b>https://demo.perses.dev/api/v1/projects</b></code> and
+						click on SEND REQUEST button as shown:
+					</div>
+					<div style="height: 350px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab02-10.png" alt="viewing">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Sandbox - Project response (YARC)</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						You'll see the API response is formatted for easy consumption, much better than in the browser:
+					</div>
+					<div style="height: 430px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab02-11.png" alt="response">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Sandbox - Command line tooling setup</h3>
+					</div>
+					<div style="height: 220px; text-align: left; font-size: x-large;">
+						The first thing we need it a Perses CLI binary, which must match the version we see at the
+						bottom of the dashboard for Perses sandbox instance. We make sure to
+						<a href="https://github.com/perses/perses/releases" target="_blank">
+							grab a binary matching our OS
+						</a> found under ASSETS.<br />
+						<br />
+						Unzip the binary, and you get a directory with a file inside called <code><b>percli</b></code>,
+						to be used as the command line tool to interact with your Perses sandbox API. For example, this
+						is for OSX version unzipping the single binary file, then testing it for the help message:
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								$ tar -zxf perses_[VERSION]_darwin_amd64.tar.gz percli
+
+								$ ./percli -h
+
+								Command line interface to interact with the Perses API
+
+								Usage:
+								  percli [command]
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Sandbox - Logging in to Perses instance</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Now let's log in to the Perses sandbox instance before exploring the API. Use the Perses
+						command line binary as follows (the command returns nothing) and select the menu entry
+						<code><b>Native</b></code> to enter our user and password by hitting ENTER:
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./percli login https://demo.perses.dev
+
+								┃ Select Provider
+								┃ > OIDC (Google)
+								┃   OAuth 2.0 (Github)
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Sandbox - Entering user and password</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						After hitting enter we are asked to submit a provided code to the URL shown, when done you'll
+						see you've now logged into the sandbox:
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./percli login https://demo.perses.dev
+
+								┃ Select Provider
+								┃ > OIDC (Google)
+								┃   OAuth 2.0 (Github)
+
+								Go to https://www.google.com/device and enter code: SOME_CODE
+								Waiting for user to authorize the application...
+								successfully logged in https://demo.perses.dev
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Sandbox - Listing all projects (GET)</h3>
+					</div>
+					<div style="height:120px; text-align: left; font-size: xx-large;">
+						Let's get a list of our projects using the GET argument as shown below and see again what
+						projects are configured on our sandbox instance (yours may differ):
+					</div>
+					<div style="height: 200px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./percli get projects
+
+								       NAME       | AGE
+								------------------+------
+								  perses          | 23m
+								  showcase        | 23m
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Sandbox - Setting up workshop project</h3>
+					</div>
+					<div style="height:220px; text-align: left; font-size: x-large;">
+						The last thing to be done is setting up the <code><b>Workshopproject</b></code> in the Perses
+						sandbox instance. We do this by using configuration files and the Perses commandline tool. The
+						configuration files are provided in the Perses install demo project, which means we need to first
+						<a href="https://gitlab.com/o11y-workshops/perses-install-demo/-/archive/v1.10/perses-install-demo-v1.10.zip">
+							download the installation project (click this link)</a>.<br />
+						<br />
+						After downloading, unzip the project and using the command line tool run the commands to
+						configure the workshop project as follows:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./percli apply -f [PATH_TO_INSTALL_PROJECT]/support/workshop-project.json
+								object "Project" "workshopproject" has been applied
+
+								$ ./percli apply -f [ROOT_INSTALL_PROJECT]/support/workshop-demo-myfirstdashboard.json
+								object "Dashboard" "MyFirstDashboard" has been applied in the project "workshopproject"
+
+								$ ./percli apply -f [ROOT_INSTALL_PROJECT]/support/workshop-datasource-prometheusdemolocal.json
+								object "Datasource" "PrometheusDemoLocal" has been applied in the project "workshopproject"
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Sandbox - Verifying workshop project</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						The workshop project should appear in the list as follows (refresh browser):
+					</div>
+					<div style="height: 350px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab02-12.png" alt="workshop">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Sandbox - Verifying workshop dashboard listing</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Clicking on the workshop project should open the project to show the dashboard listing as follows:
+					</div>
+					<div style="height: 300px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab02-13.png" alt="dashboard">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Sandbox - Verifying my first dashboard</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Clicking on the <code><b>MyFirstDashboard</b></code> entry opens the starting point for the
+						rest of this workshop as follows, but note the empty panel chart. This workshop is focused a 
+						different datasource for its instance and job data for the workshop and not for this demo sandbox 
+						environment. Let's fix this in by setting up a sandbox datasource.
+					</div>
+					<div style="height: 350px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab02-14.png" alt="starting">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Sandbox - Adding sandbox datasource</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Select the <code><b>Instance</b></code> variable <code><b>prometheus:9090</b></code> we see the
+						query data filling the dashboard panel:
+					</div>
+					<div style="height: 350px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab02-16.png" alt="starting">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Continuing workshop with sandbox</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						The rest of this workshop will refer to <code><b>http://localhost:8080</b></code> for the
+						Perses instance used in the examples and screenshots. If you are using the Perses sandbox
+						instance, just replace the URL with <code><b>https://demo.perses.dev</b></code>.<br />
+						<br />
+						To continue in this hosted environment in this workshop will require that you manually adjust
+						to point to the data source found on <code><b>demo.perses.dev</b></code>.
+						Most likely the queries we are using locally will need you to adjust to query telemetry data
+						collected by the <code><b>demo.perses.dev</b></code> instance data sources.<br />
+						<br />
+						Also, if the Perses command line tooling fails to connect to the Perses sandbox instance,
+						producing errors after a longer period of use, it just needs to log in again to reconnect. These
+						tips are trying to provide smooth sailing to the end of this workshop!
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 450px; font-size: xx-large">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab02-16.png" alt="completed">
+						<br />
+						Next up, exploring dashboard tooling...
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://github.com/perses/perses" target="_blank">Perses project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-perses" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-perses/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Director Evangelism<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab03.html" target="_blank">Lab 3 - Exploring dashboard tooling</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

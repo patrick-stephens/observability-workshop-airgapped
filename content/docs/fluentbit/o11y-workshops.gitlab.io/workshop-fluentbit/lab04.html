@@ -1,0 +1,1461 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Fluent Bit workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Telemetry Pipelines Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax-highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-799E08H5WD"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-799E08H5WD');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 4 – Exploring more pipelines</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>
+							To continue exploring more telemetry pipelines using Fluent Bit by creating a pipeline for
+							parsing duplicate messages and a pipeline for processing metrics before exposing them in the
+							format that Prometheus can collect.
+						</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo – Jumping to the solution</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						If you happen to be exploring Fluent Bit as an architect and want to jump to the solution in
+						action, we've included the configuration files in the easy installation project from the source
+						installation support directory. Please see the previous installing from source lab. Instead of creating all
+						the configurations as shown in this lab, you'll find them
+						ready to use as shown below from the <code><b>fluentbit-install-demo</b></code> root directory:
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ls -l support/configs-lab-4/
+
+								-rw-r--r--@ 1 erics  staff   158B Jul 21 12:55 Buildfile
+								-rw-r--r--@ 1 erics  staff   2.1K Jul 22 17:13 workshop-fb-helm.yaml
+								-rw-r--r--@ 1 erics  staff   1.6K May  5 16:18 workshop-fb.yaml
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Configuration parsing messages pipeline</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: x-large;">
+						So far we've installed Fluent Bit, either from source or in a container, and started setting
+						up our first telemetry pipelines. In this lab we're going to create a few more pipelines with
+						more complex phases. Our first telemetry pipeline is going to have multiple messages on the same
+						key, requiring a parser to be used for cleaning up those messages. We begin with new Fluent Bit
+						configuration file <code><b>workshop-fb.yaml</b></code>, starting with the
+						<code><b>INPUT</b></code> phase generating success and failure messages as follows:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# This file is our workshop Fluent Bit configuration.
+								#
+								service:
+								  flush: 1
+								  log_level: info
+
+								pipeline:
+								  inputs:
+								    # This entry generates a success message for the workshop.
+								    - name:  dummy
+								      tag:   event.success
+								      dummy: '{"message":"true 200 success"}'
+
+								    # This entry generates an error message for the workshop.
+								    - name:  dummy
+								      tag:   event.error
+								      dummy: '{"message":"false 500 error"}'
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Breaking down input configuration</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						We are using the <code><b>dummy</b></code> input plugin to generate fake events on set
+						intervals, 1 second by default. There are three keys used to set up our inputs:<br />
+						<br />
+						<ul>
+							<li><b>Name</b> – the name of the plugin to be used.</li>
+							<li><b>Tag</b> – the tag we assign, can be anything, to help find events of this type in the
+								matching phase.</li>
+							<li><b>Dummy</b> – Where the exact event output can be defined.</li>
+						</ul><br />
+						<br />
+						Our configuration is tagging each successful event with <code><b>event.success</b></code>
+						and failure events with <code><b>event.error</b></code>. The confusion will be caused by
+						configuring the dummy message with the same key, <code><b>message</b></code>, for both event
+						definitions. This will cause our incoming events to be confusing to deal with.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Configuring first outputs</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Now let's create a new output section adding the following to our configuration file:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								outputs:
+								  # This entry directs all tags (it matches any we encounter) to
+								  # print to standard output, which is our console.
+								  - name: stdout
+								    match: '*'
+								    format: json_lines
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Running this pipeline (source)</h3>
+					</div>
+					<div style="height: 220px; text-align: left; font-size: xx-large;">
+						To see if our configuration works we can test run it with our Fluent Bit installation. Depending
+						on the chosen install method, here we show how to run it using the source installation followed
+						by the container version. Below the source install is shown from the directory we created to hold
+						all our configuration files:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# source install.
+								#
+								$ [PATH_TO]/fluent-bit --config workshop-fb.yaml
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Console output for pipeline (source)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						The console output should look something like this. Note the alternating generated event lines
+						with all using a <code><b>message</b></code> key that is hard to separate. This runs until
+						exiting with CTRL_C:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.0] initializing
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.0] storage_strategy='memory' (memory only)
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.1] initializing
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.1] storage_strategy='memory' (memory only)
+								[2025/07/10 14:14:57] [ info] [output:stdout:stdout.0] worker #0 started
+								[2025/07/10 14:14:57] [ info] [sp] stream processor started
+								[2025/07/10 14:14:57] [ info] [engine] Shutdown Grace Period=5, Shutdown Input Grace Period=2
+								{"date":1722430667.441367,"message":"true 200 success"}
+								{"date":1722430667.443119,"message":"false 500 error"}
+								{"date":1722430668.441389,"message":"true 200 success"}
+								{"date":1722430668.441615,"message":"false 500 error"}
+								{"date":1722430669.441384,"message":"true 200 success"}
+								{"date":1722430669.441622,"message":"false 500 error"}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Testing this pipeline (container)</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Let's now try testing our configuration by running it using a container image. First thing that
+						is needed is to open in our favorite editor, a new file called <code><b>Buildfile</b></code>.
+						This is going to be used to build a new container image and insert our configuration. Note
+						this file needs to be in the same directory as our configuration file, otherwise adjust the
+						file path names:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								FROM ghcr.io/fluent/fluent-bit:5.1.1
+
+								COPY ./workshop-fb.yaml /fluent-bit/etc/workshop-fb.yaml
+
+								CMD [ "fluent-bit", "-c", "/fluent-bit/etc/workshop-fb.yaml"]
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Building this pipeline (container)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Now we'll build a new container image, naming it with a version tag, as follows using the
+						<code><b>Buildfile</b></code> and assuming you are in the same directory:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-fb:v4 -f Buildfile
+
+								STEP 1/3: FROM ghcr.io/fluent/fluent-bit:5.1.1
+								STEP 2/3: COPY ./workshop-fb.yaml /fluent-bit/etc/workshop-fb.yaml
+								--> b4ed3356a842
+								STEP 3/3: CMD [ "fluent-bit", "-c", "/fluent-bit/etc/workshop-fb.yaml"]
+								COMMIT workshop-fb:v4
+								--> bcd69f8a85a0
+								Successfully tagged localhost/workshop-fb:v4
+								bcd69f8a85a024ac39604013bdf847131ddb06b1827aae91812b57479009e79a
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Running this pipeline (container)</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Now we'll run our new container image:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run --rm --name fb workshop-fb:v4
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Console output this pipeline (container)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						The console output should look something like this. Note the alternating generated event lines
+						with all using a <code><b>message</b></code> key that is hard to separate. This runs until
+						exiting with CTRL_C:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.0] initializing
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.0] storage_strategy='memory' (memory only)
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.1] initializing
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.1] storage_strategy='memory' (memory only)
+								[2025/07/10 14:14:57] [ info] [output:stdout:stdout.0] worker #0 started
+								[2025/07/10 14:14:57] [ info] [sp] stream processor started
+								[2025/07/10 14:14:57] [ info] [engine] Shutdown Grace Period=5, Shutdown Input Grace Period=2
+								{"date":1722430667.441367,"message":"true 200 success"}
+								{"date":1722430667.443119,"message":"false 500 error"}
+								{"date":1722430668.441389,"message":"true 200 success"}
+								{"date":1722430668.441615,"message":"false 500 error"}
+								{"date":1722430669.441384,"message":"true 200 success"}
+								{"date":1722430669.441622,"message":"false 500 error"}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Updating running pipeline (k3s)</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						If you deployed onto Kubernetes (k3s) with Rancher Desktop back in lab 3, Fluent Bit is already
+						running, configured by the Helm values file <code><b>workshop-fb-helm.yaml</b></code>. Rather than
+						a source or container run, we update that same file with this lab's pipeline and roll it out with a
+						<code><b>helm upgrade</b></code>. Replace the <code><b>extraFiles</b></code> block, starting with the
+						service and inputs sections, keeping the <code><b>http_server</b></code> lines so the liveness probe
+						on port <code><b>2020</b></code> keeps passing:
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								args:
+								  - --workdir=/fluent-bit/etc
+								  - --config=/fluent-bit/etc/conf/fluent-bit.yaml
+
+								config:
+								  extraFiles:
+								    fluent-bit.yaml: |
+								      service:
+								        flush: 1
+								        log_level: info
+								        http_server: on
+								        http_listen: 0.0.0.0
+								        http_port: 2020
+
+								      pipeline:
+								        inputs:
+								          # This entry generates a success message for the workshop.
+								          - name:  dummy
+								            tag:   event.success
+								            dummy: '{"message":"true 200 success"}'
+
+								          # This entry generates an error message for the workshop.
+								          - name:  dummy
+								            tag:   event.error
+								            dummy: '{"message":"false 500 error"}'
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Updating running pipeline (k3s) cont.</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Continuing in the same file, add the outputs section below the inputs, directing all tags to the
+						pod's console (stdout):
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								      pipeline:
+								        inputs:
+								          ...
+
+								        outputs:
+								          # This entry directs all tags to the console (pod stdout).
+								          - name: stdout
+								            match: '*'
+								            format: json_lines
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Rolling out this pipeline (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Apply the updated configuration by running a <code><b>helm upgrade</b></code> from the
+						<code><b>fluentbit-install-demo</b></code> root directory. This rolls out a new Fluent Bit pod
+						picking up our parsing messages pipeline:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+								       --set image.tag=5.1.1 \
+								       --namespace logging --create-namespace \
+								       --values workshop-fb-helm.yaml
+
+								Release "fluent-bit" has been upgraded. Happy Helming!
+								NAME: fluent-bit
+								NAMESPACE: logging
+								STATUS: deployed
+								REVISION: 5
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Console output this pipeline (k3s)</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Since our output plugin is <code><b>stdout</b></code>, the events are written to the Fluent Bit
+						pod's console. View them by following the pod logs in the <code><b>logging</b></code> namespace,
+						noting the alternating generated event lines all using a <code><b>message</b></code> key that is
+						hard to separate (exit with CTRL-C):
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+
+								...
+								{"date":1722430667.441367,"message":"true 200 success"}
+								{"date":1722430667.443119,"message":"false 500 error"}
+								{"date":1722430668.441389,"message":"true 200 success"}
+								{"date":1722430668.441615,"message":"false 500 error"}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – A filtering solution</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						Now we have dirty ingested data coming into our pipeline, showing that we have multiple messages
+						on the same key. To be able to clean this up for usage before passing on to the backend (output),
+						we need to make use of the <code><b>Filter</b></code> phase.<br />
+						<br />
+						For clarity, this is where we are working in our telemetry pipeline:
+					</div>
+					<div style="height: 200px; text-align: center; font-size: xx-large;">
+						<img src="images/lab01-6.png" alt="parser">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Adding filter configuration</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						To set up the filter configuration we add the following filter entry in our
+						<code><b>workshop-fb.yaml</b></code> configuration file. This filter is named
+						<code><b>modify</b></code>, tries matching all incoming messages to apply this filter, looking
+						for the key <code><b>message</b></code> to then replace the message with new key value pairs to
+						create a new message as follows:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								pipeline:
+								  ...
+
+								  filters:
+								    # This filter conditionally modifies events that match.
+								    - name: modify
+								      match: '*'
+								      condition:
+								        - Key_Value_Equals message 'true 200 success'
+								      remove: message
+								      add:
+								        - valid_message true
+								        - code 200
+								        - type success
+							</code>
+						</pre>
+					</div>
+					<div style="height: 170px; text-align: right;">
+						<img src="images/lab01-6.png" alt="filter">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Verifying filtering solution (source)</h3>
+					</div>
+					<div style="height: 220px; text-align: left; font-size: xx-large;">
+						To see if our configuration works we can test run it with our Fluent Bit installation. Depending
+						on the chosen install method, here we show how to run it using the source installation followed
+						by the container version. Below the source install is shown from the directory we created to hold
+						our configuration:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# source install.
+								#
+								$ [PATH_TO]/fluent-bit --config workshop-fb.conf
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Console output for filtering (source)</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						The console output should look something like this. Note the alternating generated event lines
+						with filtering for success messages that now contain keys to simplify later querying. This runs
+						until exiting with CTRL_C:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.0] initializing
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.0] storage_strategy='memory' (memory only)
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.1] initializing
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.1] storage_strategy='memory' (memory only)
+								[2025/07/10 14:14:57] [ info] [output:stdout:stdout.0] worker #0 started
+								[2025/07/10 14:14:57] [ info] [sp] stream processor started
+								[2025/07/10 14:14:57] [ info] [engine] Shutdown Grace Period=5, Shutdown Input Grace Period=2
+								{"date":1722503267.908427,"valid_message":"true","code":"200","type":"success"}
+								{"date":1722503267.909142,"message":"false 500 error"}
+								{"date":1722503268.908447,"valid_message":"true","code":"200","type":"success"}
+								{"date":1722503268.908705,"message":"false 500 error"}
+								{"date":1722503269.908412,"valid_message":"true","code":"200","type":"success"}
+								{"date":1722503269.908672,"message":"false 500 error"}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Verify filtering solution (container)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						First we need to rebuild a new container image, naming it with a version tag, as follows using the
+						<code><b>Buildfile</b></code> and assuming you are in the same directory:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-fb:v5 -f Buildfile
+
+								STEP 1/3: FROM ghcr.io/fluent/fluent-bit:5.1.1
+								STEP 2/3: COPY ./workshop-fb.yaml /fluent-bit/etc/workshop-fb.yaml
+								--> 2797c83ab5f6
+								STEP 3/3: CMD [ "fluent-bit", "-c", "/fluent-bit/etc/workshop-fb.yaml"]
+								COMMIT workshop-fb:v5
+								--> 5dfac44c37eb
+								Successfully tagged localhost/workshop-fb:v5
+								5dfac44c37eb9d55cb5b16c101af8183654b39d5fe84cd82edf87069072d09c2
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Running this pipeline (container)</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Now we'll run our new container image:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run --rm --name fb workshop-fb:v5
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Console output this pipeline (container)</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						The console output should look something like this. Note the alternating generated event lines
+						with filtering for success messages that now contain keys to simplify later querying. This runs
+						until exiting with CTRL_C:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.0] initializing
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.0] storage_strategy='memory' (memory only)
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.1] initializing
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.1] storage_strategy='memory' (memory only)
+								[2025/07/10 14:14:57] [ info] [output:stdout:stdout.0] worker #0 started
+								[2025/07/10 14:14:57] [ info] [sp] stream processor started
+								[2025/07/10 14:14:57] [ info] [engine] Shutdown Grace Period=5, Shutdown Input Grace Period=2
+								{"date":1722503267.908427,"valid_message":"true","code":"200","type":"success"}
+								{"date":1722503267.909142,"message":"false 500 error"}
+								{"date":1722503268.908447,"valid_message":"true","code":"200","type":"success"}
+								{"date":1722503268.908705,"message":"false 500 error"}
+								{"date":1722503269.908412,"valid_message":"true","code":"200","type":"success"}
+								{"date":1722503269.908672,"message":"false 500 error"}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Verify filtering solution (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						On Kubernetes we apply the same filter to the running pipeline. Open our Helm values file
+						<code><b>workshop-fb-helm.yaml</b></code> and add a <code><b>filters</b></code> section between
+						the <code><b>inputs</b></code> and <code><b>outputs</b></code> sections. Note the indentation:
+						everything sits inside the <code><b>fluent-bit.yaml</b></code> block under
+						<code><b>extraFiles</b></code>:
+					</div>
+					<div style="height: 260px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								      pipeline:
+								        inputs:
+								          ...
+
+								        filters:
+								          # This filter conditionally modifies events that match.
+								          - name: modify
+								            match: '*'
+								            condition:
+								              - Key_Value_Equals message 'true 200 success'
+								            remove: message
+								            add:
+								              - valid_message true
+								              - code 200
+								              - type success
+
+								        outputs:
+								          ...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Rolling out filtering (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Apply the updated configuration with another <code><b>helm upgrade</b></code> from the
+						<code><b>fluentbit-install-demo</b></code> root directory, rolling out a new Fluent Bit pod that
+						picks up our filtered pipeline:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+								       --set image.tag=5.1.1 \
+								       --namespace logging --create-namespace \
+								       --values workshop-fb-helm.yaml
+
+								Release "fluent-bit" has been upgraded. Happy Helming!
+								NAME: fluent-bit
+								NAMESPACE: logging
+								STATUS: deployed
+								REVISION: 6
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Console output filtering (k3s)</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Follow the pod logs in the <code><b>logging</b></code> namespace. Note the alternating generated
+						event lines with filtering for success messages that now contain keys to simplify later querying,
+						while the error events are left untouched (exit with CTRL-C):
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+
+								...
+								{"date":1722503267.908427,"valid_message":"true","code":"200","type":"success"}
+								{"date":1722503267.909142,"message":"false 500 error"}
+								{"date":1722503268.908447,"valid_message":"true","code":"200","type":"success"}
+								{"date":1722503268.908705,"message":"false 500 error"}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Filtering for errors too</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Let's add another filter configuration to sort out the error messages. In our
+						<code><b>workshop-fb.yaml</b></code> configuration file add a second filter that is named
+						<code><b>modify</b></code>, matching all incoming messages to apply this filter, looking
+						for the key <code><b>message</b></code> with error values to then replace the message with a
+						note that the workshop is broken (reporting errors):
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# This filter conditionally modifies events that match.
+								- name: modify
+								  match:  '*'
+								  condition: Key_Value_Equals message 'false 500 error'
+								  remove: message
+								  add: workshop_status BROKEN
+							</code>
+						</pre>
+					</div>
+					<div style="height: 170px; text-align: right;">
+						<img src="images/lab01-6.png" alt="filter">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Verifying filtering errors (source)</h3>
+					</div>
+					<div style="height: 220px; text-align: left; font-size: xx-large;">
+						To see if our configuration works we can test run it with our Fluent Bit installation. Depending
+						on the chosen install method, here we show how to run it using the source installation followed
+						by the container version. Below the source install is shown from the directory we created to hold
+						our configuration:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# source install.
+								#
+								$ [PATH_TO]/fluent-bit --config workshop-fb.conf
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Console output filtering errors (source)</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						The console output should look something like this. Note the alternating generated event lines
+						with filtering for ERROR messages and reporting it broken. This runs until exiting with CTRL_C:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.0] initializing
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.0] storage_strategy='memory' (memory only)
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.1] initializing
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.1] storage_strategy='memory' (memory only)
+								[2025/07/10 14:14:57] [ info] [output:stdout:stdout.0] worker #0 started
+								[2025/07/10 14:14:57] [ info] [sp] stream processor started
+								[2025/07/10 14:14:57] [ info] [engine] Shutdown Grace Period=5, Shutdown Input Grace Period=2
+								{"date":1722504514.185207,"valid_message":"true","code":"200","type":"success"}
+								{"date":1722504514.188409,"workshop_status":"BROKEN"}
+								{"date":1722504515.186183,"valid_message":"true","code":"200","type":"success"}
+								{"date":1722504515.186532,"workshop_status":"BROKEN"}
+								{"date":1722504516.187007,"valid_message":"true","code":"200","type":"success"}
+								{"date":1722504516.187225,"workshop_status":"BROKEN"}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Verify filtering errors (container)</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Repeat the previous process for a new container image, naming it with a version tag, as follows
+						using the<code><b>Buildfile</b></code> and assuming you are in the same directory and run to
+						see similar output (exercise for the reader):
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-fb:v6 -f Buildfile
+
+								$ podman run --rm workshop-fb:v6
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines - Verify filtering errors (k3s)</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						On Kubernetes we add the same second filter to the running pipeline. Open our Helm values file
+						<code><b>workshop-fb-helm.yaml</b></code> and add another <code><b>modify</b></code> entry to the
+						existing <code><b>filters</b></code> section, keeping the indentation inside the
+						<code><b>fluent-bit.yaml</b></code> block under <code><b>extraFiles</b></code>:
+					</div>
+					<div style="height: 240px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								        filters:
+								          # This filter conditionally modifies success events.
+								          - name: modify
+								            ...
+
+								          # This filter conditionally modifies error events.
+								          - name: modify
+								            match: '*'
+								            condition: Key_Value_Equals message 'false 500 error'
+								            remove: message
+								            add: workshop_status BROKEN
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Rolling out error filtering (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Apply the updated configuration with another <code><b>helm upgrade</b></code> from the
+						<code><b>fluentbit-install-demo</b></code> root directory, rolling out a new Fluent Bit pod that
+						picks up our error filtering:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+								       --set image.tag=5.1.1 \
+								       --namespace logging --create-namespace \
+								       --values workshop-fb-helm.yaml
+
+								Release "fluent-bit" has been upgraded. Happy Helming!
+								NAME: fluent-bit
+								NAMESPACE: logging
+								STATUS: deployed
+								REVISION: 7
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines - Console output filtering errors (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Follow the pod logs in the <code><b>logging</b></code> namespace. Note the alternating generated
+						event lines with filtering for ERROR messages now reporting the workshop broken (exit with
+						CTRL-C):
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+
+								...
+								{"date":1722504514.185207,"valid_message":"true","code":"200","type":"success"}
+								{"date":1722504514.188409,"workshop_status":"BROKEN"}
+								{"date":1722504515.186183,"valid_message":"true","code":"200","type":"success"}
+								{"date":1722504515.186532,"workshop_status":"BROKEN"}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section data-background="images/lab03-2.jpg">
+					<div style="height: 400px;">
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<h1 class="r-fit-text" style="color: white;">Filtering messages in a pipeline completed!</h1>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines - Metrics processing pipeline</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						For the next telemetry pipeline, we'll configure our Fluent Bit instance to collect metrics and
+						then format them for exposure as a Prometheus metrics endpoint. We continue on with our previous
+						configuration files, starting with the <code><b>inputs</b></code> phase adding metrics from
+						Fluent Bit itself:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								pipeline:
+								  inputs:
+								    # This entry generates a success message for the workshop.
+								    - name:  dummy
+								      tag:   event.success
+								      dummy: '{"message":"true 200 success"}'
+
+								    # This entry generates an error message for the workshop.
+								    - name:  dummy
+								      tag:   event.error
+								      dummy: '{"message":"false 500 error"}'
+
+								    # This entry collects fluent bit metrics for the workshop.
+								    - name: fluentbit_metrics
+								      tag: fb_metrics
+								      host: 0.0.0.0
+								      scrape_interval: 5s
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Breaking down input configuration</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						We are using the <code><b>fluentbit_metrics</b></code> input plugin to collect metrics on set
+						intervals. There are three keys used to set up our inputs:<br />
+						<br />
+						<ul>
+							<li><b>Name</b> – the name of the plugin to be used.</li>
+							<li><b>Tag</b> – the tag we assign, can be anything, to help find events of this type in the
+								matching phase.</li>
+							<li><b>Host</b> – The instance to gather metrics from, our local machine.</li>
+							<li><b>Scrape_Interval</b> – How often metrics are collected.</li>
+						</ul><br />
+						<br />
+						Our configuration is tagging each successful event with <code><b>fb_metrics</b></code>, which is
+						needed in the output phase to match to these events.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Configuring first outputs</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Now let's expand the output configuration file <code><b>outputs.conf</b></code> using our
+						favorite editor. Add the following configuration:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								outputs:
+								  # This entry directs all tags (it matches any we encounter)
+								  # to print to standard output, which is our console.
+								  - name: stdout
+								    match: '*'
+								    format: json_lines
+
+								  # This entry directs all events matching the tag to be exposed as a
+								  # Prometheus endpoint on the given IP and port number while adding
+								  # a few tags.
+								  - name: prometheus_exporter
+								    match: fb_metrics
+								    host: 0.0.0.0
+								    port: 9999
+								    # add user-defined labels
+								    add_label:
+								      - app fluent-bit
+								      - workshop lab4
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Running this pipeline (source)</h3>
+					</div>
+					<div style="height: 220px; text-align: left; font-size: xx-large;">
+						To see if our configuration works we can test run it with our Fluent Bit installation. Depending
+						on the chosen install method, here we show how to run it using the source installation followed
+						by the container version. Below the source install is shown from the directory we created to hold
+						all our configuration files:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# source install.
+								#
+								$ [PATH_TO]/fluent-bit --config workshop-fb.conf
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Console output for pipeline (source)</h3>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: x-large;">
+						The console output should look something like this. We see the previous pipeline messages
+						 processing, and then after 5 seconds, the Fluent Bit metrics from our machine are collected before
+						going back to the previous pipeline messages. This runs until exiting with CTRL_C:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.0] initializing
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.0] storage_strategy='memory' (memory only)
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.1] initializing
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.1] storage_strategy='memory' (memory only)
+								[2025/07/10 14:14:57] [ info] [output:stdout:stdout.0] worker #0 started
+								[2025/07/10 14:14:57] [ info] [sp] stream processor started
+								[2025/07/10 14:14:57] [ info] [engine] Shutdown Grace Period=5, Shutdown Input Grace Period=2
+								{"date":1722505685.185163,"valid_message":"true","code":"200","type":"success"}
+								{"date":1722505685.187804,"workshop_status":"BROKEN"}
+								{"date":1722505686.185274,"valid_message":"true","code":"200","type":"success"}
+								{"date":1722505686.185503,"workshop_status":"BROKEN"}
+								{"date":1722505687.180423,"valid_message":"true","code":"200","type":"success"}
+								{"date":1722505687.180707,"workshop_status":"BROKEN"}
+								{"date":1722505688.181152,"valid_message":"true","code":"200","type":"success"}
+								{"date":1722505688.181327,"workshop_status":"BROKEN"}
+								{"date":1722505689.182123,"valid_message":"true","code":"200","type":"success"}
+								{"date":1722505689.182267,"workshop_status":"BROKEN"}
+								2024-08-01T09:48:09.182332484Z fluentbit_uptime{hostname="Erics-Pro-M2.local"} = 5
+								2024-08-01T09:48:09.182243358Z fluentbit_input_bytes_total{name="dummy.0"} = 235
+								2024-08-01T09:48:09.182243358Z fluentbit_input_records_total{name="dummy.0"} = 5
+								2024-08-01T09:48:09.182308525Z fluentbit_input_bytes_total{name="dummy.1"} = 230
+								2024-08-01T09:48:09.182308525Z fluentbit_input_records_total{name="dummy.1"} = 5
+								2024-08-01T09:48:04.177513624Z fluentbit_input_bytes_total{name="fluentbit_metrics.2"} = 0
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Verifying metrics pipeline (source)</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Fluent Bit metrics collection pipeline is cycling through metrics collection every 5 seconds, and
+						it's exposing a Prometheus compatible metrics endpoint which you can verify in a web browser
+						using <code><b><a href="http://localhost:9999/metrics" target="_blank">http://localhost:9999/metrics</a></b></code>:
+					</div>
+					<div style="height: 450px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# HELP fluentbit_uptime Number of seconds that Fluent Bit has been running.
+								# TYPE fluentbit_uptime counter
+								fluentbit_uptime{app="fluent-bit",workshop="lab4",hostname="Erics-Pro-M2.local"} 5
+								# HELP fluentbit_input_bytes_total Number of input bytes.
+								# TYPE fluentbit_input_bytes_total counter
+								fluentbit_input_bytes_total{app="fluent-bit",workshop="lab4",name="dummy.0"} 235
+								# HELP fluentbit_input_records_total Number of input records.
+								# TYPE fluentbit_input_records_total counter
+								fluentbit_input_records_total{app="fluent-bit",workshop="lab4",name="dummy.0"} 5
+								# HELP fluentbit_input_bytes_total Number of input bytes.
+								# TYPE fluentbit_input_bytes_total counter
+								fluentbit_input_bytes_total{app="fluent-bit",workshop="lab4",name="dummy.1"} 230
+								# HELP fluentbit_input_records_total Number of input records.
+								# TYPE fluentbit_input_records_total counter
+								fluentbit_input_records_total{app="fluent-bit",workshop="lab4",name="dummy.1"} 5
+								# HELP fluentbit_input_bytes_total Number of input bytes.
+								# TYPE fluentbit_input_bytes_total counter
+								fluentbit_input_bytes_total{app="fluent-bit",workshop="lab4",name="fluentbit_metrics.2"} 0
+								# HELP fluentbit_input_records_total Number of input records.
+								# TYPE fluentbit_input_records_total counter
+								fluentbit_input_records_total{app="fluent-bit",workshop="lab4",name="fluentbit_metrics.2"} 0
+								# HELP fluentbit_input_metrics_scrapes_total Number of total metrics scrapes
+								# TYPE fluentbit_input_metrics_scrapes_total counter
+								fluentbit_input_metrics_scrapes_total{app="fluent-bit",workshop="lab4",name="fluentbit_metrics.2"} 1
+								# HELP fluentbit_filter_records_total Total number of new records processed.
+								# TYPE fluentbit_filter_records_total counter
+								fluentbit_filter_records_total{app="fluent-bit",workshop="lab4",name="message_cleaning_parser"} 10
+								# HELP fluentbit_filter_bytes_total Total number of new bytes processed.
+								# TYPE fluentbit_filter_bytes_total counter
+								fluentbit_filter_bytes_total{app="fluent-bit",workshop="lab4",name="message_cleaning_parser"} 625
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Building this pipeline (container)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Now we'll build a new container image to test our metrics pipeline, naming it with a version tag,
+						as follows using the <code><b>Buildfile</b></code> and assuming you are in the same directory:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-fb:v7 -f Buildfile
+
+								STEP 1/3: FROM ghcr.io/fluent/fluent-bit:5.1.1
+								STEP 2/3: COPY ./workshop-fb.yaml /fluent-bit/etc/workshop-fb.yaml
+								--> 0dfad7d5d7dd
+								STEP 3/3: CMD [ "fluent-bit", "-c", "/fluent-bit/etc/workshop-fb.yaml"]
+								COMMIT workshop-fb:v7
+								--> 0aa626b103ac
+								Successfully tagged localhost/workshop-fb:v7
+								0aa626b103aca59a11c0c3e5d996b4bba7b225c86ef30f226ce51f8e877a7bb5
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Running metrics pipeline (container)</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						Now we'll run our new container image with port mapping from localhost 9999 to containers
+						port 9999:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run --rm -p 9999:9999 workshop-fb:v7
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines - Console output metrics pipeline (container)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						The console output should look something like this. We see the previous pipeline messages
+						 processing, and then after 5 seconds, the Fluent Bit metrics from our machine are collected
+						before going back to the previous pipeline messages. This runs until exiting with CTRL_C:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.0] initializing
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.0] storage_strategy='memory' (memory only)
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.1] initializing
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.1] storage_strategy='memory' (memory only)
+								[2025/07/10 14:14:57] [ info] [output:stdout:stdout.0] worker #0 started
+								[2025/07/10 14:14:57] [ info] [sp] stream processor started
+								[2025/07/10 14:14:57] [ info] [engine] Shutdown Grace Period=5, Shutdown Input Grace Period=2
+								{"date":1722505685.185163,"valid_message":"true","code":"200","type":"success"}
+								{"date":1722505685.187804,"workshop_status":"BROKEN"}
+								{"date":1722505686.185274,"valid_message":"true","code":"200","type":"success"}
+								{"date":1722505686.185503,"workshop_status":"BROKEN"}
+								{"date":1722505687.180423,"valid_message":"true","code":"200","type":"success"}
+								{"date":1722505687.180707,"workshop_status":"BROKEN"}
+								{"date":1722505688.181152,"valid_message":"true","code":"200","type":"success"}
+								{"date":1722505688.181327,"workshop_status":"BROKEN"}
+								{"date":1722505689.182123,"valid_message":"true","code":"200","type":"success"}
+								{"date":1722505689.182267,"workshop_status":"BROKEN"}
+								2024-08-01T09:48:09.182332484Z fluentbit_uptime{hostname="Erics-Pro-M2.local"} = 5
+								2024-08-01T09:48:09.182243358Z fluentbit_input_bytes_total{name="dummy.0"} = 235
+								2024-08-01T09:48:09.182243358Z fluentbit_input_records_total{name="dummy.0"} = 5
+								2024-08-01T09:48:09.182308525Z fluentbit_input_bytes_total{name="dummy.1"} = 230
+								2024-08-01T09:48:09.182308525Z fluentbit_input_records_total{name="dummy.1"} = 5
+								2024-08-01T09:48:04.177513624Z fluentbit_input_bytes_total{name="fluentbit_metrics.2"} = 0
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines - Verifying metrics pipeline (container)</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Fluent Bit metrics collection pipeline is cycling through metrics collection every 5 seconds, and
+						it's exposing a Prometheus compatible metrics endpoint which you can verify in a web browser
+						using <code><b><a href="http://localhost:9999/metrics" target="_blank">http://localhost:9999/metrics</a></b></code>:
+					</div>
+					<div style="height: 450px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# HELP fluentbit_uptime Number of seconds that Fluent Bit has been running.
+								# TYPE fluentbit_uptime counter
+								fluentbit_uptime{app="fluent-bit",workshop="lab4",hostname="Erics-Pro-M2.local"} 5
+								# HELP fluentbit_input_bytes_total Number of input bytes.
+								# TYPE fluentbit_input_bytes_total counter
+								fluentbit_input_bytes_total{app="fluent-bit",workshop="lab4",name="dummy.0"} 235
+								# HELP fluentbit_input_records_total Number of input records.
+								# TYPE fluentbit_input_records_total counter
+								fluentbit_input_records_total{app="fluent-bit",workshop="lab4",name="dummy.0"} 5
+								# HELP fluentbit_input_bytes_total Number of input bytes.
+								# TYPE fluentbit_input_bytes_total counter
+								fluentbit_input_bytes_total{app="fluent-bit",workshop="lab4",name="dummy.1"} 230
+								# HELP fluentbit_input_records_total Number of input records.
+								# TYPE fluentbit_input_records_total counter
+								fluentbit_input_records_total{app="fluent-bit",workshop="lab4",name="dummy.1"} 5
+								# HELP fluentbit_input_bytes_total Number of input bytes.
+								# TYPE fluentbit_input_bytes_total counter
+								fluentbit_input_bytes_total{app="fluent-bit",workshop="lab4",name="fluentbit_metrics.2"} 0
+								# HELP fluentbit_input_records_total Number of input records.
+								# TYPE fluentbit_input_records_total counter
+								fluentbit_input_records_total{app="fluent-bit",workshop="lab4",name="fluentbit_metrics.2"} 0
+								# HELP fluentbit_input_metrics_scrapes_total Number of total metrics scrapes
+								# TYPE fluentbit_input_metrics_scrapes_total counter
+								fluentbit_input_metrics_scrapes_total{app="fluent-bit",workshop="lab4",name="fluentbit_metrics.2"} 1
+								# HELP fluentbit_filter_records_total Total number of new records processed.
+								# TYPE fluentbit_filter_records_total counter
+								fluentbit_filter_records_total{app="fluent-bit",workshop="lab4",name="message_cleaning_parser"} 10
+								# HELP fluentbit_filter_bytes_total Total number of new bytes processed.
+								# TYPE fluentbit_filter_bytes_total counter
+								fluentbit_filter_bytes_total{app="fluent-bit",workshop="lab4",name="message_cleaning_parser"} 625
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Adding metrics pipeline (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						On Kubernetes we add the same metrics collection to the running pipeline. Open our Helm values
+						file <code><b>workshop-fb-helm.yaml</b></code> and add the <code><b>fluentbit_metrics</b></code>
+						input and the <code><b>prometheus_exporter</b></code> output, keeping the indentation inside the
+						<code><b>fluent-bit.yaml</b></code> block under <code><b>extraFiles</b></code>:
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								      pipeline:
+								        inputs:
+								          ...
+								          # This entry collects Fluent Bit metrics for the workshop.
+								          - name: fluentbit_metrics
+								            tag: fb_metrics
+								            host: 0.0.0.0
+								            scrape_interval: 5s
+
+								        outputs:
+								          ...
+								          # This entry exposes matching events as a Prometheus endpoint.
+								          - name: prometheus_exporter
+								            match: fb_metrics
+								            host: 0.0.0.0
+								            port: 9999
+								            add_label:
+								              - app fluent-bit
+								              - workshop lab4
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines - Rolling out metrics pipeline (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Apply the updated configuration with another <code><b>helm upgrade</b></code> from the
+						<code><b>fluentbit-install-demo</b></code> root directory, rolling out a new Fluent Bit pod that
+						picks up our metrics pipeline:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+								       --set image.tag=5.1.1 \
+								       --namespace logging --create-namespace \
+								       --values workshop-fb-helm.yaml
+
+								Release "fluent-bit" has been upgraded. Happy Helming!
+								NAME: fluent-bit
+								NAMESPACE: logging
+								STATUS: deployed
+								REVISION: 8
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines – Verifying metrics pipeline (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Since our <code><b>stdout</b></code> output still matches <code><b>*</b></code>, the collected
+						Fluent Bit metrics are printed to the pod's console right alongside the message events. Follow the
+						pod logs in the <code><b>logging</b></code> namespace, note the previous pipeline messages and, every
+						5 seconds, the Fluent Bit metrics collected from the pod (exit with CTRL-C):
+					</div>
+					<div style="height: 320px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+
+								...
+								{"date":1784733730.54836,"workshop_status":"BROKEN"}
+								{"date":1784733731.5483,"valid_message":"true","code":"200","type":"success"}
+								{"date":1784733731.548325,"workshop_status":"BROKEN"}
+								{"date":1784733732.548448,"valid_message":"true","code":"200","type":"success"}
+								{"date":1784733732.548513,"workshop_status":"BROKEN"}
+								2026-07-22T15:22:12.547826123Z fluentbit_uptime{hostname="fluent-bit-j75v5"} = 5
+								2026-07-22T15:22:12.547826123Z fluentbit_hot_reloaded_times{hostname="fluent-bit-j75v5"} = 0
+								2026-07-22T15:22:07.804645704Z fluentbit_logger_logs_total{message_type="error"} = 0
+								2026-07-22T15:22:07.804645704Z fluentbit_logger_logs_total{message_type="warn"} = 0
+								2026-07-22T15:22:07.805295995Z fluentbit_logger_logs_total{message_type="info"} = 16
+								2026-07-22T15:22:07.804645704Z fluentbit_logger_logs_total{message_type="debug"} = 0
+								2026-07-22T15:22:07.804645704Z fluentbit_logger_logs_total{message_type="trace"} = 0
+								2026-07-22T15:22:07.805308704Z fluentbit_logger_queue_enqueued_total = 16
+								1970-01-01T00:00:00.000000000Z fluentbit_logger_queue_dropped_total = 0
+								2026-07-22T15:22:07.805304537Z fluentbit_logger_queue_drained_total = 16
+								2026-07-22T15:22:11.548371247Z fluentbit_routing_logs_records_total{input="dummy.0",output="stdout.0"} = 3
+								2026-07-22T15:22:11.548375747Z fluentbit_routing_logs_records_total{input="dummy.1",output="stdout.0"} = 3
+								2026-07-22T15:22:11.548371247Z fluentbit_routing_logs_bytes_total{input="dummy.0",output="stdout.0"} = 165
+								2026-07-22T15:22:11.548375747Z fluentbit_routing_logs_bytes_total{input="dummy.1",output="stdout.0"} = 111
+								2026-07-22T15:22:11.548314789Z fluentbit_input_bytes_total{name="dummy.0"} = 156
+								2026-07-22T15:22:11.548328372Z fluentbit_input_bytes_total{name="dummy.1"} = 152
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">More pipelines - Conclusion metrics pipeline</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Once you have your metrics collection pipeline up and running, you can configure a Prometheus
+						instance to scrape the provided endpoint, which stores them in a time series database, and
+						provides you with the ability to query them for visualization and dashboard creation.
+					</div>
+				</section>
+
+				<section data-background="images/lab03-2.jpg">
+					<div style="height: 400px;">
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<h1 class="r-fit-text" style="color: white;">Metrics processing pipeline completed!</h1>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">First pipelines – Basic understanding of pipelines</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						You now have a solid understanding of how to build a telemetry pipeline, have created both basic
+						and more advanced examples to explore how to manage both logs and metrics. There is much more to
+						be done, so onwards!
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed – Results</h2>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# HELP fluentbit_uptime Number of seconds that Fluent Bit has been running.
+								# TYPE fluentbit_uptime counter
+								fluentbit_uptime{app="fluent-bit",workshop="lab4",hostname="Erics-Pro-M2.local"} 5
+								# HELP fluentbit_input_bytes_total Number of input bytes.
+								# TYPE fluentbit_input_bytes_total counter
+								fluentbit_input_bytes_total{app="fluent-bit",workshop="lab4",name="dummy.0"} 235
+								# HELP fluentbit_input_records_total Number of input records.
+								# TYPE fluentbit_input_records_total counter
+								fluentbit_input_records_total{app="fluent-bit",workshop="lab4",name="dummy.0"} 5
+								# HELP fluentbit_input_bytes_total Number of input bytes.
+								# TYPE fluentbit_input_bytes_total counter
+								fluentbit_input_bytes_total{app="fluent-bit",workshop="lab4",name="dummy.1"} 230
+								# HELP fluentbit_input_records_total Number of input records.
+								# TYPE fluentbit_input_records_total counter
+								fluentbit_input_records_total{app="fluent-bit",workshop="lab4",name="dummy.1"} 5
+								# HELP fluentbit_input_bytes_total Number of input bytes.
+								# TYPE fluentbit_input_bytes_total counter
+								fluentbit_input_bytes_total{app="fluent-bit",workshop="lab4",name="fluentbit_metrics.2"} 0
+								# HELP fluentbit_input_records_total Number of input records.
+								# TYPE fluentbit_input_records_total counter
+								fluentbit_input_records_total{app="fluent-bit",workshop="lab4",name="fluentbit_metrics.2"} 0
+								# HELP fluentbit_input_metrics_scrapes_total Number of total metrics scrapes
+								# TYPE fluentbit_input_metrics_scrapes_total counter
+								fluentbit_input_metrics_scrapes_total{app="fluent-bit",workshop="lab4",name="fluentbit_metrics.2"} 1
+								...
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; font-size: xx-large">
+						Next up, understanding backpressure in a telemetry pipeline...
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://github.com/fluent/fluent-bit/blob/master/README.md" target="_blank">Fluent Bit repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact – are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Technology Advocate Lead<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in the workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab05.html" target="_blank">Lab 5 - Understanding backpressure</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

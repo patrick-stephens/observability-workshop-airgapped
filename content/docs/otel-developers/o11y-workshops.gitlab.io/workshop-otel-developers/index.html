@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="EN">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="OpenTelemetry Workshop for Java Developers">
+		<meta name="author" content="Workshop Author">
+
+		<title>OpenTelemetry for Java Developers</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/erics.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<section>
+						<div style="height: 220px;">
+							<h2>Workshop</h2>
+							<h4>OpenTelemetry for Java Developers</h4>
+						</div>
+						<div style="height: 180px; font-size: xx-large;">
+							This workshop will guide you through setting up OpenTelemetry (OTel) and instrumenting a
+							Java application locally to collect and analyze trace data.
+						</div>
+						<div style="height: 90px; font-size: x-large; text-align: left;">
+							<b>Prerequisites:</b>
+							<a href="https://podman.io/" target="_blank"> Podman v5+</a>,
+							<a href="https://openjdk.org/projects/jdk/21/" target="_blank">Java 21</a>,
+							<a href="https://maven.apache.org/" target="_blank">Maven 3.8+</a>, and
+							<a href="https://rancherdesktop.io/" target="_blank">Rancher Desktop (k3s)</a>
+						</div>
+						<div style="height: 120px; font-size: x-large; text-align: left;">
+							Based on OpenTelemetry Java SDK v1.65, Java Agent v2.30, Jaeger v1.76, and Prometheus v3.13.1<br />
+							<br />
+							<h5 style="text-align: right;">Next slide to the right... ==></h5>
+						</div>
+					</section>
+
+					<section>
+						<div style="height: 100px;">
+							<h2>Follow along:</h2>
+						</div>
+						<div style="height: 350px;">
+							<img src="images/qr-code-otel-dev-workshop.png" alt="">
+							<br />
+							<b>Short link:</b><a href="https://bit.ly/otel-java-dev-workshop" target="_blank"> bit.ly/otel-java-dev-workshop</a>
+						</div>
+					</section>
+				</section>
+
+				<section>
+					<div style="height: 120px">
+						<h2 class="r-fit-text">Navigation tips - Table of contents</h2>
+					</div>
+					<div style="height: 300px; font-size: xx-large; text-align: left">
+						Each lab provided by this workshop has a table of contents. Using this table of contents
+						and general navigation provided for your ease of use.<br />
+						<br />
+						Keyboard:<br />
+						<ul>
+							<li>'m' key = open / close table of contents</li>
+							<li>arrow keys = move forward / back through slides</li>
+						</ul>
+						<br /><br />
+						Mouse click on:<br />
+						<ul>
+							<li>bottom left icon = open table of contents</li>
+							<li>bottom right arrow icons = move forward / back through slides</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Some workshop guidelines</h3>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						Some things to watch for in the workshop:<br /><br />
+						<ul>
+							<li>All links you can click to follow are displayed as <i style="color: #2FBF71">green text</i></li>
+							<li>All video images can be clicked on to view</li>
+							<li>All code snippets will be as follows:
+								<ul>
+									<li><code>System.out.println("This is code.");</code></li>
+								</ul>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">OpenTelemetry Java Tracing Demo Application</h2>
+					</div>
+					<div style="height: 350px; font-size: xx-large; text-align: left;">
+						In this workshop we'll be using a <a href="https://github.com/open-telemetry/opentelemetry-java-tracing-demo" target="_blank">Java HTTP server application</a> with these endpoints:<br/>
+						<br/>
+						<table style="font-size: x-large;">
+							<tr><th>Endpoint</th><th>Method</th><th>Description</th></tr>
+							<tr><td><code>/</code></td><td>GET</td><td>Page view counter</td></tr>
+							<tr><td><code>/rolldice</code></td><td>GET</td><td>Random dice roll (1-6)</td></tr>
+							<tr><td><code>/doggo</code></td><td>GET</td><td>Random dog image from dog.ceo API</td></tr>
+							<tr><td><code>/doggo</code></td><td>POST</td><td>Search for specific breed image</td></tr>
+						</table>
+						<br/>
+						Server runs on: <a href="http://localhost:9999" target="_blank">http://localhost:9999</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab 1 - Observability Primer</h2>
+					</div>
+					<div style="height: 150px; font-size: xx-large">
+						Lab goals: Define common observability and monitoring terms and gain an understanding the role 
+						of OpenTelemetry and its components. 
+					</div>
+					<div style="height: 70px;">
+						<div style="height: 70px;">
+							<a href="lab01.html" target="_blank">[ Click here to start ]</a>
+						</div>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab 2 - Automatic Instrumentation</h2>
+					</div>
+					<div style="height: 200px; font-size: xx-large">
+						Lab goals: This lab walks you through using the OpenTelemetry Java Agent for zero-code
+						automatic instrumentation, configuring the agent, running the demo application, and viewing 
+						trace data in the console.
+					</div>
+					<div style="height: 70px;">
+						<div style="height: 70px;">
+							<a href="lab02.html" target="_blank">[ Click here to start ]</a>
+						</div>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab 3 - Programmatic Instrumentation</h2>
+					</div>
+					<div style="height: 200px; font-size: xx-large">
+						Lab goals: This lab walks you through adding OpenTelemetry SDK dependencies to your project,
+						configuring the tracer programmatically, and viewing trace data in Jaeger.
+					</div>
+					<div style="height: 70px;">
+						<a href="lab03.html" target="_blank">[ Click here to start ]</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab 4 - Exploring Jaeger UI</h2>
+					</div>
+					<div style="height: 150px; font-size: xx-large">
+						Lab goals: This lab walks you through querying, viewing and comparing trace visualizations with Jaeger.
+					</div>
+					<div style="height: 70px;">
+						<a href="lab04.html" target="_blank">[ Click here to start ]</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab 5 - Manual Instrumentation</h2>
+					</div>
+					<div style="height: 150px; font-size: xx-large">
+						Lab goals: This lab walks you through various methods to manually instrument metadata on spans
+						including custom spans, attributes, events, and error handling.
+					</div>
+					<div style="height: 70px;">
+						<a href="lab05.html" target="_blank">[ Click here to start ]</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab 6 - Traces & Metrics</h2>
+					</div>
+					<div style="height: 150px; font-size: xx-large">
+						Lab goals: This lab walks you through how to instrument metrics with OpenTelemetry and 
+						link them to traces via exemplars using Prometheus.
+					</div>
+					<div style="height: 70px;">
+						 <a href="lab06.html" target="_blank">[ Click here to start ]</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2>The End</h2>
+					</div>
+					<div style="height: 250px; font-size: xx-large;">
+						This completes the OpenTelemetry for Java Developers workshop. If interested in more 
+						cloud native observability workshops, then head back to 
+						<a href="https://o11y-workshops.gitlab.io" target="_blank">choose your next workshop adventure.</a>
+						<br />
+						<br />
+						Thanks for your time and feedback is always welcome!
+					</div>
+					<div style="font-size: x-large; text-align: left;">
+						Eric D. Schabell<br />
+						Technology Advocate Lead<br />
+						Contact: @ericschabell {<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>}<br />
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="https://o11y-workshops.gitlab.io/workshop-otel-developers/node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>
+

@@ -1,0 +1,1076 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="OpenTelemetry Workshop for Java Developers">
+		<meta name="author" content="Workshop Author">
+
+		<title>Lab 2 - Automatic Instrumentation (Rancher k3s)</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/erics.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Rancher k3s prerequisites</h2>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						This path runs the demo application on a local Rancher Desktop k3s cluster instead of straight on your
+						machine. You still need <a href="https://podman.io/" target="_blank">Podman v5+</a> to build the images
+						and <a href="https://openjdk.org/projects/jdk/21/" target="_blank">Java 21</a> with
+						<a href="https://maven.apache.org/" target="_blank">Maven 3.8+</a> to build the JAR that goes into them,
+						plus <a href="https://rancherdesktop.io/" target="_blank">Rancher Desktop</a> with the Kubernetes (k3s)
+						engine enabled and <code>kubectl</code> on your PATH.
+					</div>
+					<div style="height: 90px; text-align: left; font-size: large;">
+						You never download the Java Agent by hand on this path - each build file pulls it in with
+						<code>ADD</code>, so it lands inside the image.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Start Rancher Desktop</h2>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						This lab assumes Rancher Desktop is installed but <b>not yet running</b>. Launch it now:
+					</div>
+					<div style="height: 60px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ rdctl start
+							</code>
+						</pre>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						<ul>
+							<li>Open the Rancher Desktop application</li>
+							<li>In <b>Preferences &rarr; Kubernetes</b>, confirm "Enable Kubernetes" is checked (k3s)</li>
+							<li>In <b>Preferences &rarr; Container Engine</b>, confirm "containerd" is selected</li>
+							<li>Wait for the status indicator in the bottom left to turn green and show
+								"Kubernetes is running" - this can take a minute or two on first start</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Verifying the cluster</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Check that <code>kubectl</code> is pointed at Rancher Desktop and the node is ready:
+					</div>
+					<div style="height: 150px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl config current-context
+								rancher-desktop
+
+								$ kubectl get nodes
+								NAME                   STATUS   ROLES                  AGE   VERSION
+								lima-rancher-desktop   Ready    control-plane,master   2d    v1.36.2+k3s1
+							</code>
+						</pre>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: x-large;">
+						This lab binds host port <b>9999</b>. If <code>kubectl get pods</code> lists a pod left over from other
+						work, delete it first with <code>kubectl delete pod &lt;name&gt;</code> - two pods cannot claim the same
+						host port on a single node.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Getting started</h2>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						The OpenTelemetry Java Agent provides automatic instrumentation by attaching to the JVM
+						and dynamically injecting bytecode. This means you get tracing without changing a single
+						line of your application code. The agent automatically instruments:<br />
+                        <br />
+						<ul>
+							<li>HTTP clients and servers</li>
+							<li>Database calls</li>
+							<li>Messaging systems</li>
+							<li>And many more libraries</li>
+						</ul>
+					</div>
+				</section>
+
+        		<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Demo project introduction</h2>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						The <a href="https://github.com/open-telemetry/opentelemetry-java-tracing-demo" target="_blank">Java Tracing Demo</a> 
+                        project is a simple Java HTTP server designed to demonstrate OpenTelemetry instrumentation. It includes endpoints for
+						page views, random dog images, and dice rolls.<br />
+						<br />
+						This lab uses the OpenTelemetry Java Agent for automatic instrumentation without modifying application code.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Using the easy install project</h2>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						The <a href="https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo" target="_blank">
+						OpenTelemetry Java Tracing demo</a> project takes just 3 steps to a running server:<br />
+						<br />
+						<ol>
+							<li><a href="https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo/-/archive/v1.1/opentelemetry-java-tracing-demo-v1.1.zip" target="_blank">Download</a> and unzip project.</li>
+							<li>Build the Java application with the following in a console:<br /> <code style="font-size: large;"><b>mvn clean install</b></code></li>
+							<li>Package it into a container image and run it as a pod on your k3s cluster.</li>
+						</ol>
+						<br />
+            			<br />
+						Let's walk through these steps one by one in the next slides...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Downloading and unzip project</h2>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						The first step is to download the project. Unzipping (use your file manager or console) should look something like this:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ unzip opentelemetry-java-tracing-demo-v1.1.zip
+
+								Archive: opentelemetry-java-tracing-demo-v1.1.zip
+								creating: opentelemetry-java-tracing-demo-v1.1/
+								extracting: opentelemetry-java-tracing-demo-v1.1/.gitignore
+								inflating: opentelemetry-java-tracing-demo-v1.1/README.md
+								inflating: opentelemetry-java-tracing-demo-v1.1/Buildfile
+								creating: opentelemetry-java-tracing-demo-v1.1/src/
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Starting the build</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Change to the project directory and build using Maven (note the VERSION text below is to be replaced with the version of the project you have downloaded):
+					</div>
+					<div style="height: 150px;">
+						<pre>
+							<code data-trim data-noescape>
+								$ cd opentelemetry-java-tracing-demo-{VERSION}
+
+								$ mvn clean install
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Building application completes</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						As we watch the build output, notice testing is done on the code, then it builds the Java application:
+					</div>
+					<div style="height: 200px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[INFO] --- maven-surefire-plugin:3.2.2:test (default-test) @ java-instrumentation-demo ---
+								[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+								[INFO]
+								[INFO] -------------------------------------------------------
+								[INFO]  T E S T S
+								[INFO] -------------------------------------------------------
+								[INFO] Running io.chronosphere.AppTest
+								[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.315 s -- in io.chronosphere.AppTest
+								[INFO] Running io.chronosphere.BreedsTest
+								[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s -- in io.chronosphere.BreedsTest
+								[INFO]
+								[INFO] Results:
+								[INFO]
+								[INFO] Tests run: 14, Failures: 0, Errors: 0, Skipped: 0
+								[INFO]
+								...
+								[INFO] --- maven-install-plugin:2.4:install (default-install) @ java-instrumentation-demo ---
+								[INFO] Installing opentelemetry-java-tracing-demo/target/java-instrumentation-demo-1.0-SNAPSHOT.jar to /Users/erics/demo-projects/maven-repository/io/chronosphere/java-instrumentation-demo/1.0-SNAPSHOT/java-instrumentation-demo-1.0-SNAPSHOT.jar
+								[INFO] Installing opentelemetry-java-tracing-demo/pom.xml to /Users/erics/demo-projects/maven-repository/io/chronosphere/java-instrumentation-demo/1.0-SNAPSHOT/java-instrumentation-demo-1.0-SNAPSHOT.pom
+								[INFO] Installing opentelemetry-java-tracing-demo/target/java-instrumentation-demo-1.0-SNAPSHOT-with-dependencies.jar to /Users/erics/demo-projects/maven-repository/io/chronosphere/java-instrumentation-demo/1.0-SNAPSHOT/java-instrumentation-demo-1.0-SNAPSHOT-with-dependencies.jar
+								[INFO] ------------------------------------------------------------------------
+								[INFO] BUILD SUCCESS
+								[INFO] ------------------------------------------------------------------------
+								[INFO] Total time:  1.300 s
+								[INFO] Finished at: 2026-01-05T13:30:37+01:00
+								[INFO] ------------------------------------------------------------------------
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Build the uninstrumented image</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Before adding any instrumentation, let's get the plain application running on the cluster as a
+						baseline. The project's <code><b>Buildfile</b></code> contains only the application - no agent, no
+						OpenTelemetry configuration:
+					</div>
+					<div style="height: 150px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								FROM eclipse-temurin:21
+
+								ADD target/java-instrumentation-demo-1.0-SNAPSHOT-with-dependencies.jar \
+									java-instrumentation-demo-1.0-SNAPSHOT-with-dependencies.jar
+
+								ENTRYPOINT ["java", "-jar", \
+									"java-instrumentation-demo-1.0-SNAPSHOT-with-dependencies.jar"]
+								EXPOSE 9999
+							</code>
+						</pre>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: x-large;">
+						Podman builds into its own local store, but k3s runs inside Rancher Desktop's VM with a separate
+						containerd image store - there is no <code>k3s</code> binary on your host. Use
+						<code><b>nerdctl</b></code>, which ships with Rancher Desktop, to load the image into the VM's
+						<code><b>k8s.io</b></code> namespace where kubelet looks for it:
+					</div>
+					<div style="height: 120px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t java-demo:base -f Buildfile
+
+								$ podman save localhost/java-demo:base -o java-demo-base.tar
+
+								$ nerdctl --namespace k8s.io load -i java-demo-base.tar
+								Loaded image: localhost/java-demo:base
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: large;">
+						If <code>nerdctl</code> fails with "cannot access containerd socket", your Container Engine is set to
+						<b>dockerd</b> - either switch it in Preferences, or use <code><b>docker load -i</b></code> instead
+						for every import in this lab.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Run without instrumentation on k3s</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						The image name must match exactly what was loaded - <code><b>localhost/java-demo:base</b></code>, not
+						just <code>java-demo:base</code> - or <code>--image-pull-policy=Never</code> cannot find it:
+					</div>
+					<div style="height: 300px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete pod java-demo-base --ignore-not-found
+
+								$ kubectl run java-demo-base --image=localhost/java-demo:base \
+								  --image-pull-policy=Never --port=9999
+								pod/java-demo-base created
+
+								$ kubectl wait --for=condition=Ready pod/java-demo-base --timeout=180s
+								pod/java-demo-base condition met
+
+								$ kubectl get pod java-demo-base
+								NAME             READY   STATUS    RESTARTS   AGE
+								java-demo-base   1/1     Running   0          1s
+
+								$ kubectl port-forward pod/java-demo-base 9999:9999
+								Forwarding from 127.0.0.1:9999 -&gt; 9999
+							</code>
+						</pre>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						The <code>kubectl wait</code> matters - without it the port-forward can fail with "unable to forward
+						port because pod is not running". Leave the forward running in its own terminal.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Explore the demo app</h2>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						The demo application is a simple Java HTTP server using <a href="https://javalin.io/" target="_blank">Javalin</a> (a lightweight framework built on Jetty) and has the following endpoints:<br />
+						<br />
+						<ul>
+							<li><b><a href="http://localhost:9999/" target="_blank">/</a></b> - displays count of how many times the page has been loaded. </li>
+							<li>
+								<strong><a href="http://localhost:9999/doggo" target="_blank">/doggo</a></strong> - displays random photo of a dog from the <a href="https://dog.ceo/dog-api/" target="_blank">Dog API</a>
+							</li>
+							<li><b><a href="http://localhost:9999/rolldice" target="_blank">/rolldice</a></b> - displays result of a randomized simulated dice roll </li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Check the pod logs</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Without instrumentation, the pod log holds only the basic startup output:
+					</div>
+					<div style="height: 120px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl logs pod/java-demo-base
+								...
+								[main] INFO io.javalin.Javalin - Javalin started in 86ms \o/
+								[main] INFO io.javalin.Javalin - Listening on http://localhost:9999/
+								Server started on http://localhost:9999
+							</code>
+						</pre>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						No request logs, no tracing, not one <code><b>[otel.javaagent]</b></code> line - just a simple server.
+						Time to add automatic instrumentation.
+					</div>
+					<div style="height: 110px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete pod java-demo-base
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Java Agent in container</h2>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						The first option is to auto-instrument in a container by adding the agent JAR and include 
+						<code><b>-javaagent:/app/opentelemetry-javaagent-2.30.0.jar</b></code> in the ENTRYPOINT. 
+						Create a file called <code><b>Buildfile-AgentContainer</b></code> with the following content:
+					</div>
+					<div style="height: 220px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								FROM eclipse-temurin:21
+								WORKDIR /app
+
+								# Download the OpenTelemetry Java Agent
+								ADD https://github.com/open-telemetry/opentelemetry-java-instrumentation/\
+								releases/download/v2.30.0/opentelemetry-javaagent.jar /app/opentelemetry-javaagent-2.30.0.jar
+
+								COPY target/java-instrumentation-demo-1.0-SNAPSHOT-with-dependencies.jar /app/app.jar
+
+								ENTRYPOINT ["java", "-javaagent:/app/opentelemetry-javaagent-2.30.0.jar", "-jar", "/app/app.jar"]
+								EXPOSE 9999
+							</code>
+						</pre>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						In the next slide we will build and run this container to verify the auto-instrumentation.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Import the agent image into k3s</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Same three steps as the baseline image - build with Podman, export it, load it into the VM's
+						containerd store:
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t java-demo:auto -f Buildfile-AgentContainer
+
+								$ podman save localhost/java-demo:auto -o java-demo-auto.tar
+
+								$ nerdctl --namespace k8s.io load -i java-demo-auto.tar
+								Loaded image: localhost/java-demo:auto
+							</code>
+						</pre>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Notice you never ran <code>curl</code> for the agent JAR - the <code><b>ADD</b></code> line in the
+						build file fetched it at image build time, which is exactly what you want for a cluster deployment.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Run with the Java Agent on k3s</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Run the pod, passing the OpenTelemetry configuration as environment variables:
+					</div>
+					<div style="height: 300px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete pod java-demo-auto --ignore-not-found
+
+								$ kubectl run java-demo-auto --image=localhost/java-demo:auto \
+								  --image-pull-policy=Never --port=9999 \
+								  --env="OTEL_SERVICE_NAME=java-demo" \
+								  --env="OTEL_TRACES_EXPORTER=logging" \
+								  --env="OTEL_METRICS_EXPORTER=none" \
+								  --env="OTEL_LOGS_EXPORTER=none"
+								pod/java-demo-auto created
+
+								$ kubectl wait --for=condition=Ready pod/java-demo-auto --timeout=180s
+								pod/java-demo-auto condition met
+
+								$ kubectl port-forward pod/java-demo-auto 9999:9999
+							</code>
+						</pre>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						In a <b>second terminal</b>, follow the spans as they are exported:
+						<code><b>kubectl logs -f pod/java-demo-auto</b></code>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Understanding the configuration</h2>
+					</div>
+					<div style="height: 380px; text-align: left; font-size: x-large;">
+						The agent takes the same settings whether they arrive as <code>-D</code> system properties or as
+						environment variables. In Kubernetes you always use the environment form:<br />
+						<br />
+						<ul>
+							<li><code><b>-javaagent:/app/opentelemetry-javaagent-2.30.0.jar</b></code> - baked into the image's
+								ENTRYPOINT, so the pod spec never mentions it</li>
+							<li><code><b>OTEL_SERVICE_NAME=java-demo</b></code> - sets the service name for traces</li>
+							<li><code><b>OTEL_TRACES_EXPORTER=logging</b></code> - exports traces to the container log, which is
+								what <code>kubectl logs</code> shows you</li>
+							<li><code><b>OTEL_METRICS_EXPORTER=none</b></code> - disables metrics for now</li>
+							<li><code><b>OTEL_LOGS_EXPORTER=none</b></code> - disables log export for now</li>
+						</ul>
+					</div>
+					<div style="height: 90px; text-align: left; font-size: large;">
+						The host path also passes <code>-Xshare:off</code> to silence a class-data-sharing warning. The
+						images here do not set it, so you may see that warning in the pod log - it is harmless.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Generating traffic</h2>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						Open a browser and make requests to the endpoints:
+					</div>
+					<div style="text-align: left; font-size: x-large;">
+						<ul>
+							<li><b><a href="http://localhost:9999/" target="_blank">/</a></b></li>
+							<li><strong><a href="http://localhost:9999/doggo" target="_blank">/doggo</a></strong></li>
+							<li><b><a href="http://localhost:9999/rolldice" target="_blank">/rolldice</a></b></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Verify / endpoint</h2>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: xx-large;">
+						In the terminal run the command shown below and note the span for the
+						(index) endpoint:
+					</div>
+					<div style="font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl logs pod/java-demo-auto
+
+								...
+								[otel.javaagent 2026-08-18 13:22:42] [JettyServerThreadPool-27] INFO io.opentelemetry.exporter.logging.LoggingSpanExporter - 
+								'GET /' : f443c0370f422983e27eefeb27d9bb30 732a4a90a450a185 SERVER 
+								[tracer: io.opentelemetry.jetty-11.0:2.30.0-alpha] 
+								AttributesMap{
+									data={
+										thread.id=27, 
+										http.route=/, 
+										http.request.method=GET, 
+										http.response.status_code=200, 
+										url.path=/, 
+										server.address=localhost, 
+										server.port=9999, 
+										<mark>client.address=127.0.0.1,</mark> 
+										<mark>network.peer.address=127.0.0.1,</mark> 
+										network.protocol.version=1.1, 
+										user_agent.original=Mozilla/5.0 ..., 
+										network.peer.port=33658, 
+										url.scheme=http, 
+										thread.name=JettyServerThreadPool-27}, 
+										capacity=128, 
+										totalAddedValues=14
+									}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Verify /doggo endpoint</h2>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: x-large;">
+						The <strong>/doggo</strong> endpoint generates two spans - a CLIENT span for the external API call:
+					</div>
+					<div style="height: 280px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl logs pod/java-demo-auto
+
+								...
+								[otel.javaagent 2026-08-18 13:22:43] [JettyServerThreadPool-26] INFO io.opentelemetry.exporter.logging.LoggingSpanExporter - 
+								'GET' : 9dcc762ca8a5aff60bf8618db467514e 51f03234375bf614 CLIENT 
+								[tracer: io.opentelemetry.http-url-connection:2.30.0-alpha] 
+								AttributesMap{
+									data={
+										thread.id=26, 
+										network.protocol.version=1.1, 
+										http.request.method=GET, 
+										http.response.status_code=200, 
+										server.address=dog.ceo, 
+										server.port=443, 
+										thread.name=JettyServerThreadPool-26, 
+										url.full=https://dog.ceo/api/breeds/image/random}, 
+										capacity=128, 
+										totalAddedValues=8
+									}
+								...
+							</code>
+						</pre>
+					</div>
+					<div style="height: 40px; text-align: left; font-size: x-large;">
+						...and a SERVER span for the incoming request, the same shape as the / endpoint. The pod reaches
+						<code>dog.ceo</code> straight out through the cluster's egress - no extra configuration needed.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Verify /rolldice endpoint</h2>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: xx-large;">
+						And the span for the <strong>/rolldice</strong> endpoint:
+					</div>
+					<div style="font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl logs pod/java-demo-auto
+
+								...
+								[otel.javaagent 2026-08-18 13:22:43] [JettyServerThreadPool-29] INFO io.opentelemetry.exporter.logging.LoggingSpanExporter - 
+								'GET /rolldice' : e691272e158d741f0e263899902e0ee9 aecdedc42ba6c626 SERVER 
+								[tracer: io.opentelemetry.jetty-11.0:2.30.0-alpha] 
+								AttributesMap{
+									data={
+										thread.id=29, 
+										http.route=/rolldice, 
+										http.request.method=GET, 
+										http.response.status_code=200, 
+										url.path=/rolldice, 
+										server.address=localhost, 
+										server.port=9999, 
+										client.address=127.0.0.1, 
+										network.peer.address=127.0.0.1, 
+										network.protocol.version=1.1, 
+										user_agent.original=Mozilla/5.0 ..., 
+										network.peer.port=33684, 
+										url.scheme=http, 
+										thread.name=JettyServerThreadPool-29}, 
+										capacity=128, 
+										totalAddedValues=14
+									}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Using <code>JAVA_TOOL_OPTIONS</code></h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						An alternative is using <code><b>JAVA_TOOL_OPTIONS</b></code> where the JVM automatically picks up 
+						this environment variable. Create a file called <code><b>Buildfile-AgentJavaTools</b></code> with 
+						the following content:
+					</div>
+					<div style="height: 320px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								FROM eclipse-temurin:21
+								WORKDIR /app
+
+								ADD https://github.com/open-telemetry/opentelemetry-java-instrumentation/\
+								releases/download/v2.30.0/opentelemetry-javaagent.jar /app/opentelemetry-javaagent-2.30.0.jar
+
+								COPY target/java-instrumentation-demo-1.0-SNAPSHOT-with-dependencies.jar /app/app.jar
+
+								# Agent attaches automatically via JAVA_TOOL_OPTIONS
+								ENV JAVA_TOOL_OPTIONS="-javaagent:/app/opentelemetry-javaagent-2.30.0.jar"
+								ENV OTEL_SERVICE_NAME=java-demo
+								ENV OTEL_TRACES_EXPORTER=logging
+								ENV OTEL_METRICS_EXPORTER=none
+								ENV OTEL_LOGS_EXPORTER=none
+
+								ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+								EXPOSE 9999
+							</code>
+						</pre>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						In the next slide we will build and run this container to verify the auto-instrumentation with this approach.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Run <code>JAVA_TOOL_OPTIONS</code> on k3s</h2>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: xx-large;">
+						Build, import and run - no environment variables needed this time:
+					</div>
+					<div style="height: 280px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t java-demo:java-tools -f Buildfile-AgentJavaTools
+
+								$ podman save localhost/java-demo:java-tools -o java-demo-java-tools.tar
+
+								$ nerdctl --namespace k8s.io load -i java-demo-java-tools.tar
+
+								$ kubectl delete pod java-demo-java-tools --ignore-not-found
+
+								$ kubectl run java-demo-java-tools --image=localhost/java-demo:java-tools \
+								  --image-pull-policy=Never --port=9999
+
+								$ kubectl wait --for=condition=Ready pod/java-demo-java-tools --timeout=180s
+
+								$ kubectl port-forward pod/java-demo-java-tools 9999:9999
+							</code>
+						</pre>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Everything is baked into the image - agent attachment and OTel configuration - so the pod spec stays
+						as small as it can be.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Intermezzo - <code>JAVA_TOOL_OPTIONS</code> benefits</h2>
+					</div>
+					<div style="height: 220px; text-align: left; font-size: x-large;">
+						Benefits of the <code><b>JAVA_TOOL_OPTIONS</b></code> approach:
+						<br /><br />
+						<ul>
+							<li>No need to modify the <code>java</code> command or ENTRYPOINT</li>
+							<li>Works with any existing Java container image</li>
+							<li>Configuration baked in but can be overridden at runtime</li>
+							<li>Easy to disable: <code><b>--env="JAVA_TOOL_OPTIONS="</b></code></li>
+						</ul>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: x-large;">
+						Try that last one - every baked-in setting can be overridden from the pod spec:
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl run java-demo-noagent --image=localhost/java-demo:java-tools \
+								  --image-pull-policy=Never --port=9999 --env="JAVA_TOOL_OPTIONS="
+
+								$ kubectl logs -f pod/java-demo-noagent
+							</code>
+						</pre>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: large;">
+						The log has no <code><b>[otel.javaagent]</b></code> lines and no spans - the agent never attached.
+						Clean up with <code><b>kubectl delete pod java-demo-noagent</b></code>.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Intermezzo - Overriding to OTLP</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						The override you would actually use in production swaps the console exporter for OTLP. On a cluster
+						two things have to be right, and the second one catches people out:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						<ul>
+							<li>Something has to be <b>listening</b> for OTLP - we have no collector in the cluster yet,
+								that arrives in the next lab with Jaeger</li>
+							<li>The agent defaults to <code>http://localhost:4318</code>, which inside a pod is that
+								<b>pod's</b> loopback. It only works if the collector is a second container in the same
+								pod - otherwise point it at a Service, or at the host</li>
+						</ul>
+					</div>
+					<div style="height: 120px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl run java-demo-otlp --image=localhost/java-demo:java-tools \
+								  --image-pull-policy=Never --port=9999 \
+								  --env="OTEL_TRACES_EXPORTER=otlp" \
+								  <mark>--env="OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318"</mark>
+							</code>
+						</pre>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: large;">
+						Don't run this yet - with nothing listening the agent logs
+						<code>Failed to export spans</code> every few seconds. Lab 6 shows the shared-pod pattern.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Intermezzo - Why mounting the agent does not translate</h2>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: x-large;">
+						The Podman path shows a third pattern: keep the agent out of the image entirely and mount it at
+						runtime with <code><b>-v ./opentelemetry-javaagent-2.30.0.jar:/otel/agent.jar:ro</b></code>. That
+						one does not carry over to k3s.<br />
+						<br />
+						The pod runs inside the Rancher Desktop VM, so a path on your laptop is not a path the kubelet can
+						see. A <code>hostPath</code> volume would resolve inside the VM, not on your host, and whether your
+						home directory happens to be mounted there depends on the Rancher Desktop version and VM backend -
+						not something a workshop should rely on.
+						<br /><br />
+						In Kubernetes the agent normally arrives one of two ways: baked into the image, as in the two
+						patterns you just ran, or copied in by an init container sharing an <code>emptyDir</code> volume.
+						The operator does the latter for you.<br />
+						<br />
+						Read the mounted-agent slides on the
+						<a href="lab02.html" target="_blank">Podman path</a> for the pattern itself.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Adding custom attributes</h2>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Even with automatic instrumentation, you can add custom attributes to the current span.
+						The agent makes the OpenTelemetry API available, so we can add this dependency to our 
+						<code><b>pom.xml</b></code> to provide programmatic access to the API. (Note that this 
+						has been provided in the <code><b>OpenTelemetry Java Tracing Demo</b></code> project
+						<code><b>pom.xml</b></code> file already):
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								&lt;!-- OpenTelemetry API --&gt;
+								&lt;dependency&gt;
+									&lt;groupId&gt;io.opentelemetry&lt;/groupId&gt;
+									&lt;artifactId&gt;opentelemetry-api&lt;/artifactId&gt;
+									&lt;version&gt;1.65.0&lt;/version&gt;
+								&lt;/dependency&gt;
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Rebuild with API dependency</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						To gain access to the Opentelemetry API, we need to rebuild the demo project to download 
+						the Opentelemetry API dependencies as shown below:
+					</div>
+					<div style="height: 320px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ mvn clean install
+
+								...
+								[INFO] Building Java Instrumentation Demo 1.0-SNAPSHOT
+								[INFO] --------------------------------[ jar ]---------------------------------
+								Downloading from central: .../opentelemetry-api/1.65.0/opentelemetry-api-1.65.0.pom
+								Downloaded from central: .../opentelemetry-api/1.65.0/opentelemetry-api-1.65.0.pom (1.8 kB at 7.8 kB/s)
+								Downloading from central: .../opentelemetry-context/1.65.0/opentelemetry-context-1.65.0.pom
+								Downloaded from central: .../opentelemetry-context/1.65.0/opentelemetry-context-1.65.0.pom (1.8 kB at 26 kB/s)
+								Downloading from central: .../opentelemetry-api/1.65.0/opentelemetry-api-1.65.0.jar
+								Downloading from central: .../opentelemetry-context/1.65.0/opentelemetry-context-1.65.0.jar
+								Downloading from central: .../opentelemetry-common/1.65.0/opentelemetry-common-1.65.0.jar
+								Downloaded from central: .../opentelemetry-api/1.65.0/opentelemetry-api-1.65.0.jar (159 kB at 1.7 MB/s)
+								Downloaded from central: .../opentelemetry-common/1.65.0/opentelemetry-common-1.65.0.jar (2.1 kB at 22 kB/s)
+								Downloaded from central: .../opentelemetry-context/1.65.0/opentelemetry-context-1.65.0.jar (50 kB at 459 kB/s)
+								...
+								[INFO] BUILD SUCCESS
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Access current span</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						In the <code>OpenTelemetry Java Tracing Demo</code> project we will modify the 
+						<code><b>src/main/java/io/chronosphere/App.java</b></code> file, uncommenting the import and 
+						the code found in the <code><b>handleIndex</b></code> method to access the current span, 
+						adding custom attributes (marked lines shown below):
+					</div>
+					<div style="height: 270px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								
+								// =============================================================================
+								// LAB 2 - WORKSHOP REFERENCE CODE 
+								// Uncommenting adds import to access the current span from automatic instrumentation:
+								//
+								<mark>// import io.opentelemetry.api.trace.Span;</mark>    
+								// =============================================================================
+
+								...
+
+								/**
+									* Handler for the index page (/).
+									* Tracks and displays the number of times the page has been viewed.
+									*/
+									private static void handleIndex(Context ctx) {
+											
+											int hits = HITS.incrementAndGet();
+											
+											// =========================================================================
+											// LAB 2 - WORKSHOP REFERENCE CODE 
+											// Uncomment the following to add custom attributes to auto-instrumented spans:
+											//
+											<mark>// // Get the current span created by the agent</mark>
+											<mark>// Span span = Span.current();</mark>
+											//
+											<mark>// // Add custom attribute to the span</mark>
+											<mark>// span.setAttribute("app.hits", hits);</mark>
+											// =========================================================================
+											
+											ctx.contentType("text/plain");
+											ctx.result("This webpage has been viewed " + hits + " times");
+									}
+									...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Rebuild and redeploy on k3s</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						A code change means a new JAR, a new image, and a fresh import. This is the cycle you repeat after
+						every source edit on a cluster:
+					</div>
+					<div style="height: 330px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ mvn clean install
+
+								$ podman build -t java-demo:auto -f Buildfile-AgentContainer
+
+								$ podman save localhost/java-demo:auto -o java-demo-auto.tar
+
+								$ nerdctl --namespace k8s.io load -i java-demo-auto.tar
+
+								$ kubectl delete pod java-demo-auto --ignore-not-found
+
+								$ kubectl run java-demo-auto --image=localhost/java-demo:auto \
+								  --image-pull-policy=Never --port=9999 \
+								  --env="OTEL_SERVICE_NAME=java-demo" \
+								  --env="OTEL_TRACES_EXPORTER=logging"
+
+								$ kubectl wait --for=condition=Ready pod/java-demo-auto --timeout=180s
+
+								$ kubectl port-forward pod/java-demo-auto 9999:9999
+							</code>
+						</pre>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: large;">
+						The image tag does not change, so <code>--image-pull-policy=Never</code> keeps using the freshly
+						loaded layer. Deleting the pod first is what forces it to pick the new image up.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Auto-instrument - Verify custom tracing attribute</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Make a request to <a href="http://localhost:9999/" target="_blank">http://localhost:9999</a> and check
+						<code><b>kubectl logs pod/java-demo-auto</b></code> for the highlighted
+						<code><b>app.hits</b></code> attribute:
+					</div>
+					<div style="height: 260px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								[otel.javaagent 2026-08-18 13:31:07] [JettyServerThreadPool-31] INFO io.opentelemetry.exporter.logging.LoggingSpanExporter - 
+								'GET /' : 2cae6a66a58a1e7f4c39ca19cb88a572 969ec33ad60926ac SERVER 
+								[tracer: io.opentelemetry.jetty-11.0:2.30.0-alpha] 
+								AttributesMap{
+									data={
+										thread.id=31, 
+										<mark>app.hits=2,</mark> 
+										http.route=/, 
+										http.request.method=GET, 
+										http.response.status_code=200, 
+										url.path=/, 
+										server.address=localhost, 
+										server.port=9999, 
+										client.address=127.0.0.1, 
+										network.peer.address=127.0.0.1, 
+										url.scheme=http, 
+										thread.name=JettyServerThreadPool-31}, 
+										capacity=128, 
+										totalAddedValues=15
+									}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Clean up</h2>
+					</div>
+					<div style="height: 90px; text-align: left; font-size: xx-large;">
+						Stop the port-forward with CTRL-C, then remove every pod this lab created so host port 9999 is free
+						for the next one:
+					</div>
+					<div style="height: 230px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete pod java-demo-base       --ignore-not-found
+								$ kubectl delete pod java-demo-auto       --ignore-not-found
+								$ kubectl delete pod java-demo-java-tools --ignore-not-found
+								$ kubectl delete pod java-demo-noagent    --ignore-not-found
+
+								$ kubectl get pods
+								No resources found in default namespace.
+							</code>
+						</pre>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						Two pods cannot claim the same host port on a single node, so any left from one lab will make the
+						next one fail to start.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						We ran the demo application on a local Rancher k3s cluster, compared an uninstrumented pod against one
+						with the <code><b>OpenTelemetry Java Agent</b></code> baked in, tried both agent packaging patterns,
+						and added a custom attribute to auto-instrumented spans - all verified through
+						<code><b>kubectl logs</b></code>.
+					</div>
+					<div style="height: 180px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl logs pod/java-demo-auto | tail -3
+
+								...
+								[otel.javaagent 2026-08-18 13:31:07] [JettyServerThreadPool-31] INFO io.opentelemetry.exporter.logging.LoggingSpanExporter - 
+								'GET /' : 2cae6a66a58a1e7f4c39ca19cb88a572 969ec33ad60926ac SERVER 
+								[tracer: io.opentelemetry.jetty-11.0:2.30.0-alpha] 
+								AttributesMap{data={thread.id=31, <mark>app.hits=2,</mark> http.route=/, 
+									http.request.method=GET, http.response.status_code=200, url.path=/, 
+									server.address=localhost, server.port=9999, client.address=127.0.0.1, 
+									network.peer.address=127.0.0.1, url.scheme=http, 
+									thread.name=JettyServerThreadPool-31}, capacity=128, totalAddedValues=15}
+								...
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Next up, programmatic instrumentation with the OpenTelemetry SDK.
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://opentelemetry.io/docs/languages/java/automatic/" target="_blank">OpenTelemetry Java Agent Documentation</a></li>
+							<li><a href="https://opentelemetry.io/docs/languages/java/automatic/configuration/" target="_blank">Java Agent Configuration Options</a></li>
+							<li><a href="https://github.com/open-telemetry/opentelemetry-java-instrumentation" target="_blank">OpenTelemetry Java Instrumentation GitHub</a></li>
+							<li><a href="https://github.com/open-telemetry/opentelemetry-java-instrumentation/blob/main/docs/supported-libraries.md" target="_blank">Supported Libraries</a></li>
+							<li><a href="https://rancherdesktop.io/" target="_blank">Rancher Desktop</a></li>
+						</ul>					
+					</div>
+				</section>
+
+        <section>
+          <span class="menu-title" style="display: none">Questions or feedback?</span>
+          <div style="height: 150px">
+                  <h2 class="r-fit-text">Contact - are there any questions?</h2>
+          </div>
+          <div style="height: 200px; font-size: x-large; text-align: left">
+                  Eric D. Schabell<br/>
+                  Technology Advocate Lead<br/>
+                  Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+                  {<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+                  or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+          </div>
+        </section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab03.html" target="_blank">Lab 03 - Programmatic Instrumentation</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script> 
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="https://o11y-workshops.gitlab.io/workshop-otel-developers/node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>
+

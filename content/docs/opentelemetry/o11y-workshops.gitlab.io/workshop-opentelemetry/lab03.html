@@ -1,0 +1,728 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="OpenTelemetry Workshop">
+		<meta name="author" content="Paige Cruz">
+
+		<title>Lab 3 - Programmatic Instrumentation</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-33MFF345ZY"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-33MFF345ZY');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 3 - Programmatic Instrumentation</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>
+							This lab walks you through programmatically instrumenting the demo application with
+							OpenTelemetry libraries, and viewing trace data in Jaeger.
+						</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Choose your runtime</h2>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						This lab builds the demo application image with Podman, then runs it to view traces. You can
+						run it directly with Podman as shown on the following slides, or deploy it to a local Rancher
+						Desktop k3s cluster instead:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<ul>
+							<li>Continue onwards to run the container with <b>Podman</b></li>
+							<li><a href="lab03-rancher.html" target="_blank">Continue to run using Kubernetes (k3s)</a></li>
+						</ul>
+					</div>
+				</section>
+
+                <section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Finding Available Instrumentation Libraries</h2>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						A quick way to find what OpenTelemetry instrumentation is available for your application is to
+						use opentelemetry-bootstrap!
+						<br/><br/>Note: In a later lab from this workshop we'll explore another way by searching through the
+						<a href="https://opentelemetry.io/ecosystem/registry/" target="_blank">OpenTelemetry Registry</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h2 class="r-fit-text">Listing Available Instrumentation Libraries </h2>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Earlier we used opentelemetry-bootstrap to both detect and install libraries - by modifying the
+						command we can skip installing, and list available libraries instead.Try it out yourself and
+						verify the output below:
+					</div>
+					<div style="height: 350px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run -it hello-otel:auto opentelemetry-bootstrap -a requirements
+
+								opentelemetry-instrumentation-asyncio==0.65b0
+								opentelemetry-instrumentation-dbapi==0.65b0
+								opentelemetry-instrumentation-exceptions==0.65b0
+								opentelemetry-instrumentation-logging==0.65b0
+								opentelemetry-instrumentation-sqlite3==0.65b0
+								opentelemetry-instrumentation-threading==0.65b0
+								opentelemetry-instrumentation-urllib==0.65b0
+								opentelemetry-instrumentation-wsgi==0.65b0
+								opentelemetry-instrumentation-click==0.65b0
+								opentelemetry-instrumentation-flask==0.65b0
+								opentelemetry-instrumentation-grpc==0.65b0
+								opentelemetry-instrumentation-jinja2==0.65b0
+								opentelemetry-instrumentation-requests==0.65b0
+								opentelemetry-instrumentation-urllib3==0.65b0
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 110px;">
+						<h2 class="r-fit-text">Reviewing Available Instrumentation Libraries</h2>
+					</div>
+					<div style="height: 180px; text-align: left; font-size: x-large;">
+						There are several detected that are unnecessary because they instrument a Flask feature that
+						isn't used in the demo app like handling async requests, or instrumenting a very simple use case
+						like <strong>urllib3</strong> which is used in a straightforward URL parsing function. <br/><br/>
+						After removing the unneeded libraries from the list, here is what we need to install and configure:<br/>
+					</div>
+					<div style="height: 250px; font-size: x-large;">
+						<ul>
+							<li>
+								<a href="https://opentelemetry-python-contrib.readthedocs.io/en/latest/instrumentation/flask/flask.html" target="_blank">
+									opentelemetry-instrumentation-flask
+								</a>
+								 - traces web requests made to the application
+							</li>
+							<li>
+								<a href="https://opentelemetry-python-contrib.readthedocs.io/en/latest/instrumentation/jinja2/jinja2.html" target="_blank">
+									opentelemetry-instrumentation-jinja2
+								</a>
+								 - traces the template loading, compilation and rendering
+							</li>
+							<li>
+								<a href="https://opentelemetry-python-kinvolk.readthedocs.io/en/latest/instrumentation/requests/requests.html" target="_blank">
+									opentelemetry-instrumentation-requests
+								</a>
+								 - traces HTTP requests made by the requests library
+							</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Installing the libraries</h2>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: x-large;">
+						Open the file <code><b>programmatic/Buildfile-prog</b></code> and add the lines shown to install
+						the API, SDK and the library instrumentation:
+					</div>
+					<div style="height: 250px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								FROM python:3.13-bullseye
+
+								WORKDIR /app
+
+								COPY requirements.txt requirements.txt
+
+								RUN pip install -r requirements.txt
+								<mark>
+								RUN pip install opentelemetry-api==1.44.0 \
+									opentelemetry-sdk==1.44.0 \
+									opentelemetry-instrumentation-flask==0.65b0 \
+									opentelemetry-instrumentation-jinja2==0.65b0 \
+									opentelemetry-instrumentation-requests==0.65b0
+								</mark>
+								COPY . .
+
+								CMD [ "flask", "run", "--host=0.0.0.0"]
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Configure SDK</h2>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						To create, manage and export spans with OpenTelemetry there are 3 components to configure:
+					</div>
+					<div style="height: 270px; font-size: xx-large;">
+						<ul>
+							<li><strong>Tracer Provider</strong> - constructor method that returns a <em>tracer</em> that creates, manages and sends spans</li>
+							<li><strong>Processor</strong> - hooks into ended spans, options to send spans as soon as they end or in a batch </li>
+							<li><strong>Exporter</strong> - responsible for sending spans to the configured destination</li>
+						</ul>
+					</div>
+				</section>
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Import API, SDK</h2>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						Open the file <code><b>programmatic/app.py</b></code> and import the OpenTelemetry API and SDK:
+					</div>
+					<div style="height: 250px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								import random
+								import re
+								import urllib3
+
+								import requests
+								from flask import Flask, render_template, request
+								from breeds import breeds
+
+								<mark>
+								from opentelemetry.trace import set_tracer_provider
+								from opentelemetry.sdk.trace import TracerProvider
+								from opentelemetry.sdk.trace.export import SimpleSpanProcessor, ConsoleSpanExporter
+								</mark>
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Configure tracer</h2>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						In the same file <code><b>programmatic/app.py</b></code> a bit father down, create a
+						TracerProvider configured to send spans as they finish to the console:
+					</div>
+					<div style="height: 250px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								from opentelemetry.sdk.trace.export import SimpleSpanProcessor, ConsoleSpanExporter
+
+								<mark>
+									provider = TracerProvider()
+									processor = SimpleSpanProcessor(ConsoleSpanExporter())
+									provider.add_span_processor(processor)
+
+									set_tracer_provider(provider)
+								</mark>
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Import instrumentation libraries</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Next we insert the imports needed for <code><b>flask</b></code>, <code><b>jinja2</b></code>, and
+						<code><b>requests</b></code> instrumentation libraries above the section we just created:
+					</div>
+					<div style="height: 250px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								import requests
+								from flask import Flask, render_template, request
+								from breeds import breeds
+
+								from opentelemetry.trace import set_tracer_provider
+								from opentelemetry.sdk.trace import TracerProvider
+								from opentelemetry.sdk.trace.export import SimpleSpanProcessor, ConsoleSpanExporter
+
+							<mark>
+								from opentelemetry.instrumentation.flask import FlaskInstrumentor
+								from opentelemetry.instrumentation.jinja2 import Jinja2Instrumentor
+								from opentelemetry.instrumentation.requests import RequestsInstrumentor
+							</mark>
+
+								provider = TracerProvider()
+								processor = SimpleSpanProcessor(ConsoleSpanExporter())
+								provider.add_span_processor(processor)
+
+								set_tracer_provider(provider)
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Programmatic - Configure instrumentation</h2>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						The last step is to configure the programmatic instrumentation for each component in the
+						application. This is done by creating an instance of the <code><b>FlaskInstrumentor</b></code>,
+						the <code><b>Jinja2Instrumentor</b></code>, and <code><b>RequestsInstrumentor</b></code> in the
+						section of our file as shown:
+					</div>
+					<div style="height: 150px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								provider = TracerProvider()
+								processor = SimpleSpanProcessor(ConsoleSpanExporter())
+								provider.add_span_processor(processor)
+
+								set_tracer_provider(provider)
+
+								app = Flask(__name__)
+								<mark>
+								FlaskInstrumentor().instrument_app(app)
+								Jinja2Instrumentor().instrument()
+								RequestsInstrumentor().instrument()
+								</mark>
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Build image</h2>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: xx-large;">
+						Run this in the console to build the image
+					</div>
+					<div style="height: 80px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t hello-otel:prog -f programmatic/Buildfile-prog
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Verify you get a success message in the console like below:
+					</div>
+					<div style="height: 50px;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								Successfully tagged localhost/hello-otel:prog   \
+								495118b9c78178356fc0cbd05d244e387f3fdc379b1b5c873e76b1cb41b82ef5
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Run the container</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Enter this command in the console to run the container:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run -i -p 8001:8000 -e FLASK_RUN_PORT=8000 hello-otel:prog
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Programmatic - Verify instrumentation</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Open a browser and make a request to an endpoint like
+						<a href="http://localhost:8001/" target="_blank"> http://localhost:8001</a> and confirm spans
+						are printed to the console like below (scroll to view code):
+					</div>
+					<div style="height: 300px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								{
+									"name": "GET /",
+									"context": {
+										"trace_id": "0x2252ac9904b75df4d307c38fed8fdf20",
+										"span_id": "0xe4f4143485a93679",
+										"trace_state": "[]"
+									},
+									"kind": "SpanKind.SERVER",
+									"parent_id": null,
+									"start_time": "2026-08-12T15:56:09.960050Z",
+									"end_time": "2026-08-12T15:56:09.961119Z",
+									"status": {
+										"status_code": "UNSET"
+									},
+									"attributes": {
+										"http.method": "GET",
+										"http.server_name": "0.0.0.0",
+										"http.scheme": "http",
+										"net.host.name": "localhost:8001",
+										"http.host": "localhost:8001",
+										"net.host.port": 8000,
+										"http.target": "/",
+										"net.peer.ip": "10.88.0.3",
+										"net.peer.port": 50090,
+										"http.user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko)...",
+										"http.flavor": "1.1",
+										"http.route": "/",
+										"http.status_code": 200
+									},
+									"events": [],
+									"links": [],
+									"resource": {
+										"attributes": {
+											"telemetry.sdk.language": "python",
+											"telemetry.sdk.name": "opentelemetry",
+											"telemetry.sdk.version": "1.44.0",
+											"service.instance.id": "18efdeaf-36b1-4898-a35a-4bd95ce5c3f0",
+											"service.name": "unknown_service"
+										},
+										"schema_url": ""
+									}
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Stop the container</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Let's stop the container we are currently running to add some visualization tooling for our
+						telemetry data by entering CTRL-C in the console.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Adding the Jaeger UI</h2>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Scrolling through spans in the console is overwhelming, let's add some visualizations with Jaeger!
+						<br/><br/>
+						With the <code><b>OTLPSpanExporter</b></code>, the application can send finished spans directly to
+						Jaeger native OTLP endpoint.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Installing the OTLP exporter</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Open the file <code><b>programmatic/Buildfile-prog</b></code> and add a line to install the
+						OTLP Exporter library:
+					</div>
+					<div style="height: 250px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								FROM python:3.13-bullseye
+
+								WORKDIR /app
+
+								COPY requirements.txt requirements.txt
+
+								RUN pip install -r requirements.txt
+
+								RUN pip install opentelemetry-api==1.44.0 \
+									opentelemetry-sdk==1.44.0 \
+						    <mark>opentelemetry-exporter-otlp==1.44.0 \</mark>
+									opentelemetry-instrumentation-flask==0.65b0 \
+									opentelemetry-instrumentation-jinja2==0.65b0 \
+									opentelemetry-instrumentation-requests==0.65b0
+
+								COPY . .
+
+								CMD [ "flask", "run", "--host=0.0.0.0"]
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Configure OTLP exporter</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Next we open the <code><b>programmatic/app.py</b></code> file and import the OTLP exporter
+						library and swap the console exporter for OTLP:
+					</div>
+					<div style="height: 300px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								from opentelemetry.trace import set_tracer_provider
+								from opentelemetry.sdk.trace import TracerProvider
+								from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+						  <mark>from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter</mark>
+
+								provider = TracerProvider()
+						  processor = SimpleSpanProcessor(<mark>OTLPSpanExporter()</mark>)
+								provider.add_span_processor(processor)
+
+								set_tracer_provider(provider)
+
+								app = Flask(__name__)
+								FlaskInstrumentor().instrument_app(app)
+								Jinja2Instrumentor().instrument()
+								RequestsInstrumentor().instrument()
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Build OTPLSpanExporter image</h2>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: xx-large;">
+						After saving the file, run this in the console to build the new image:
+					</div>
+					<div style="height: 80px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t hello-otel:prog -f programmatic/Buildfile-prog
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Verify you get a success message in the console like below:
+					</div>
+					<div style="height: 50px;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								Successfully tagged localhost/hello-otel:prog   \
+								495118b9c78178356fc0cbd05d244e387f3fdc379b1b5c873e76b1cb41b82ef5
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Review pod definition</h2>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						Next open the file <code><b>programmatic/app_pod.yaml</b></code> and review it. The application
+						container exposes <b>containerPort 5000</b> (the Flask default, no <code>FLASK_RUN_PORT</code>
+						is set here) mapped to <b>hostPort 8001</b>. In the Jaeger section note the ports; 16686 and
+						4318. The first is for the Jaeger UI and the second is for telemetry data sent via OTLP:
+					</div>
+					<div style="height: 300px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								- name: hello-otel
+								image: localhost/hello-otel:prog
+								...
+								ports:
+								- containerPort: 5000
+								  hostPort: 8001
+
+								- name: jaeger-all-in-one
+								image: jaegertracing/all-in-one:1.76.0
+								resources:
+								  limits:
+									memory: "128Mi"
+									cpu: "500m"
+								ports:
+								- containerPort: 16686
+								  hostPort: 16686
+								- containerPort: 4318
+								env:
+								- name: COLLECTOR_OTLP_ENABLED
+								  value: "true"
+								- name: OTEL_TRACES_EXPORTER
+								  value: "otlp"
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Run the pod</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Run the sample application and Jaeger containers in a Pod
+					</div>
+					<div style="height: 90px;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman play kube programmatic/app_pod.yaml
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Verify you get a success message in the console like below:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								Pod:
+								0bc7dbf0bf9802c3324630d42a2109b93055d0f6b3c0ee2c83d55f954e56643a
+
+								Containers:
+								bd176546950d48ea01d6bde2fa08f5bea81fb62e279856016b90053016409499
+								5b9a521a8408d549fed9fff85b07333a6b5e772224d6bda257d834f416966729
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Verify Jaeger UI</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Open browser to <a href="http://localhost:16686" target="_blank">http://localhost:16686</a>.
+						You should see a screen like below with a Gopher detective:
+					</div>
+					<div style="height: 420px;">
+						<img src="images/lab02-jaeger-successful.png" alt="gopher">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Verify OTLP span export</h2>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						Open a browser and make several requests to the
+						<a href="http://localhost:8001/doggo" target="_blank">/doggo</a> endpoint. This should emit
+						traces with spans from each instrumentation library:<br />
+						<br />
+						<ul>
+							<li>Flask spans representing requests to the app</li>
+							<li>Requests spans for the external request to Dog API</li>
+							<li>Jinja2 spans for HTML template compilation</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Verify OTLP span export</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Back in our Jaeger UI, select <strong>hello-otel</strong> from the service dropdown. Confirm
+						that you see traces returned for the operation <strong>GET /doggo</strong>:
+					</div>
+					<div style="height: 350px; text-align: center;">
+						<img src="images/lab03-jaeger.png" alt="hello-otel">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Viewing a trace waterfall</h2>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						Select one of the traces by clicking the span name and confirm you see a trace waterfall like
+						this:
+					</div>
+					<div style="height: 450px; text-align: center;">
+						<img src="images/lab03-jaeger-waterfall.png" alt="traces">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 50px; font-size: x-large;">
+						We installed and configured OpenTelemetry SDK programmatically in the demo application and successfully
+					    sent and viewed traces in Jaeger.
+					</div>
+					<div style="height: 320px; text-align: center;">
+						<img src="images/lab03-jaeger-waterfall.png" alt="traces">
+					</div>
+					<div style="height: 70px; font-size: x-large;">
+						<br />
+						Leave pod running, next up is exploring trace data in Jaeger!
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://opentelemetry.io/" target="_blank">OpenTelemetry Official Site</a></li>
+							<li><a href="https://opentelemetry.io/docs/languages/python/instrumentation/" target="_blank">Python Manual Instrumentation Docs</a></li>
+							<li><a href="https://www.jaegertracing.io/docs/" target="_blank">Jaeger Documentation</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-opentelemetry" target="_blank">This workshop project repository</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Paige Cruz<br/>
+						Senior Developer Advocate<br/>
+						Contact: <a href="https://twitter.com/paigerduty" target="_blank">Twitter</a>
+						<a href="https://hachyderm.io/@epaigerduty" target="_blank">Mastodon</a>
+						or <a href="mailto:paigerduty@chronosphere.io">Send Email</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab04.html" target="_blank">Lab 04 - Exploring Traces with Jaeger</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script> 
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

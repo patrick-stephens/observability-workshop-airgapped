@@ -1,0 +1,1235 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Fluent Bit workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Telemetry Pipelines Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-799E08H5WD"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-799E08H5WD');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 9 - Visualizing Fluent Bit telemetry data with OpenSearch</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>
+							This lab explores how to visualize Fluent Bit telemetry pipeline data with OpenSearch and the OpenSearch Dashboard.
+						</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Jumping to the solution</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						If you happen to be exploring Fluent Bit as an architect and want to jump to the solution in
+						action, we've created an
+						<a href="https://gitlab.com/o11y-workshops/opensearch-install-demo" target="_blank">
+							OpenSearch Easy Install project.
+						</a>
+						<br />
+						<br />
+						Instead of working through this workshop, you'll find a readme file detailing how to spin up
+						the solution and pointing to an article detailing everything you need to know to get started.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization - Why OpenSearch integration?</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						Why integrate Fluent Bit with OpenSearch? When collecting telemetry data at scale, you need a
+						powerful backend to store, search, and analyze your logs. OpenSearch is an open source,
+						distributed search and analytics engine that provides exactly these capabilities.<br />
+						<br />
+						OpenSearch Dashboard provides a visual interface for exploring and visualizing the data stored
+						in OpenSearch. Combined with Fluent Bit as your telemetry pipeline, you get a complete
+						observability solution for your infrastructure.<br />
+						<br />
+						For developers, this lab will demonstrate setting up OpenSearch and OpenSearch Dashboard using
+						either Podman containers or Kubernetes (k3s) with Helm, configuring Fluent Bit to send telemetry
+						data to OpenSearch, and exploring the ingested data through the Dashboard's Discover feature. See
+						the next slide for an architectural overview of what we'll be building.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 70px;">
+						<h3 class="r-fit-text">Data visualization - The solution architecture</h3>
+					</div>
+					<div style="height: 300px; text-align: center; font-size: x-large;">
+						<pre style="font-size: large; padding: 20px; border-radius: 10px;">
+        ┌─────────────────┐      ┌─────────────────┐      ┌─────────────────────┐
+        │                 │      │                 │      │                     │
+        │   Fluent Bit    │─────▶│   OpenSearch    │◀─────│  OpenSearch         │
+        │   (telemetry    │      │   (backend)     │      │  Dashboard (UI)     │
+        │    pipeline)    │      │                 │      │                     │
+        │                 │      │   Port: 9200    │      │   Port: 5601        │
+        └─────────────────┘      └─────────────────┘      └─────────────────────┘
+            │                        │                          │
+            │                        │                          │
+            ▼                        ▼                          ▼
+        Collects & sends         Stores, indexes,           Visualizes data
+        telemetry data           & searches data            in browser
+						</pre>
+                    </div>
+                    <div style="height: 70px; text-align: left; font-size: x-large;">
+						<br />
+						The architecture consists of three main components:
+						<ul>
+							<li><b>Fluent Bit</b> - Collects and forwards telemetry data to OpenSearch</li>
+							<li><b>OpenSearch</b> - Backend that stores and indexes the data (port 9200)</li>
+							<li><b>OpenSearch Dashboard</b> - UI for visualizing the data (port 5601)</li>
+						</ul>
+						On Kubernetes (k3s) the same three components run as pods in the <code><b>logging</b></code>
+						namespace, finding each other by service DNS instead of a container network.
+					</div>
+				</section>
+
+                <section id="local-install">
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization - Installing Podman tooling</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						Installing Fluent Bit using a container image is going to be demonstrated here using the open source
+						project <a href="https://podman.io/" target="_blank">Podman</a>. It's assumed you have already
+						installed the Podman commandline tooling previously.<br />
+						<br />
+						If you want to use other container tooling, such as Docker, most of the commands are the same
+						with just a substitution of the tooling name (<code><b>docker</b></code> instead of
+						<code><b>podman</b></code>).<br />
+						<br />
+						If you have been following the Kubernetes (k3s) path with Rancher Desktop instead, the slides
+						marked <code><b>(k3s)</b></code> further on cover the same install using Helm, so you can skip
+						ahead past the podman ones.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization - Starting Podman machine</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						You need to make sure that the Podman virtual machine has been started, so, assuming you have
+						initialized a podman machine already just make sure it has enough memory:
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman machine set --memory 6144
+
+								$ podman machine start
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization - Creating an OpenSearch network</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						We are going to create a network for our OpenSearch installation called <b><code>os-net</code></b>, 
+						for the OpenSearch containers to communicate with each other. First, we need to remove any existing 
+						network with the same name if it exists:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman network rm -f os-net
+
+								$ podman network create os-net
+								
+								os-net
+ 							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization - Deploying the OpenSearch backend</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						The first install we will do is the OpenSearch backend. We will use the <code><b>opensearch</b></code> 
+						container image and run it in a console as follows (scroll to the right to see the full command):
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								podman run --rm --name opensearch --network os-net -p 9200:9200 -p 9600:9600 -e "discovery.type=single-node" -e "DISABLE_INSTALL_DEMO_CONFIG=true" -e "DISABLE_SECURITY_PLUGIN=true" opensearchproject/opensearch:3.3.1
+ 							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization - Configuring the OpenSearch Dashboard</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						After the OpenSearch backend has started, in a new console it's time to start the OpenSearch Dashboard deployment
+						which provides the visual interface for exploring our telemetry data. To do that we need a configuration file
+						that we create named <b><code>opensearch_dashboards.yml</code></b> as follows:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								server.name: opensearch_dashboards
+								server.host: "0.0.0.0"
+								server.customResponseHeaders : { "Access-Control-Allow-Credentials" : "true" }
+
+								# Disabling HTTPS on OpenSearch Dashboards
+								server.ssl.enabled: false
+
+								opensearch.hosts: ["http://opensearch:9200"] # Using the opensearch container name
+
+								opensearch.ssl.verificationMode: none
+								opensearch.username: admin
+								opensearch.password: Opensearch@demo1
+								opensearch.requestHeadersWhitelist: ["securitytenant","Authorization"]
+ 							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization - Deploying the OpenSearch Dashboard</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Using the <code><b>opensearch_dashboards.yml</b></code> configuration file we created, it's time 
+						to start the OpenSearch Dashboard deployment as follows (scroll to the right to see the full command):
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								podman run --rm --name osd --network os-net -p 5601:5601 -e "DISABLE_SECURITY_DASHBOARDS_PLUGIN=true" -v ./opensearch-dashboards.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml opensearchproject/opensearch-dashboards:3.3.0
+ 							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization - OpenSearch Dashboard logs</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						When all starts correctly, you will see the following logs in the console:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[CUT_LOG_LINE] "listening","info"],"pid":1,"message":"Server running at http://0.0.0.0:5601"}
+								[CUT_LOG_LINE] ["info","http","server","OpenSearchDashboards"],"pid":1,"message":"http server running at http://0.0.0.0:5601"}
+ 							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization - Validating OpenSearch backend</h3>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: x-large;">
+						Let's verify that OpenSearch is running correctly by accessing it in your browser or using
+						curl:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Test OpenSearch backend is running.
+								$ curl http://localhost:9200 -ku admin:Opensearch@demo1
+
+								{
+								  "name" : "d80111d2fce1",
+								  "cluster_name" : "docker-cluster",
+								  "cluster_uuid" : "O76Ue_dETgaiAF_Kj3XtXQ",
+								  "version" : {
+								    "distribution" : "opensearch",
+								    "number" : "3.3.1",
+								    "build_type" : "tar",
+								    ...
+								  },
+								  "tagline" : "The OpenSearch Project: https://opensearch.org/"
+								}
+ 							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization – Installing on Kubernetes (k3s)</h3>
+					</div>
+					<div style="height: 330px; text-align: left; font-size: x-large;">
+						If you deployed onto Kubernetes (k3s) with Rancher Desktop in previous labs, Fluent Bit is already
+						running in the <code><b>logging</b></code> namespace, configured by the Helm values file
+						<code><b>workshop-fb-helm.yaml</b></code>. Rather than podman containers, we add OpenSearch and
+						OpenSearch Dashboard as two more Helm releases in that same namespace.<br />
+						<br />
+						Note there is no network to create here. The <code><b>os-net</b></code> network from the podman
+						path exists so the containers can find each other by name, a job Kubernetes already does for us
+						with service DNS. That is the one real difference in this path: our pipeline will point at a
+						service name rather than <code><b>host.containers.internal</b></code>.<br />
+						<br />
+						Let's start by looking at the <code><b>workshop-fb-helm.yaml</b></code> file this lab builds on.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization – Our starting pipeline (k3s)</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						This is the Helm values file <code><b>workshop-fb-helm.yaml</b></code> we start this lab from. It
+						is the k3s equivalent of the <code><b>fluent-bit.yaml</b></code> the podman path creates, with the
+						pipeline nested under <code><b>extraFiles</b></code>. Keep the <code><b>http_server</b></code>
+						lines, as the liveness probe on port <code><b>2020</b></code> depends on them:
+					</div>
+					<div style="height: 280px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# This file is our workshop Fluent Bit Helm configuration.
+								#
+								args:
+								  - --workdir=/fluent-bit/etc
+								  - --config=/fluent-bit/etc/conf/fluent-bit.yaml
+
+								config:
+								  extraFiles:
+								    fluent-bit.yaml: |
+								      service:
+								        flush: 1
+								        log_level: info
+								        http_server: on
+								        http_listen: 0.0.0.0
+								        http_port: 2020
+
+								      pipeline:
+								        inputs:
+								          # This entry generates a successful message.
+								          - name:  dummy
+								            tag:   event.success
+								            dummy: '{"message":"true 200 success"}'
+
+								          # This entry generates a failure message.
+								          - name:  dummy
+								            tag:   event.error
+								            dummy: '{"message":"false 500 error"}'
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization – Fluent Bit config (k3s)</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Finishing the same file, the outputs section starts with just the <code><b>stdout</b></code>
+						plugin so we can see the log telemetry data in the pod's console. Later in this lab we add the
+						<code><b>opensearch</b></code> output next to it:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								      pipeline:
+								        inputs:
+								          ...
+
+								        outputs:
+								          - name: stdout
+								            match: '*'
+								            format: json_stream
+								            json_date_format: java_sql_timestamp
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<!-- VERIFY: live run - helm revision number -->
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization – Applying our starting config (k3s)</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						Roll this file out now, so we know we are all starting from the same place. This works whether
+						Fluent Bit is already running from an earlier lab or not: <code><b>--install</b></code> creates
+						the release if it is missing, and upgrades it if a previous lab left a different pipeline
+						behind:
+					</div>
+					<div style="height: 220px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+								       --set image.tag=5.1.1 \
+								       --namespace logging --create-namespace \
+								       --values workshop-fb-helm.yaml
+
+								Release "fluent-bit" has been upgraded. Happy Helming!
+								NAME: fluent-bit
+								NAMESPACE: logging
+								STATUS: deployed
+								REVISION: 11
+							</code>
+						</pre>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						If this is a fresh cluster you'll see <code><b>Release "fluent-bit" does not exist. Installing it
+						now.</b></code> instead, along with <code><b>REVISION: 1</b></code>. Should the
+						<code><b>fluent</b></code> chart repository be missing, add it as we did back in lab 3.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization – Adding the OpenSearch charts (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						The OpenSearch project publishes Helm charts for both the backend and the Dashboard. Add the
+						repository and refresh your local chart index:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm repo add opensearch \
+								       https://opensearch-project.github.io/helm-charts/
+
+								$ helm repo update
+
+								Hang tight while we grab the latest from your chart repositories...
+								...Successfully got an update from the "opensearch" chart repository
+								...Successfully got an update from the "fluent" chart repository
+								...Successfully got an update from the "open-telemetry" chart repository
+								Update Complete. ⎈Happy Helming!⎈
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization – Configuring the OpenSearch backend (k3s)</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Create a new Helm values file <code><b>workshop-opensearch-helm.yaml</b></code>. The
+						<code><b>extraEnvs</b></code> entries are the same settings the podman path passed with
+						<code><b>-e</b></code> flags, and we disable persistence so the release stays throwaway just like
+						<code><b>podman run --rm</b></code> did.
+					</div>
+					<div style="height: 280px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# This file is our workshop OpenSearch Helm configuration.
+								#
+								<mark>singleNode: true</mark>   # this sets discovery.type=single-node
+								replicas: 1
+
+								persistence:
+								  enabled: false
+
+								extraEnvs:
+								  - name: DISABLE_INSTALL_DEMO_CONFIG
+								    value: "true"
+								  - name: DISABLE_SECURITY_PLUGIN
+								    value: "true"
+
+								resources:
+								  requests:
+								    cpu: 500m
+								    memory: 1Gi
+								  limits:
+								    memory: 2Gi
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization – Deploying the OpenSearch backend (k3s)</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: x-large;">
+						Install the backend into the same <code><b>logging</b></code> namespace as our Fluent Bit
+						pipeline, from the <code><b>fluentbit-install-demo</b></code> root directory. We pin the version
+						with <code><b>image.tag</b></code>, the same way we pin Fluent Bit and the OTel Collector, so
+						this path runs the same OpenSearch <code><b>3.3.1</b></code> as the podman path. Note the service
+						name the chart creates, <code><b>opensearch-cluster-master</b></code>, as that is how our
+						pipeline will reach OpenSearch on port <code><b>9200</b></code>:
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm --kube-context rancher-desktop upgrade --install opensearch \
+								       opensearch/opensearch \
+								       <mark>--set image.tag=3.3.1</mark> \
+								       --namespace logging --create-namespace \
+								       --values workshop-opensearch-helm.yaml
+
+								Release "opensearch" does not exist. Installing it now.
+								NAME: opensearch
+								NAMESPACE: logging
+								STATUS: deployed
+								REVISION: 1
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization – Configuring the OpenSearch Dashboard (k3s)</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: x-large;">
+						Create a second values file <code><b>workshop-osd-helm.yaml</b></code>. It carries the very same
+						<code><b>opensearch_dashboards.yml</b></code> content we wrote for the podman path, with one
+						meaningful change: where podman used the container name
+						<code><b>http://opensearch:9200</b></code>, Kubernetes uses the service name
+						<code><b>http://opensearch-cluster-master:9200</b></code>. We set that in two places, as the
+						chart's <code><b>opensearchHosts</b></code> becomes an environment variable that would otherwise
+						win over the config file:
+					</div>
+					<div style="height: 300px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# This file is our workshop OpenSearch Dashboard Helm configuration.
+								#
+								replicaCount: 1
+
+								# The chart defaults this to https, but our backend runs
+								# http as we disabled the security plugin on it.
+								<mark>opensearchHosts: "http://opensearch-cluster-master:9200"</mark>
+
+								extraEnvs:
+								  - name: DISABLE_SECURITY_DASHBOARDS_PLUGIN
+								    value: "true"
+
+								config:
+								  opensearch_dashboards.yml: |
+								    server.name: opensearch_dashboards
+								    server.host: "0.0.0.0"
+
+								    # Disabling HTTPS on OpenSearch Dashboards
+								    server.ssl.enabled: false
+
+								    <mark>opensearch.hosts: ["http://opensearch-cluster-master:9200"]</mark>
+
+								    opensearch.ssl.verificationMode: none
+								    opensearch.username: admin
+								    opensearch.password: Opensearch@demo1
+								    opensearch.requestHeadersWhitelist: ["securitytenant","Authorization"]
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization – Deploying the OpenSearch Dashboard (k3s)</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Using the <code><b>workshop-osd-helm.yaml</b></code> values file we just created, install the
+						Dashboard alongside the backend. Note the Dashboard pins to <code><b>3.3.0</b></code> rather than
+						<code><b>3.3.1</b></code>, the same pair of versions the podman path used:
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm --kube-context rancher-desktop upgrade --install opensearch-dashboards \
+								       opensearch/opensearch-dashboards \
+								       <mark>--set image.tag=3.3.0</mark> \
+								       --namespace logging --create-namespace \
+								       --values workshop-osd-helm.yaml
+
+								Release "opensearch-dashboards" does not exist. Installing it now.
+								NAME: opensearch-dashboards
+								NAMESPACE: logging
+								STATUS: deployed
+								REVISION: 1
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization – Verifying the deployments (k3s)</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Check all pods are running and note the services that were created. It can take a minute
+						before the backend reports ready:
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging get pods,svc
+
+								NAME                                         READY   STATUS    RESTARTS   AGE
+								pod/fluent-bit-h6hxt                         1/1     Running   0          4m57s
+								pod/opensearch-cluster-master-0              1/1     Running   0          19m
+								pod/opensearch-dashboards-5bdf5c7864-7b6cx   1/1     Running   0          16m
+
+								NAME                                         TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)                      AGE
+								service/fluent-bit                           ClusterIP   10.43.57.127    none          2020/TCP                     4m57s
+								service/opensearch-cluster-master            ClusterIP   10.43.43.189    none          9200/TCP,9300/TCP,9600/TCP   19m
+								service/opensearch-cluster-master-headless   ClusterIP   None            none          9200/TCP,9300/TCP,9600/TCP   19m
+								service/opensearch-dashboards                ClusterIP   10.43.179.117   none          5601/TCP,9601/TCP            16m
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization – Validating OpenSearch backend (k3s)</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: x-large;">
+						This is the k3s equivalent of the earlier <code><b>curl</b></code> check. We run it from inside
+						the cluster, hitting the service by name just as our pipeline will:
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging exec opensearch-cluster-master-0 -- \
+								          curl -s http://opensearch-cluster-master:9200
+
+								{
+								  "name" : "opensearch-cluster-master-0",
+								  "cluster_name" : "opensearch-cluster",
+								  "cluster_uuid" : "Xl9pQmZ4TnCkR2vHs8dEbw",
+								  "version" : {
+								    "distribution" : "opensearch",
+								    "number" : "3.3.1",
+								    ...
+								  },
+								  "tagline" : "The OpenSearch Project: https://opensearch.org/"
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization – Accessing the Dashboard (k3s)</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: x-large;">
+						The Dashboard service is only reachable inside the cluster, so forward its port to our machine.
+						Leave this command running in its own console:
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging \
+								          port-forward svc/opensearch-dashboards 5601:5601
+
+								Forwarding from 127.0.0.1:5601 -> 5601
+								Forwarding from [::1]:5601 -> 5601
+							</code>
+						</pre>
+					</div>
+					<div style="height: 90px; text-align: left; font-size: x-large;">
+						With that in place, <code><b>http://localhost:5601</b></code> works exactly as it does on the
+						podman path, so <b>the Dashboard slides that follow are the same for both paths</b>.
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Seeing <code><b>OpenSearch Dashboards server is not ready yet</b></code> in the browser means it
+						cannot reach the backend. Give it a minute on first start, and if it persists the pod log says
+						which host it tried:
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=opensearch-dashboards
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization - Accessing Dashboard login</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Open your browser and navigate to <code><b>http://localhost:5601</b></code>. You'll see the
+						OpenSearch Dashboard login screen. Use the default credentials as shown:<br />
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab09-1.png" alt="login screen" style="max-height: 380px;">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization - Dashboard home screen</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						After logging in, you'll see the OpenSearch Dashboard home screen. This is where you can
+						explore your data, create visualizations, and manage your indices. Right now it's empty as
+						we have to integrate Fluent Bit first:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab09-2.png" alt="home screen" style="max-height: 380px;">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization - Fluent Bit pipeline inputs</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Now let's look at our Fluent Bit configuration that needs to send telemetry data to OpenSearch. The
+						configuration file we create as <code><b>fluent-bit.yaml</b></code> below, first defining the service
+						and pipeline input section as just generated log telemetry data:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								service:
+								  flush: 1
+								  log_level: info
+								  http_server: on
+								  http_listen: 0.0.0.0
+								  http_port: 2020
+								  hot_reload: on
+
+								pipeline:
+								  inputs:
+								    # This entry generates a successful message.
+								    - name:  dummy
+								      tag:   event.success
+								      dummy: '{"message":"true 200 success"}'
+
+								    # This entry generates a failure message.
+								    - name:  dummy
+								      tag:   event.error
+								      dummy: '{"message":"false 500 error"}'
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization - Fluent Bit pipeline outputs</h3>
+					</div>
+					<div style="height: 240px; text-align: left; font-size: x-large;">
+						The key part of the configuration is the <code><b>opensearch output plugin</b></code> that
+						sends data to our OpenSearch backend. Below we can use <code><b>host: localhost</b></code> if we
+						are running Fluent Bit from source or <code><b>host: host.containers.internal</b></code> if we
+						are running Fluent Bit as a container using Podman. On Kubernetes it becomes the service name
+						<code><b>opensearch-cluster-master</b></code>. Furthermore, the port is <code><b>9200</b></code>
+						as we configured in the OpenSearch backend deployment, and the index is <code><b>fb-index</b></code> 
+						to be created once the telemetry data is ingested (the <code><b>stdout</b></code> plugin is to visually 
+						verify the log telemetry data being sent to OpenSearch):
+					</div>
+					<div style="height: 220px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								  outputs:
+								    - name: stdout
+								      match: '*'
+								      format: json_stream
+								      json_date_format: java_sql_timestamp
+
+								    - <mark>name: opensearch</mark>
+								      match: '*'
+								      #host: localhost                  # use for source install
+								      #host: host.containers.internal   # use for containers
+								      host: opensearch-cluster-master   # the OpenSearch service
+								      <mark>port: 9200</mark>
+								      http_user: 'admin'
+								      http_passwd: 'Opensearch@demo1'
+								      <mark>index: fb-index</mark>
+								      type: fbType
+								      net.keepalive: off
+								      suppress_type_name: true
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization - Running Fluent Bit (source)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						If you have Fluent Bit installed from source and have configured your pipeline to outputs for the 
+						OpenSearch plugin to send the telemetry data to <code><b>host: localhost</b></code>, you can run it 
+						directly with the configuration file as follows to see the log telemetry data being sent to the 
+						<code><b>stdout</b></code> plugin and OpenSearch (we can't see that here):
+					</div>
+					<div style="height: 220px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Run Fluent Bit with the configuration file.
+								$ fluent-bit --config fluent-bit.yaml
+
+								[2025/11/13 17:53:27.609803213] [ info] [input:dummy:dummy.0] initializing
+								[2025/11/13 17:53:27.609808505] [ info] [input:dummy:dummy.0] storage_strategy='memory'
+								[2025/11/13 17:53:27.609831921] [ info] [input:dummy:dummy.1] initializing
+								...
+								{"date":"2025-11-13 17:53:28.245085","message":"true 200 success"}
+								{"date":"2025-11-13 17:53:28.245159","message":"false 500 error"}
+								{"date":"2025-11-13 17:53:29.246148","message":"true 200 success"}
+								{"date":"2025-11-13 17:53:29.246251","message":"false 500 error"}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization - Running Fluent Bit (container build)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Alternatively, we can run Fluent Bit as a container. <b>Important:</b> When running Fluent 
+						Bit in a container, we need to update the host in the configuration file to use 
+						<code><b>host.containers.internal</b></code>. Once that is done, we can build the container 
+						image using the configuration shown below as comments:
+					</div>
+					<div style="height: 220px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Build the Fluent Bit container image by creating a Buildfile with the 
+								# comments below inserted as code in the file.
+								#
+								# FROM ghcr.io/fluent/fluent-bit:5.1.1
+								# COPY ./fluent-bit.yaml /fluent-bit/etc/fluent-bit.yaml
+								# CMD [ "fluent-bit", "-c", "/fluent-bit/etc/fluent-bit.yaml"]
+								#
+								$ podman build -t opensearch:fb-opensearch -f Buildfile
+
+								STEP 1/3: FROM ghcr.io/fluent/fluent-bit:5.1.1
+								STEP 2/3: COPY ./fluent-bit.yaml /fluent-bit/etc/fluent-bit.yaml
+								STEP 3/3: CMD [ "fluent-bit", "-c", "/fluent-bit/etc/fluent-bit.yaml"]
+								COMMIT opensearch:fb-opensearch
+								Successfully tagged localhost/opensearch:fb-opensearch
+							</code>
+						</pre>
+					</div>
+				</section>
+
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization - Running Fluent Bit (container run)</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						After the build, we can run the container on the same network as OpenSearch as follows 
+						to see the log telemetry data being sent to the <code><b>stdout</b></code> plugin and 
+						OpenSearch (we can't see that here):
+					</div>
+					<div style="height: 220px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Run the container on the same network as OpenSearch.
+								#
+								$ podman run --rm --name fb-opensearch --network os-net opensearch:fb-opensearch
+
+								...
+								{"date":"2025-11-13 17:53:28.245085","message":"true 200 success"}
+								{"date":"2025-11-13 17:53:28.245159","message":"false 500 error"}
+								{"date":"2025-11-13 17:53:29.246148","message":"true 200 success"}
+								{"date":"2025-11-13 17:53:29.246251","message":"false 500 error"}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Running Fluent Bit (container fail)</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						If we run the container with the wrong network, the wrong host, or wrong port, it will 
+						fail to connect to OpenSearch with the following errors in the console output. This example
+						is when the host is configured incorrectly for a source installation and run as a container.
+						The <code><b>stdout</b></code> plugin output is two log statements followed by two failing log 
+						messages when Fluent Bit is unable to connect to OpenSearch:
+					</div>
+					<div style="height: 220px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Run the container on the same network as OpenSearch.
+								#
+								$ podman run --rm --name fb-opensearch --network os-net opensearch:fb-opensearch
+
+								...
+								{"date":"2025-11-27 09:18:22.241435","message":"true 200 success"}
+								{"date":"2025-11-27 09:18:22.241448","message":"false 500 error"}
+								[2025/11/27 09:18:23.250455242] [ warn] [engine] failed to flush chunk '1-1764235102.241441063.flb', retry in 9 seconds: task_id=0, input=dummy.0 > output=opensearch.1 (out_id=1)
+								[2025/11/27 09:18:23.250520200] [ warn] [engine] failed to flush chunk '1-1764235102.241453230.flb', retry in 10 seconds: task_id=1, input=dummy.1 > output=opensearch.1 (out_id=1)
+								{"date":"2025-11-27 09:18:23.244118","message":"true 200 success"}
+								{"date":"2025-11-27 09:18:23.244214","message":"false 500 error"}
+								[2025/11/27 09:18:24.242770658] [ warn] [engine] failed to flush chunk '1-1764235103.244135169.flb', retry in 11 seconds: task_id=2, input=dummy.0 > output=opensearch.1 (out_id=1)
+								[2025/11/27 09:18:24.242847949] [ warn] [engine] failed to flush chunk '1-1764235103.244220128.flb', retry in 7 seconds: task_id=3, input=dummy.1 > output=opensearch.1 (out_id=1)
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization – Adding the OpenSearch output (k3s)</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						On Kubernetes we don't run Fluent Bit from source or build a container image. Instead, we go back
+						to the <code><b>workshop-fb-helm.yaml</b></code> file we started this lab from and add the
+						<code><b>opensearch</b></code> output next to the <code><b>stdout</b></code> one, then roll it out
+						with a <code><b>helm upgrade</b></code>. The port and index stay the same:
+					</div>
+					<div style="height: 270px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								      pipeline:
+								        inputs:
+								          ...
+
+								        outputs:
+								          - name: stdout
+								            match: '*'
+								            format: json_stream
+								            json_date_format: java_sql_timestamp
+
+								          - <mark>name: opensearch</mark>
+								            match: '*'
+								            <mark>host: opensearch-cluster-master</mark>   # the OpenSearch service
+								            <mark>port: 9200</mark>
+								            http_user: 'admin'
+								            http_passwd: 'Opensearch@demo1'
+								            <mark>index: fb-index</mark>
+								            type: fbType
+								            net.keepalive: off
+								            suppress_type_name: true
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization – Rolling out this pipeline (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Apply the updated configuration by running a <code><b>helm upgrade</b></code> from the
+						<code><b>fluentbit-install-demo</b></code> root directory. This rolls out a new Fluent Bit pod
+						that sends its telemetry data on to OpenSearch:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+								       --set image.tag=5.1.1 \
+								       --namespace logging --create-namespace \
+								       --values workshop-fb-helm.yaml
+
+								Release "fluent-bit" has been upgraded. Happy Helming!
+								NAME: fluent-bit
+								NAMESPACE: logging
+								STATUS: deployed
+								REVISION: 12
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization – Console output this pipeline (k3s)</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Follow the pod logs in the <code><b>logging</b></code> namespace to see the
+						<code><b>stdout</b></code> plugin output. The events shown here are also being sent to
+						OpenSearch, which we can't see from the console (exit with CTRL-C):
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+
+								...
+								{"date":"2025-11-13 17:53:28.245085","message":"true 200 success"}
+								{"date":"2025-11-13 17:53:28.245159","message":"false 500 error"}
+								{"date":"2025-11-13 17:53:29.246148","message":"true 200 success"}
+								{"date":"2025-11-13 17:53:29.246251","message":"false 500 error"}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization - Discovering indexed telemetry data</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Once we have Fluent Bit sending telemetry data to OpenSearch, let's visualize it in the
+						OpenSearch Dashboard. Go to <a href="http://localhost:5601" target="_blank"><code><b>http://localhost:5601</b></code></a> (on k3s this is
+						reached through the port-forward we started earlier) and using the top
+						left drop down menu, select <code><b>DISCOVER</b></code> as shown:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab09-3.png" alt="discover menu" style="max-height: 380px;">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization - Creating index pattern</h3>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: x-large;">
+						The first step is to create an index pattern to access the telemetry data we are collecting.
+						Click on the top right green <code><b>+CREATE INDEX PATTERN</b></code> button:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab09-4.png" alt="create index pattern" style="max-height: 380px;">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization - Searching for index</h3>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: x-large;">
+						In the field called <code><b>INDEX PATTERN NAME</b></code> we need to search for our
+						<code><b>fb-index*</b></code> and click on the <code><b>NEXT</b></code> button as shown:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab09-5.png" alt="search index" style="max-height: 380px;">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization - Selecting timestamp field</h3>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: x-large;">
+						The second step is to use the drop-down menu to select the <code><b>@timestamp</b></code>
+						field and click on the bottom right green button <code><b>CREATE INDEX PATTERN</b></code> as
+						shown:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab09-6.png" alt="select timestamp" style="max-height: 380px;">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization - Index pattern created</h3>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: x-large;">
+						This will display the new index we have created as follows:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab09-7.png" alt="index created" style="max-height: 380px;">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization - Viewing telemetry data</h3>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: x-large;">
+						Finally, to view our Fluent Bit telemetry data being ingested into OpenSearch, go back to the
+						main menu on the top left and again select <code><b>DISCOVER</b></code> to view the resulting
+						dashboard:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab09-8.png" alt="discover data" style="max-height: 380px;">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization - What's being visualized?</h3>
+					</div>
+					<div style="height: 220px; text-align: left; font-size: x-large;">
+						In the Discover view, you can now see:<br />
+						<br />
+						<ul>
+							<li><b>Time-based histogram</b> - Shows the distribution of events over time</li>
+							<li><b>Document list</b> - Displays individual log entries with all fields</li>
+							<li><b>Field list</b> - Shows available fields you can filter and search by</li>
+							<li><b>Search bar</b> - Allows you to query your data using Lucene or DQL syntax</li>
+						</ul>
+						<br />
+						<br />
+						The telemetry data from Fluent Bit includes the success and error messages we configured in
+						our dummy inputs, along with timestamps and metadata added by the pipeline.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization - Stopping containers</h3>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: x-large;">
+						When you're done exploring, you can stop the containers. Note that when stopped, the
+						containers will be removed:
+					</div>
+					<div style="height: 220px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Stop and remove all running containers.
+								$ podman stop opensearch osd fb-opensearch
+
+								opensearch
+								osd
+								fb-opensearch
+
+								# Or stop just the Podman machine (stops all containers).
+								$ podman machine stop
+
+								Machine "podman-machine-default" stopped successfully
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data visualization – Cleaning up (k3s)</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						On the k3s path, stop the port-forward with CTRL-C and remove the two OpenSearch releases. Note
+						we only remove what this lab added, leaving the <code><b>fluent-bit</b></code> release we have
+						had running in place:
+					</div>
+					<div style="height: 220px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm --kube-context rancher-desktop -n logging \
+								       uninstall opensearch-dashboards opensearch
+
+								release "opensearch-dashboards" uninstalled
+								release "opensearch" uninstalled
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 370px; font-size: x-large;">
+						<img src="images/lab09-8.png" alt="final result" style="max-height: 350px;">
+					</div>
+				</section>
+
+				<section data-background="images/lab03-2.jpg">
+					<div style="height: 400px;">
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<h1 class="r-fit-text" style="color: white;">Fluent Bit integration with OpenSearch completed!</h1>
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://github.com/fluent/fluent-bit/blob/master/README.md" target="_blank">Fluent Bit repository</a></li>
+							<li><a href="https://opensearch.org/docs/latest/" target="_blank">OpenSearch documentation</a></li>
+							<li><a href="https://github.com/opensearch-project/helm-charts" target="_blank">OpenSearch Helm charts</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/opensearch-install-demo" target="_blank">OpenSearch Easy Install project</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Technology Advocate Lead<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab10.html" target="_blank">Lab 10 - Advanced telemetry routing</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>
+

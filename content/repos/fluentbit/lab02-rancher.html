@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Fluent Bit workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Telemetry Pipelines Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax-highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-799E08H5WD"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-799E08H5WD');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 2 – Installing Fluent Bit on Kubernetes (k3s)</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>To deploy Fluent Bit onto a Rancher Desktop Kubernetes (k3s) cluster running on your
+							local machine, where it collects container logs alongside a log generating workload.</h4>
+					</div>
+				</section>
+
+				<section id="local-install">
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Kubernetes – Installing Rancher Desktop tooling</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Deploying Fluent Bit onto a Kubernetes cluster is going to be demonstrated here using the open
+						source project <a href="https://rancherdesktop.io/" target="_blank">Rancher Desktop</a>, which
+						provides a local single node Kubernetes (k3s) cluster. It's assumed you have already installed
+						Rancher Desktop with Kubernetes enabled (this provides the <code><b>rdctl</b></code> commandline
+						tooling and a <code><b>rancher-desktop</b></code> kubeconfig context).<br />
+						<br />
+						The install runs entirely against the headless backend using <code><b>rdctl</b></code>,
+						<code><b>kubectl</b></code>, and <code><b>helm</b></code>, so the Rancher Desktop UI never
+						needs to be opened.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Kubernetes – Using the easy install project</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Deploying onto your cluster can be done in just a few steps with our
+						<a href="https://gitlab.com/o11y-workshops/fluentbit-install-demo" target="_blank">
+							Fluent Bit Easy Install project.
+						</a> This uses a simple automated installation script that validates the prerequisites
+						(<code><b>rdctl</b></code>, Helm v3+, and kubectl v1.32+) for you.<br />
+						<br />
+						The Fluent Bit Easy Install project takes just 3 steps to a running deployment:<br />
+						<br />
+						<ol>
+							<li>Download and unzip the project.</li>
+							<li>Run the <code>init.sh rancher</code> file in a console.</li>
+							<li>Check the pods and follow the collected logs on the cluster.</li>
+						</ol>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 110px;">
+						<h3 class="r-fit-text">Kubernetes - Downloading and unzip project</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						The first step is to
+						<a href="https://gitlab.com/o11y-workshops/fluentbit-install-demo/-/archive/v2.9/fluentbit-install-demo-v2.9.zip">
+							download the project.
+						</a>
+						Unzipping (use your file manager or console) should look something like this:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ unzip fluentbit-install-demo-[VERSION].zip
+
+								Archive: fluentbit-install-demo-v[VERSION].zip
+								creating: fluentbit-install-demo-v[VERSION]/
+								extracting: fluentbit-install-demo-v[VERSION]/.gitignore
+								inflating: fluentbit-install-demo-v[VERSION]/README.md
+								creating: fluentbit-install-demo-v[VERSION]/docs/
+								creating: fluentbit-install-demo-v[VERSION]/docs/demo-images/
+								inflating: fluentbit-install-demo-v[VERSION]/docs/demo-images/workshop.png
+								inflating: fluentbit-install-demo-v[VERSION]/init.bat
+								inflating: fluentbit-install-demo-v[VERSION]/init.sh
+								creating: fluentbit-install-demo-v[VERSION]/support/
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Kubernetes – Running the install script</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Make sure Rancher Desktop is started with Kubernetes enabled, then run the console-based
+						installation script with the <code><b>rancher</b></code> argument (note the VERSION text below
+						is to be replaced with the version of the project you have downloaded):
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ cd fluentbit-install-demo-{VERSION}
+
+								$ ./init.sh rancher
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Kubernetes – What's the install doing?</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						The script validates your tooling, deploys a log generating workload, then installs Fluent Bit
+						onto the cluster via the official Helm chart:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: large;">
+						<pre>
+							<code data-trim data-noescape>
+								[INFO]    Deploying onto Rancher Desktop k3s cluster...
+								[INFO]    Deploying Fluent Bit version 5.1.1 onto the Rancher Desktop k3s cluster...
+								[INFO]    Checking if Rancher Desktop is installed...
+								[INFO]    Checking Rancher Desktop is running and Kubernetes is enabled...
+								[INFO]    Rancher Desktop backend is running with Kubernetes enabled...
+								[INFO]    Checking if Helm is installed...
+								[INFO]    Checking for Helm version...
+								[INFO]    installed Helm version is v4...
+								[INFO]    Checking if kubectl is installed...
+								[INFO]    Checking rancher-desktop kubeconfig context exists...
+								[INFO]    Checking rancher-desktop cluster is reachable...
+
+								[INFO]    Removing any previous Fluent Bit workload from the rancher-desktop cluster...
+								[INFO]    Deploying log generating workload to cluster...
+
+								deployment.apps/log-generator created
+
+								[INFO]    Confirming log generating deployment has completed successfully on the cluster... it takes a few minutes...
+
+								pod/log-generator-cf9d79d46-xgvc9 condition met
+
+								[INFO]    The status of log workload pods in the cluster:
+
+								NAME                            READY   STATUS    RESTARTS   AGE
+								log-generator-cf9d79d46-xgvc9   1/1     Running   0          5s
+
+								[INFO]    Adding Fluent Bit Helm chart to our local repo...
+								[INFO]    Setting up Fluent Bit 5.1.1 logging for containers on the cluster:
+								[INFO]    Setting default namespace for rancher-desktop context to logging...
+								[INFO]    Confirming Fluent Bit deployment completed successfully on the cluster:
+								[INFO]    Get a coffee or tea while you wait...
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Kubernetes – Completing the install</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						The script ensures Fluent Bit is installed and running, validates the log generator and the
+						provides instructions about the installation:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: large;">
+						<pre>
+							<code data-trim data-noescape>
+								[INFO]    Confirming Fluent Bit deployment completed successfully on the cluster:
+								[INFO]    Get a coffee or tea while you wait...
+
+								pod/log-generator-cf9d79d46-xgvc9 condition met
+								pod/fluent-bit-wp7nf condition met
+
+								[INFO]    The status of all Fluent Bit pods in the cluster are:
+
+								NAME                            READY   STATUS    RESTARTS   AGE
+								log-generator-cf9d79d46-xgvc9   1/1     Running   0          11s
+								fluent-bit-wp7nf                1/1     Running   0          5s
+
+								[INFO]    ================================================================================================
+								[INFO]    =                                                                                              =
+								[INFO]    =  Install complete, Fluent Bit is collecting container logs on the Rancher                    =
+								[INFO]    =  Desktop Kubernetes (k3s) cluster, alongside a log generating workload.                      =
+								[INFO]    =                                                                                              =
+								[INFO]    =  The status of all pods in the logging namespace:                                            =
+								[INFO]    =                                                                                              =
+								[INFO]    =    kubectl --context rancher-desktop -n logging get pods                                     =
+								[INFO]    =                                                                                              =
+								[INFO]    =  To follow the Fluent Bit logs collected on the cluster:                                     =
+								[INFO]    =                                                                                              =
+								[INFO]    =    kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f =
+								[INFO]    =                                                                                              =
+								[INFO]    =  To remove just this demo (leaving the rest of your Rancher Desktop cluster intact):         =
+								[INFO]    =                                                                                              =
+								[INFO]    =    helm --kube-context rancher-desktop uninstall fluent-bit -n logging &&                    =
+								[INFO]    =      kubectl --context rancher-desktop delete namespace logging                              =
+								[INFO]    =                                                                                              =
+								[INFO]    =  To bring down the whole Rancher Desktop setup when you are finished, stop                   =
+								[INFO]    =  the backend from the tray menu, or shut it down headlessly with rdctl:                      =
+								[INFO]    =                                                                                              =
+								[INFO]    =    rdctl shutdown                                                                            =
+								[INFO]    =                                                                                              =
+								[INFO]    =  Getting started workshop online: https://o11y-workshops.gitlab.io/workshop-fluentbit        =
+								[INFO]    =                                                                                              =
+								[INFO]    ================================================================================================
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Kubernetes – Confirming the running pods</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						When the install completes, Fluent Bit is collecting container logs in the
+						<code><b>logging</b></code> namespace alongside the log generating workload. Check the pods:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging get pods
+
+								NAME                            READY   STATUS    RESTARTS   AGE
+								log-generator-cf9d79d46-xgvc9   1/1     Running   0          11s
+								fluent-bit-wp7nf                1/1     Running   0          5s
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo – What to do with any failures?</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						At any time in the workshop should you encounter failures, during installation, testing, data
+						population, or build results. Don't worry, this can be rerun any time after you fix any problems
+						reported. The script is idempotent, so rerun it from the project root directory:
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./init.sh rancher
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo – Shutdown your cluster environment</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						At anytime in the workshop you can pause and come back later. To remove just this demo (leaving
+						the rest of your Rancher Desktop cluster intact):
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm --kube-context rancher-desktop uninstall fluent-bit -n logging && \
+								    kubectl --context rancher-desktop delete namespace logging
+							</code>
+						</pre>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						To bring down the whole Rancher Desktop setup when you are finished, stop the backend from the
+						tray menu, or shut it down headlessly with <code><b>rdctl</b></code>:
+					</div>
+					<div style="height: 60px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ rdctl shutdown
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed – Results</h2>
+					</div>
+					<div style="height: 370px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								[INFO]    ================================================================================================
+								[INFO]    =                                                                                              =
+								[INFO]    =  Install complete, Fluent Bit is collecting container logs on the Rancher                    =
+								[INFO]    =  Desktop Kubernetes (k3s) cluster, alongside a log generating workload.                      =
+								[INFO]    =                                                                                              =
+								[INFO]    =  The status of all pods in the logging namespace:                                            =
+								[INFO]    =                                                                                              =
+								[INFO]    =    kubectl --context rancher-desktop -n logging get pods                                     =
+								[INFO]    =                                                                                              =
+								[INFO]    =  To follow the Fluent Bit logs collected on the cluster:                                     =
+								[INFO]    =                                                                                              =
+								[INFO]    =    kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f =
+								[INFO]    =                                                                                              =
+								[INFO]    =  To remove just this demo (leaving the rest of your Rancher Desktop cluster intact):         =
+								[INFO]    =                                                                                              =
+								[INFO]    =    helm --kube-context rancher-desktop uninstall fluent-bit -n logging &&                    =
+								[INFO]    =      kubectl --context rancher-desktop delete namespace logging                              =
+								[INFO]    =                                                                                              =
+								[INFO]    =  To bring down the whole Rancher Desktop setup when you are finished, stop                   =
+								[INFO]    =  the backend from the tray menu, or shut it down headlessly with rdctl:                      =
+								[INFO]    =                                                                                              =
+								[INFO]    =    rdctl shutdown                                                                            =
+								[INFO]    =                                                                                              =
+								[INFO]    =  Getting started workshop online: https://o11y-workshops.gitlab.io/workshop-fluentbit        =
+								[INFO]    =                                                                                              =
+								[INFO]    ================================================================================================
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: center; font-size: xx-large">
+						Next up, exploring first pipelines...
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://github.com/fluent/fluent-bit/blob/master/README.md" target="_blank">Fluent Bit repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact – are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Technology Advocate Lead<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in the workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab03.html" target="_blank">Lab 3 - Exploring first pipelines</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

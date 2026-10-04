@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Prometheus workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Lab 3 - Prometheus</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-PW25SPMWGG"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-PW25SPMWGG');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 3 - Introduction to the Query Language</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>This lab introduces the Prometheus Query Language (PromQL) giving you an introduction
+							and sets up a demo project to provide more realistic data for querying.</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - What query language?</h3>
+					</div>
+					<div style="height: 450px; text-align: left; font-size: xx-large;">
+						A query language is needed by Prometheus to be able to send requests to the stored metrics
+						data. This is allowing users to gain ad-hoc insights, build visualizations and dashboards from this
+						data, and be able to report (alert) when incoming data indicates that systems are not performing
+						as desired.<br />
+						<br />
+						This language is called PromQL and provides an open standard unified way of selecting,
+						aggregating, transforming, and computing on the collected time series data. Note that this
+						language provides only READ access to the collected metrics data, while Prometheus offers a
+						different path to WRITE access.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">PromQL - Proving PromQL compliance?</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						PromQL is an open standard in that it's widely integrated by many vendors in their products. This
+						begs the question, how can I be sure that a product is 100% compatible with the real open source
+						PromQL found in the Prometheus project?<br />
+						<br />
+						To answer this question, the
+						<a href="https://github.com/prometheus/compliance/blob/main/promql/README.md" target="_blank">
+							PromQL Compliance Tester
+						</a>
+						was added to the larger
+						<a href="https://github.com/prometheus/compliance" target="_blank">
+							Prometheus compliance project.
+						</a>
+						Follow the documentation, and you can test any vendor you like, or you can browse one of the
+						<a href="https://promlabs.com/promql-compliance-test-results/2021-10-14/chronosphere" target="_blank">
+							formatted results published online.
+						</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">PromQL - Prometheus architecture</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Remember the overview architecture of Prometheus as it was presented in the first introduction?
+						The next slide will expose the Prometheus query engine:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab03-2.png" alt="compliance"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">PromQL - Query engine architecture</h3>
+					</div>
+					<div style="height: 140px; text-align: left; font-size: x-large;">
+						Taking a closer look here at our Prometheus internals, we find the ingested time series data
+						(metrics) are scraped from configured targets and stored in the TSDB. An internal PromQL engine
+						supports our ability to query that data. All queries are in read-only access. The query
+						engine supports both <b>internal</b> and <b>external</b> queries. Let's take a look at some
+						rule terminology before we dig any further:
+					</div>
+					<div style="height: 450px;">
+						<img src="images/lab03-3.png" alt="compliance"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Defining queries and rules</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						Before we get too deep into PromQL, let's look closer at the various rule terminology you'll
+						be covering. First a query and rule:<br />
+						<br />
+						<ul>
+							<li>
+								<b>Query</b> - a PromQL query is not like SQL (SELECT * FROM...), but consist of nested
+								functions with each inner function returning the data described to the next outer function.
+							</li>
+							<br />
+							<li>
+								<b>Rule</b> - a configured query to gather data and evaluate, either as a
+								<b>recording rule</b> or an <b>alerting rule</b>.
+							</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Recording and alerting rules</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						Next the recording rule and alerting rule, essential to complexer actions:<br />
+						<br />
+						<ul>
+							<li>
+								<b>Recording rule</b> - used to pre-query often used data or computationally expensive
+								expressions and save the results for faster execution of queries later. Useful for queries
+								used in dashboards (refreshed often).
+							</li>
+							<br />
+							<li>
+								<b>Alerting rule</b> - defines an alert condition based on PromQL expressions, when fired
+								cause notifications to be sent to external services.
+							</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Aggregation and filtering</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						Finally, a look at aggregation and filtering, very important to optimizing both the execution
+						and trimming excessive unused data metrics:<br />
+						<br />
+						<ul>
+							<li>
+								<b>Aggregation</b> - using operators that support combining elements from a single function,
+								resulting in new results with fewer elements by combining values (SUM, MIN, MAX, AVG...)
+							</li>
+							<br />
+							<li>
+								<b>Filtering</b> - the act of removing metrics from a query result by exclusion,
+								aggregation, or applying language functions to reduce the results.
+							</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">PromQL - Prometheus internal queries</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Now to how internal queries to Prometheus run. Recording and alerting rules are executed on a
+						regular schedule to calculate rule results, such as an alert needing to fire. As you configure
+						new rules, these activities happen automatically:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab03-4.png" alt="compliance"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">PromQL - The external queries</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Queries can be sent externally to Prometheus using the
+						<a href="https://prometheus.io/docs/prometheus/latest/querying/api/" target="_blank">
+							Prometheus API (HTTP).
+						</a>
+						External users, user interfaces (UIs), and dashboards are all examples of querying Prometheus
+						metrics using PromQL. This is also how Prometheus uses its built-in web console to run queries:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab03-5.png" alt="compliance"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">PromQL - Exploring a few use cases</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						While there are many use cases that PromQL can support, it's possible to group them into a few
+						more general ones. These are more common in your daily observability work, and we’ll explore
+						each one in more detail:<br />
+						<br />
+						<ul>
+							<li>Ad-hoc querying</li>
+							<li>Dashboards</li>
+							<li>Alerting</li>
+							<li>Automation</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">PromQL use cases - Ad-hoc querying</h3>
+					</div>
+					<div style="height: 140px; text-align: left; font-size: x-large;">
+						This use case is about you running live queries against the collected time series data. Imagine
+						you are getting alerts while <a href="https://offcall.simplecast.com/" target="_blank">on-call</a>
+						at your organization, you open the dashboard and the pre-configured display gives you some hints
+						as to the issue, but you want to dig specifically into some data points. That's when you write
+						your own ad-hoc query and execute it to view the data in a graph:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab03-6.png" alt="ad-hoc query"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">PromQL use cases - Dashboard queries</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						This use case is where you create a layout of queries in what is known as a dashboard. You design
+						your display of metrics, gauges, and charts you want to display for a specific user viewing
+						aspects of your systems. PromQL queries are used to collect data, here using the
+						<a href="https://github.com/perses/perses" target="_blank">Perses project</a> (you'll learn
+						about dashboards later in this workshop) and embedded it in a dashboard view:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab03-7.png" alt="ad-hoc query" style="border: 1px solid #000;"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">PromQL use cases - Alerting queries</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						The use of queries to watch your collected data for possible alerts is another use case. Prometheus
+						generates alerts based on queries such as this one looking for hardware failure:
+					</div>
+					<div style="height: 150px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								groups:
+								- name: Hardware alerts
+									rules:
+									- alert: Node down
+									expr: up{job="node_exporter"} == 0
+									for: 3m
+									labels:
+										severity: warning
+									annotations:
+										title: Node {{ $labels.instance }} is down
+										description: No scrape {{ $labels.job }} on {{ $labels.instance }}.
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">PromQL use cases - Dispatching alerts</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						To make these alerts useful, you might want to dispatch them to Slack, PagerDuty, or some
+						other notification mechanism. Here is an example of what Slack might look like when you
+						dispatch an alert notification:
+					</div>
+					<div style="height: 200px;">
+						<img src="images/lab03-8.png" alt="ad-hoc query"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">PromQL use cases - Query automation</h3>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: x-large;">
+						When you are automating your processes you can run PromQL queries against Prometheus collected
+						data and make choices based on the results. A few examples you might consider:<br />
+						<br />
+						<ul>
+							<li>In a CI/CD pipeline, inspecting a deployment's stage health before full deployment.</li>
+							<li>Kicking off a remediation process when a system alerts to a deteriorated state.</li>
+							<li>Autoscaling to provision more infrastructure when increased load is detected.</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Query architecture</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						That's enough theory about queries for now, let's look at installing and running a services demo
+						project (source: <a href="https://github.com/juliusv/prometheus_demo_service" target="_blank">
+						with thanks to this repository</a>) that will allow you to query somewhat realistic scraped services
+						time series data. The architecture is simple:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab03-9.png" alt="services architecture"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Metrics being generated</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						The services demo architecture shows the layout, but what are these services providing for
+						our Prometheus instance to collect metrics from? It's exporting synthetic metrics (specifically
+						designed metrics) about our simulated services, here's a few examples:<br />
+						<br />
+						<ul>
+							<li>HTTP API server exposing request counts and latencies</li>
+							<li>Periodic batch job exposing timestamp and number of processed bytes</li>
+							<li>Metrics: CPU usage, memory usage, size of disk, disk usage, and more</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h3 class="r-fit-text">Options for installing services demo</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						There are three installation paths, one building the demo from the source project, one using a
+						container image, and one deploying onto a local Kubernetes cluster. Please click on the option
+						you want to use to continue with this workshop:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<ul>
+							<li><a href="lab03-source.html" target="_blank">Installing from the source project</a></li>
+							<li><a href="lab03-podman.html" target="_blank">Installing in an open source container</a></li>
+							<li><a href="lab03-rancher.html" target="_blank">Installing on Kubernetes (k3s) with Helm</a></li>
+						</ul>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMenu, RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+	</body>
+</html>

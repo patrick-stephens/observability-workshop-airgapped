@@ -1,0 +1,683 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Fluent Bit workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Telemetry Pipelines Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-799E08H5WD"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-799E08H5WD');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Configuring the collector</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						There are three things to configure when processing telemetry data through an OTel Collector; a
+						<code><b>receiver</b></code>, <code><b>processor</b></code>, and <code><b>exporter</b></code> as
+						shown below. Let's get started with our own OTel Collector configuration:
+					</div>
+					<div style="height: 300px;">
+						<img src="images/lab07-4.png" alt="receiver">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Configuring the receivers</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						The configuration of our collector <code><b>receivers</b></code> section is where we define a
+						delivery destination that Fluent Bit can push its telemetry (logs) to. Create a new
+						configuration file <code><b>workshop-otel.yaml</b></code> and add the following to provide an
+						OLTP endpoint at <code><b>localhost:4317</b></code>.
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# This file is our workshop OpenTelemetry configuration.
+								#
+								receivers:
+								  otlp:
+								    protocols:
+								      http:
+								        endpoint: 0.0.0.0:4317
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Configuring the exporters</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Now expand the configuration file <code><b>workshop-otel.yaml</b></code> with an
+						<code><b>exporters</b></code> section to define where our telemetry (logs) will be sent after
+						processing. In this case we want to provide for output to the console as follows:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# This file is our workshop OpenTelemetry configuration.
+								#
+								receivers:
+								  otlp:
+								    protocols:
+								      http:
+								        endpoint: 0.0.0.0:4317
+
+								exporters:
+								  debug:
+								    verbosity: basic
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Configuring the processing</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Finally, we add a <code><b>service</b></code> section to complete our collector configuration.
+						Here we are defining the level of log reporting (<code><b>info</b></code>) and creating a
+						collector pipeline for our logs. We assign specific <code><b>receivers</b></code> and
+						<code><b>exporters</b></code>, so that we are receiving through the <code><b>OTLP</b></code>
+						protocol (using our Fluent Bit OTel Envelope) and exporting to the console only:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# This file is our workshop OpenTelemetry configuration.
+								#
+								receivers:
+								  otlp:
+								    protocols:
+								      http:
+								        endpoint: 0.0.0.0:4317
+
+								exporters:
+								  debug:
+								    verbosity: basic
+
+								service:
+								  telemetry:
+								    logs:
+								      level: debug
+								  pipelines:
+								    logs:
+								      receivers: [otlp]
+								      exporters: [debug]
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Verifying the collector</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						To verify the OTel Collector configuration using a container installation we first build a new
+						container that uses our new configuration. Create a new file <code><b>Buildfile-otel</b></code> and
+						set it up as follows:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								FROM otel/opentelemetry-collector-contrib:0.159.0
+
+								COPY workshop-otel.yaml /etc/otel-collector-contrib/workshop-otel.yaml
+
+								CMD [ "--config", "/etc/otel-collector-contrib/workshop-otel.yaml"]
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Building the collector</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Now we'll build a new container image, naming it with a version tag, as follows using the
+						<code><b>Buildfile-otel</b></code> and assuming you are in the same directory:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-otel:v0.159 -f Buildfile-otel
+
+								STEP 1/3: FROM otel/opentelemetry-collector-contrib:0.159.0
+								Resolving "otel/opentelemetry-collector-contrib" using unqualified-search registries
+								   (/etc/containers/registries.conf.d/999-podman-machine.conf)
+								Trying to pull docker.io/otel/opentelemetry-collector-contrib:0.159.0...
+								Getting image source signatures
+								Copying blob sha256:cdaff13b672a6e8988f86fdbe95bb80b981e2f439d90e1bbfb8c924476e18f61
+								Copying blob sha256:5cf3dd5f22ff110a63ec78e15d71631b284af8b32e688c2f79847756496d168b
+								Copying blob sha256:cf8905821d8c9fc373410e39a52c9a1e55a7878f75be918ddf2115d5a3a056eb
+								Copying config sha256:a00d10b586207b143cd91baa4cbfbf700b829bfdf2b3801a78cbf4cbf1c89ce7
+								Writing manifest to image destination
+								STEP 2/3: COPY workshop-otel.yaml /etc/otel-collector-contrib/workshop-otel.yaml
+								--> 718d7802e19c
+								STEP 3/3: CMD [ "--config", "/etc/otel-collector-contrib/workshop-otel.yaml"]
+								COMMIT workshop-otel:v0.159
+								--> b5431b5ca4be
+								Successfully tagged localhost/workshop-otel:v0.159
+								b5431b5ca4bea3d9d66c83ab24a8ed08e4e91236c42a09b8decfec427090d0f0
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Running the collector</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Run the collector using this container command, noting port 4317 has been mapped to receive
+						telemetry data, and it has a name <code><b>otelcol</b></code>:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run --rm -p 4317:4317 --name otelcol workshop-otel:v0.159
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Console output collector</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						The console output should look something like this (scroll to right to view longer lines). Note
+						the highlighted line shows that the port is open and receiving on
+						<code><b>localhost:4317</b></code>. This runs until exiting with CTRL_C:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								2026-07-27T14:18:08.827Z  debug   builders/builders.go:26 Alpha component. May change in the future.      {"resource": {"service.instance.id": "6b378211-c9a7-4489-bf44-3e87c8e23122", "service.name": "otelcol-contrib", "service.version": "0.159.0"}, "otelcol.component.id": "debug", "otelcol.component.kind": "exporter", "otelcol.signal": "logs"}
+								2026-07-27T14:18:08.827Z  debug   builders/builders.go:26 Stable component.       {"resource": {"service.instance.id": "6b378211-c9a7-4489-bf44-3e87c8e23122", "service.name": "otelcol-contrib", "service.version": "0.159.0"}, "otelcol.component.id": "otlp", "otelcol.component.kind": "receiver", "otelcol.signal": "logs"}
+								2026-07-27T14:18:08.827Z  debug   otlpreceiver@v0.159.0/otlp.go:57        created signal-agnostic logger  {"resource": {"service.instance.id": "6b378211-c9a7-4489-bf44-3e87c8e23122", "service.name": "otelcol-contrib", "service.version": "0.159.0"}, "otelcol.component.id": "otlp", "otelcol.component.kind": "receiver"}
+								2026-07-27T14:18:08.828Z  info    service@v0.159.0/service.go:256 Starting otelcol-contrib...     {"resource": {"service.instance.id": "6b378211-c9a7-4489-bf44-3e87c8e23122", "service.name": "otelcol-contrib", "service.version": "0.159.0"}, "Version": "0.159.0", "NumCPU": 4}
+								2026-07-27T14:18:08.828Z  info    extensions/extensions.go:41     Starting extensions...  {"resource": {"service.instance.id": "6b378211-c9a7-4489-bf44-3e87c8e23122", "service.name": "otelcol-contrib", "service.version": "0.159.0"}}
+								<mark>2026-07-27T14:18:08.828Z info otlpreceiver@v0.159.0/otlp.go:175  Starting HTTP server  {"resource": {"service.instance.id": "6b378211-c9a7-4489-bf44-3e87c8e23122", "service.name": "otelcol-contrib", "service.version": "0.159.0"}, "otelcol.component.id": "otlp", "otelcol.component.kind": "receiver", "endpoint": "[::]:4317"}</mark>
+								2026-07-27T14:18:08.828Z  info    service@v0.159.0/service.go:279 Everything is ready. Begin running and processing data. {"resource": {"service.instance.id": "6b378211-c9a7-4489-bf44-3e87c8e23122", "service.name": "otelcol-contrib", "service.version": "0.159.0"}}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Adding pipeline outputs</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						Now we head back to our Fluent Bit pipeline to add an output destination to push our telemetry
+						data from our pipeline to the collector end point. Add a second entry called
+						<code><b>opentelemetry</b></code> to the exiting outputs section in our configuration file
+						<code><b>workshop-fb.yaml</b></code> as shown (and be sure to save the file when done):
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								outputs:
+								  # This entry directs all tags (it matches any we encounter)
+								  # to print to our console.
+								  - name: stdout
+								    match: '*'
+								    format: json_lines
+
+								  # this entry is for pushing logs to an OTel collector.
+								  - name: opentelemetry
+								    match: '*'
+								    host: ${OTEL_HOST}
+								    port: 4317
+								    logs_body_key_attributes: true  # allows for OTel attribute modification.
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Building collector pipeline</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Now we'll build a new container image, naming it with a version tag, as follows using the
+						<code><b>Buildfile-fb</b></code> and assuming you are in the same directory:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-fb:v14 -f Buildfile-fb
+
+								STEP 1/3: FROM ghcr.io/fluent/fluent-bit:5.1.1
+								STEP 2/3: COPY ./workshop-fb.yaml /fluent-bit/etc/workshop-fb.yaml
+								--> b4ed3356a842
+								STEP 3/3: CMD [ "fluent-bit", "-c", "/fluent-bit/etc/workshop-fb.yaml"]
+								COMMIT workshop-fb:v4
+								--> bcd69f8a85a0
+								Successfully tagged localhost/workshop-fb:v14
+								bcd69f8a85a024ac39604013bdf847131ddb06b1827aae91812b57479009e79a
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Running collector pipeline</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Run the initial pipeline using this container command, which includes search for the internal
+						container IP address to pass as a variable to our configuration using the variable
+						<code><b>OTEL_HOST</b></code>:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run --rm --name fbv14 -e OTEL_HOST=$(podman inspect -f "{{.NetworkSettings.IPAddress}}" otelcol) workshop-fb:v14
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Console output collector pipeline</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						The console output from the Fluent Bit pipeline looks something like this. Note that every time
+						a log event is ingested, it's processed into an OTel Envelope with three lines in the console,
+						and then sent to the collector on port 4317. Let's go back to the collector console and check
+						ingestion (Note: This runs until exiting with CTRL_C):
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[2025/07/10 13:41:44] [ info] [input:dummy:dummy.0] initializing
+								[2025/07/10 13:41:44] [ info] [input:dummy:dummy.0] storage_strategy='memory' (memory only)
+								[2025/07/10 13:41:44] [ info] [input:storage_backlog:storage_backlog.1] initializing
+								[2025/07/10 13:41:44] [ info] [input:storage_backlog:storage_backlog.1] storage_strategy='memory' (memory only)
+								[2025/07/10 13:41:44] [ info] [input:storage_backlog:storage_backlog.1] queue memory limit: 95.4M
+								[2025/07/10 13:41:44] [ info] [output:stdout:stdout.0] worker #0 started
+								[2025/07/10 13:41:44] [ info] [sp] stream processor started
+								[2025/07/10 13:41:44] [ info] [engine] Shutdown Grace Period=5, Shutdown Input Grace Period=2
+								{"date":1752154905.234106,"__internal__":{"group_attributes":{"resource":{},"scope":{}},"log_metadata":{}},"service":"backend","log_entry":"Generating a 200 success code."}
+								[2025/07/10 13:41:46] [ info] [output:opentelemetry:opentelemetry.1] 10.88.0.45:4317, HTTP status=200
+								{"date":1752154906.235384,"__internal__":{"group_attributes":{"resource":{},"scope":{}},"log_metadata":{}},"service":"backend","log_entry":"Generating a 200 success code."}
+								[2025/07/10 13:41:47] [ info] [output:opentelemetry:opentelemetry.1] 10.88.0.45:4317, HTTP status=200
+								{"date":1752154907.235805,"__internal__":{"group_attributes":{"resource":{},"scope":{}},"log_metadata":{}},"service":"backend","log_entry":"Generating a 200 success code."}
+								[2025/07/10 13:41:48] [ info] [output:opentelemetry:opentelemetry.1] 10.88.0.45:4317, HTTP status=200
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Console output collector</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						The console output from the OTel collector looks something like this, with one line for each
+						log event sent from our Fluent Bit based pipeline. This means it's working fine! What we don't
+						see is the log event details, so let's add a new exporter to send our log data to a file. (Note:
+						This runs until exiting with CTRL_C):
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								2025-07-10T13:41:50.236Z info Logs {"resource": {"service.instance.id": "6b378211-c9a7-4489-bf44-3e87c8e23122", "service.name": "otelcol-contrib", "service.version": "0.159.0"}, "otelcol.component.id": "debug", "otelcol.component.kind": "exporter", "otelcol.signal": "logs", "resource logs": 1, "log records": 1}
+								2025-07-10T13:41:51.237Z info Logs {"resource": {"service.instance.id": "6b378211-c9a7-4489-bf44-3e87c8e23122", "service.name": "otelcol-contrib", "service.version": "0.159.0"}, "otelcol.component.id": "debug", "otelcol.component.kind": "exporter", "otelcol.signal": "logs", "resource logs": 1, "log records": 1}
+								2025-07-10T13:41:52.144Z info Logs {"resource": {"service.instance.id": "6b378211-c9a7-4489-bf44-3e87c8e23122", "service.name": "otelcol-contrib", "service.version": "0.159.0"}, "otelcol.component.id": "debug", "otelcol.component.kind": "exporter", "otelcol.signal": "logs", "resource logs": 1, "log records": 1}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Configuring collector file exporter</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Stop the container and open the collector configuration file
+						<code><b>workshop-otel.yaml</b></code> and add the following to write log output to a file in
+						<code><b>/tmp/output.json</b></code>. We also need to add the new exporter in the
+						<code><b>pipelines</b></code> section for logs as shown below:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								exporters:
+								  file:
+								    path: /tmp/output.json
+								  debug:
+								    verbosity: basic
+
+								service:
+								  telemetry:
+								    logs:
+								      level: debug
+								  pipelines:
+								    logs:
+								      receivers: [otlp]
+								      exporters: [file, debug]
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Building collector file exporter</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Now we'll build a new container image, naming it with a version tag, as follows using the
+						<code><b>Buildfile-otel</b></code> and assuming you are in the same directory:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-otel:v0.159 -f Buildfile-otel
+
+								STEP 1/3: FROM otel/opentelemetry-collector-contrib:0.159.0
+								STEP 2/3: COPY workshop-otel.yaml /etc/otel-collector-contrib/workshop-otel.yaml
+								--> 718d7802e19c
+								STEP 3/3: CMD [ "--config", "/etc/otel-collector-contrib/workshop-otel.yaml"]
+								COMMIT workshop-otel:v0.159
+								--> b5431b5ca4be
+								Successfully tagged localhost/workshop-otel:v0.159
+								b5431b5ca4bea3d9d66c83ab24a8ed08e4e91236c42a09b8decfec427090d0f0
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Running collector file exporter</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Run the collector using this container command, noting port 4317 has been mapped to receive
+						telemetry data, it has a name <code><b>otelcol</b></code>, and we are now mapping internal
+						container <code><b>/tmp</b></code> directory to our local directory for the
+						<code><b>output.json</b></code> file:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run --rm -p 4317:4317 --name otelcol -v ./:/tmp workshop-otel:v0.159
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Verifying logs to collector to file</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						While the collector is waiting on telemetry data, we can (re)run the pipeline again to start
+						ingesting, processing, and pushing log events to our collector:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run --rm --name fbv14 -e OTEL_HOST=$(podman inspect -f "{{.NetworkSettings.IPAddress}}" otelcol) workshop-fb:v14
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Output pipeline to collector to file</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Verify that the pipeline with Fluent Bit is ingesting, processing and forwarding logs (console).
+						Check that the collector is receiving these logs (console). Finally, verify that the collector
+						is exporting to <code><b>output.json</b></code> file as shown below with 1 log events for each:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Pipeline with Fluent Bit ingest, processing and output.
+								...
+								{"date":4294967295.0,"resource":{},"scope":{}}
+								{"date":1722611305.09833,"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":4294967294.0}
+								[2024/08/02 15:08:26] [ info] [output:opentelemetry:opentelemetry.1] 10.88.0.10:4317, HTTP status=200
+								...
+							</code>
+						</pre>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# OTel collector ingesting events.
+								...
+								2024-08-02T14:45:55.110Z	info	LogsExporter	{"kind": "exporter", "data_type": "logs", "name": "logging", "resource logs": 1, "log records": 1}
+								...
+							</code>
+						</pre>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Viewing file output.json
+								$ tail -f ./output.json
+
+								{"resourceLogs":[{"resource":{},"scopeLogs":[{"scope":{},"logRecords":[{"timeUnixNano":"1722611307093849438",
+								"body":{"kvlistValue":{"values":[{"key":"service","value":{"stringValue":"backend"}},{"key":"log_entry",
+								"value":{"stringValue":"Generating a 200 success code."}}]}},"traceId":"","spanId":""}]}]}]}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Pretty file output</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						A more visually pleasing view of the JSON file can be achieved as follows with each log event
+						presented in structured JSON:
+					</div>
+					<div style="height: 400px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Viewing structured JSON file output.json using jq.
+								$ tail -f ./output.json | jq
+
+								{
+								  "resourceLogs": [
+								    {
+								      "resource": {},
+								      "scopeLogs": [
+								        {
+								          "scope": {},
+								          "logRecords": [
+								            {
+								              "timeUnixNano": "1722611323093561678",
+								              "body": {
+								                "kvlistValue": {
+								                  "values": [
+								                    {
+								                      "key": "service",
+								                      "value": { "stringValue": "backend"}
+								                    },
+								                    {
+								                      "key": "log_entry",
+								                      "value": {
+								                        "stringValue": "Generating a 200 success code."
+								                      }
+								                    }
+								                  ]
+								                }
+								              },
+								                "traceId": "", "spanId": ""
+								              ...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section data-background="images/lab03-2.jpg">
+					<div style="height: 400px;">
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<h1 class="r-fit-text" style="color: white;">
+							Integration of pipelines with Fluent Bit to OpenTelemetry completed!
+						</h1>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Pipeline with Fluent Bit ingest, processing and output.
+								...
+								{"date":4294967295.0,"resource":{},"scope":{}}
+								{"date":1722611305.09833,"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":4294967294.0}
+								[2024/08/02 15:08:26] [ info] [output:opentelemetry:opentelemetry.1] 10.88.0.10:4317, HTTP status=200
+								...
+							</code>
+						</pre>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# OTel collector ingesting events.
+								...
+								2024-08-02T14:45:55.110Z	info	LogsExporter	{"kind": "exporter", "data_type": "logs", "name": "logging", "resource logs": 1, "log records": 1}
+								...
+							</code>
+						</pre>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Viewing file output.json
+								$ tail -f ./output.json
+
+								{"resourceLogs":[{"resource":{},"scopeLogs":[{"scope":{},"logRecords":[{"timeUnixNano":"1722611307093849438",
+								"body":{"kvlistValue":{"values":[{"key":"service","value":{"stringValue":"backend"}},{"key":"log_entry",
+								"value":{"stringValue":"Generating a 200 success code."}}]}},"traceId":"","spanId":""}]}]}]}
+								...
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; font-size: xx-large">
+						Next up, controlling logs on Kubernetes...
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://github.com/fluent/fluent-bit/blob/master/README.md" target="_blank">Fluent Bit repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Technology Advocate Lead<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 200px;">
+						<h2 class="r-fit-text">Up next in workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab08.html" target="_blank">Lab 8 - Controlling Logs with Fluent Bit on Kubernetes</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

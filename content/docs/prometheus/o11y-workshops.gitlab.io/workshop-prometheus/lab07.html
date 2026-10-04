@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Prometheus workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Lab 7 - Prometheus</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-PW25SPMWGG"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-PW25SPMWGG');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 7 - Discovering Service Targets</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>This lab provides an understanding of how service discovery is used in Prometheus for
+							locating and scraping targets for metrics collection. You're learning by setting up a
+							service discovery mechanism to dynamically maintain a list of scraping targets.</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Service discovery - It's been all static so far</h2>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						Up to this point in this workshop, you've been statically configuring your Prometheus
+						installation to scrap each target in its own <code><b>job</b></code> in the
+						<code><b>static_configs</b></code> section of your <code><b>workshop-prometheus.yml</b></code>
+						file.<br />
+						<br />
+						In real world cloud native infrastructure things will be dynamically scaling and make it entirely
+						impossible to maintain such a static configuration. You'll be faced with virtual machines on
+						cloud providers, services and applications on container orchestrators such as Kubernetes, and
+						microservice architectures constantly changing the observability data targets you need to be
+						scraping.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Service discovery - Introducing dynamic discovery</h2>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: x-large;">
+						Remember back in the first introduction you saw the Prometheus architecture where service
+						discovery was looming as a way to leverage built in mechanisms for discovering virtual machines
+						on cloud providers, service and application instances on container orchestrators, and other
+						generic lookup mechanisms (DNS, Consul, Zookeeper, etc.):
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab01-10.png" alt="discovery architecture"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Service discovery - Supporting dynamic discovery</h2>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						Any of those methods can be added to a <code><b>scrape_config</b></code> section in your
+						Prometheus configuration file to provide a dynamic list of targets, continuously updating during
+						runtime. Prometheus automatically stops scraping old instances and starts scraping new ones,
+						making highly dynamic environments such as services running on Kubernetes manageable:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab01-10.png" alt="discovery architecture"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Service discovery - Functions of discovery data</h2>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						When Prometheus is configured to use a service discovery mechanism, it's using the provided
+						discovery information for three purposes:<br />
+						<br />
+						<ol>
+							<li>knowing what should exist</li>
+							<li>knowing how to pull metrics from targets that exist</li>
+							<li>how to use associated target metadata</li>
+						</ol>
+					</div>
+				</section>
+
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Service discovery - Knowing what should exist</h2>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						Prometheus, as a monitoring system, needs to know what systems and services should be up and
+						running at any given point in time. A key function of any service discovery mechanism that
+						Prometheus uses, is to continuously provide that information. With this information being
+						available to Prometheus, it's trivial to leverage the Alert Manager to alert on any unreachable
+						targets.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Service discovery - Knowing how to pull metrics</h2>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: x-large;">
+						Prometheus, as a monitoring system, needs to know more than whether a target system exists or
+						not, it needs to know how to pull metrics from it. You can imagine what Prometheus needs to
+						know, such as:<br />
+						<br />
+						<ul>
+							<li>host name</li>
+							<li>port number</li>
+							<li>protocol (http or https)</li>
+							<li>...any other information needed to reach or access the target</li>
+						</ul><br />
+						<br />
+						Most of this is provided by different service discovery mechanisms in target metadata, and it
+						enables Prometheus to fetch data from the target.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Service discovery - How to use target metadata</h2>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						Many of the service discovery mechanisms you'll use are providing metadata about each target
+						(with things like <code><b>labels</b></code>, <code><b>annotations</b></code>,
+						<code><b>service names</b></code>, <code><b>ready states</b></code>, etc.). This metadata is used during
+						the <code><b>relabeling</b></code> phase to filter targets, modify how targets are scraped, or
+						map any metadata into final target labels.<br />
+						<br />
+						As shown previously in this workshop, <code><b>relabeling</b></code> allows enriching target
+						labels based on discovery information creates more useful time series data for eventual queries.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Service discovery - Target metadata and relabeling</h2>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						During a previous lab in this workshop you were introduced to target metadata, normal labels,
+						and how the relabeling phase can be used to modify target labels before persisting. When using
+						service discovery, target sources provide normal labels and 'hidden' labels prefixed with a
+						double underscore (__). These 'hidden' labels contain additional metadata about the target.<br />
+						<br />
+						All 'hidden' labels are removed after the relabeling phase, only making it into the target's
+						final labels if you filter them using relabeling and change a target's labels or scrape behavior.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Service discovery - Metadata labels affecting scrape behavior</h2>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: x-large;">
+						It's possible to use the following metadata labels, as they are always provided by raw targets,
+						to modify any targets scrape behavior:<br />
+						<br />
+						<ul>
+							<li><code><b>__address__</b></code>: Contains the target TCP address that should be scrapped.
+								It initially defaults to [host]:[port] provided by the service discovery mechanism.
+								Prometheus sets the instance label to the value of <code>__address__</code> after
+								relabeling if you don't set the instance label explicitly to another value during
+								relabeling.</li>
+							<li><code><b>__scheme__</b></code>: Contains the HTTP scheme (http or https) with which
+								target should be scrapped. Defaults to http.</li>
+							<li><code><b>__metrics_path__</b></code>: Contains the HTTP path to scrape metrics from.
+								Defaults to /metrics.</li>
+						</ul><br />
+						<br />
+						Another interesting label is the <code><b>__param_[name]</b></code> label, allowing you to send HTTP
+						query parameters along with a scrape on any target. For example, you could set the
+						<code><b>__param_filter</b></code> label to the value <code><b>active</b></code> to send a
+						filter active HTTP query parameter.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Service discovery -  Metadata (__meta_) labels</h2>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: x-large;">
+						Finally, every service discovery mechanism can provide discovery specific metadata about a target
+						using labels starting with <code><b>__meta_</b></code>. For example, service discovery for
+						Kubernetes provides:<br />
+						<br />
+						<ul>
+							<li><code><b>__meta_kubernetes_pod_name</b></code> label for each pod
+								target</li>
+							<li><code><b>__meta_kubernetes_pod_ready</b></code> label indicating if pod is in a
+								ready state or not</li>
+						</ul><br />
+						<br />
+						There are numerous metadata labels available to each service discovery mechanism, and you are
+						encouraged to explore their individual configuration documentation to find out more. Here is
+						an example for
+						<a href="https://prometheus.io/docs/prometheus/latest/configuration/configuration/#kubernetes_sd_config" target="_blank">
+							Kubernetes service discovery configuration documentation.
+						</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Service discovery - Relabeling Visualizer</h2>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: x-large;">
+						The Prometheus <code><b>Relabeling Visualizer</b></code> feature in the web UI helps 
+						you understand and debug how relabeling rules are applied to discovered targets. This
+						is invaluable when working with service discovery configurations.<br />
+						<br />
+						To access this feature:<br />
+						<ul>
+							<li>Navigate to the <code><b>Service Discovery</b></code> page in the Prometheus web UI</li>
+							<li>Click on the <code><b>show relabeling</b></code> button for any discovered target</li>
+							<li>View a step-by-step visualization of how each relabeling rule transforms the target labels</li>
+						</ul><br />
+						<br />
+						This tool makes it much easier to troubleshoot complex relabeling configurations and understand
+						exactly how your service discovery metadata is being processed.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Options for demo environments</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						For the rest of this lab you will be setting up your Prometheus custom service discovery
+						integration to watch a set of local files containing target information. You can then write
+						custom code to update the target files and Prometheus will automatically adjust to any new
+						targets. You'll be using the file-based service discovery mechanism to feed a changing list of
+						custom targets to Prometheus during runtime. <br />
+						<br />
+						The lab exercise uses the services demo project to simulate several infrastructure environments,
+						all to be monitored by a Prometheus instance. There are three installation paths, one building
+						the demo from the source project, one using a container image, and one deploying onto a local
+						Kubernetes cluster. Please click on the option you want to use to continue with this workshop:
+						<br />
+						<br />
+						<ul>
+							<li><a href="lab07-source.html" target="_blank">Setup using source projects</a></li>
+							<li><a href="lab07-podman.html" target="_blank">Setup using open source containers</a></li>
+							<li><a href="lab07-rancher.html" target="_blank">Setup using Kubernetes (k3s) with Helm</a></li>
+						</ul>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMenu, RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+	</body>
+</html>

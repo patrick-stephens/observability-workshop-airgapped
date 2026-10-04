@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Fluent Bit workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Telemetry Pipelines Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax-highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-799E08H5WD"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-799E08H5WD');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 2 – Installing Fluent Bit from source code</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>To install using the source code and run Fluent Bit on your local machine.</h4>
+					</div>
+				</section>
+
+				<section id="local-install">
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Source – Locally installing Fluent Bit</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Installing on your local machine can be done in just a few steps with our
+						<a href="https://gitlab.com/o11y-workshops/fluentbit-install-demo" target="_blank">
+							Fluent Bit Easy Install project.
+						</a> This contains the source code from a released version of Fluent Bit, see
+						readme for the exact version, and uses a simple automated installation script.<br />
+						<br />
+						This automated installation project is used to install Fluent Bit.<br />
+						<br />
+						On the next slide you will download and install Fluent Bit using the Easy Install project.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Source – Using the easy install project</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						The Fluent Bit Easy Install project takes just 3 steps to a running server:<br />
+						<br />
+						<ol>
+							<li>Download and unzip the project.</li>
+							<li>Run the <code>init.sh</code> file in a console.</li>
+							<li>Test installation by running a version check (<code><b>fluent-bit --version</b></code>).</li>
+						</ol><br />
+						<br />
+						Let's walk through these steps one by one in the next slides...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 110px;">
+						<h3 class="r-fit-text">Source – Downloading and unzip project</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						The first step is to
+						<a href="https://gitlab.com/o11y-workshops/fluentbit-install-demo/-/archive/v2.9/fluentbit-install-demo-v2.9.zip">
+							download the project.
+						</a>
+						Unzipping (use your file manager or console) should look something like this:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ unzip fluentbit-install-demo-[VERSION].zip
+
+								Archive: fluentbit-install-demo-v[VERSION].zip
+								creating: fluentbit-install-demo-v[VERSION]/
+								extracting: fluentbit-install-demo-v[VERSION]/.gitignore
+								inflating: fluentbit-install-demo-v[VERSION]/README.md
+								creating: fluentbit-install-demo-v[VERSION]/docs/
+								creating: fluentbit-install-demo-v[VERSION]/docs/demo-images/
+								inflating: fluentbit-install-demo-v[VERSION]/docs/demo-images/workshop.png
+								inflating: fluentbit-install-demo-v[VERSION]/init.bat
+								inflating: fluentbit-install-demo-v[VERSION]/init.sh
+								creating: fluentbit-install-demo-v[VERSION]/installs/
+								inflating: fluentbit-install-demo-v[VERSION]/installs/README
+								inflating: fluentbit-install-demo-v[VERSION]/installs/fluent-bit-[VERSION].zip
+								creating: fluentbit-install-demo-v[VERSION]/support/
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Source – Getting started with install script</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						In our example here we will run the console-based installation script (note the VERSION text
+						below is to be replaced with the version of the project you have downloaded):
+					</div>
+					<div style="height: 200px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								$ cd fluentbit-install-demo-{VERSION}
+
+								$ ./init.sh
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Source – Enjoy the welcome ascii art!</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						First, you are presented with welcome art and details about this project:
+					</div>
+					<div style="width: 600px; height: 200px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								[INFO]    #######################################################################
+								[INFO]    ##                                                                   ##
+								[INFO]    ##  Setting up the Fluent Bit Easy Install demo                      ##
+								[INFO]    ##                                                                   ##
+								[INFO]    ##      #####  #     #   # ##### #   # #####   ####  ##### #####     ##
+								[INFO]    ##      #      #     #   # #     ##  #   #     #   #   #     #       ##
+								[INFO]    ##      ####   #     #   # ###   # # #   #     ####    #     #       ##
+								[INFO]    ##      #      #     #   # #     #  ##   #     #   #   #     #       ##
+								[INFO]    ##      #      ##### ##### ##### #   #   #     ####  #####   #       ##
+								[INFO]    ##                                                                   ##
+								[INFO]    ##                       #####  ###   #### #   #                     ##
+								[INFO]    ##                       #     #   # #      # #                      ##
+								[INFO]    ##                       ###   #####  ###    #                       ##
+								[INFO]    ##                       #     #   #     #   #                       ##
+								[INFO]    ##                       ##### #   # ####    #                       ##
+								[INFO]    ##                                                                   ##
+								[INFO]    ##               ##### #   #  #### #####  ###  #     #               ##
+								[INFO]    ##                 #   ##  # #       #   #   # #     #               ##
+								[INFO]    ##                 #   # # #  ###    #   ##### #     #               ##
+								[INFO]    ##                 #   #  ##     #   #   #   # #     #               ##
+								[INFO]    ##               ##### #   # ####    #   #   # ##### #####           ##
+								[INFO]    ##                                                                   ##
+								[INFO]    ##  brought to you by Eric D. Schabell                               ##
+								[INFO]    ##                                                                   ##
+								[INFO]    ##  git@gitlab.com:o11y-workshops/fluentbit-install-demo.git         ##
+								[INFO]    ##                                                                   ##
+								[INFO]    #######################################################################
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo – Whoops... that's not right?</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Note that there are many fail-safe checks in this script, and you found the first one! Read the
+						help messages in the console output and fix it by running it with the right argument:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[INFO]    Checking the build mode arguments...
+
+								[WARN]    ========================================================================
+								[WARN]    =                                                                      =
+								[WARN]    =  To use this installation script you have to provide one argument    =
+								[WARN]    =  indicating how you want to install Fluent Bit. You have the option  =
+								[WARN]    =  to install a container image or build it from source:               =
+								[WARN]    =                                                                      =
+								[WARN]    =    $ ./init.sh {podman|source}                                       =
+								[WARN]    =                                                                      =
+								[WARN]    =  Both methods are validated by the install scripts.                  =
+								[WARN]    =                                                                      =
+								[WARN]    ========================================================================
+
+								$ ./init.sh source
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Source – Checking build dependencies</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						This time, as you scroll down the output, you'll see validation for dependencies needed to
+						build Fluent Bit. Should any fail, you will be pointed to installation help. Here all
+						checks are passing (noting your versions reported might be different, as long as they pass):
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[INFO]    Checking the build mode arguments...
+								[INFO]    Installing from source...
+								[INFO]    Installing Fluent Bit version 5.1.1 from the source project...
+								[WARN]    removing existing installation directory...
+								[INFO]    Checking for bison version needed to build:
+								[INFO]    Bison major version is good...
+								...
+  							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Source – Unpacking and building project</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						As you scroll further down the output, you see Fluent Bit is installed into the
+						<code>target</code> directory. We then run phase 1 of building the project:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[INFO]    Unpacking Fluent Bit project into target directory...
+								[INFO]    Fluent Bit project unpacked successfully into target directory!
+								[INFO]    Moving to the Fluent Bit project build directory...
+								[INFO]    Building Fluent Bit (phase 1):
+
+								[BUILDING_CODE_STARTS_HERE]
+								...
+  							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Source – Building phase completes</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						When the build completes successfully, the next step is to copy the build binaries to our target
+						execution directory:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[INFO]    Fluent Bit built successfully!
+								[INFO]    Copying to ./target/fluent-bit-5.1.1/bin for use.
+								...
+  							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Source - Installing Fluent Bit completes</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Finally, Fluent Bit is ready to use. Here you see the end report with the final instructions on
+						where to find the executable and how to test it by checking its version:
+					</div>
+					<div style="width: 670px; height: 150px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								[INFO]    =========================================================
+								[INFO]    =                                                       =
+								[INFO]    =  Install complete, get ready to rock Fluent Bit!      =
+								[INFO]    =                                                       =
+								[INFO]    =  The binary build is available to run at:             =
+								[INFO]    =                                                       =
+								[INFO]    =  $ cd target/fluent-bit-5.1.1/bin/fluent-bit          =
+								[INFO]    =  $ bin/fluent-bit --version                           =
+								[INFO]    =                                                       =
+								[INFO]    =   Fluent Bit v5.1.1                                   =
+								[INFO]    =                                                       =
+								[INFO]    =  To get started building your first observability     =
+								[INFO]    =  observability pipelines with real hands on           =
+								[INFO]    =  examples, see below.                                 =
+								[INFO]    =                                                       =
+								[INFO]    =  Getting started workshop available online:           =
+								[INFO]    =  https://o11y-workshops.gitlab.io/workshop-fluentbit  =
+								[INFO]    =                                                       =
+								[INFO]    =========================================================
+  							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed – Results</h2>
+					</div>
+					<div style="width: 670px; height: 370px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								[INFO]    =========================================================
+								[INFO]    =                                                       =
+								[INFO]    =  Install complete, get ready to rock Fluent Bit!      =
+								[INFO]    =                                                       =
+								[INFO]    =  The binary build is available to run at:             =
+								[INFO]    =                                                       =
+								[INFO]    =  $ cd target/fluent-bit-5.1.1/bin/fluent-bit          =
+								[INFO]    =  $ bin/fluent-bit --version                           =
+								[INFO]    =                                                       =
+								[INFO]    =   Fluent Bit v5.1.1                                   =
+								[INFO]    =                                                       =
+								[INFO]    =  To get started building your first observability     =
+								[INFO]    =  observability pipelines with real hands on           =
+								[INFO]    =  examples, see below.                                 =
+								[INFO]    =                                                       =
+								[INFO]    =  Getting started workshop available online:           =
+								[INFO]    =  https://o11y-workshops.gitlab.io/workshop-fluentbit  =
+								[INFO]    =                                                       =
+								[INFO]    =========================================================
+  							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large">
+						Next up, exploring first pipelines...
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://github.com/fluent/fluent-bit/blob/master/README.md" target="_blank">Fluent Bit repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact – are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Technology Advocate Lead<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in the workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab03.html" target="_blank">Lab 3 - Exploring first pipelines</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

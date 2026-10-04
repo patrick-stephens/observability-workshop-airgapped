@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Prometheus workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Lab 2 - Prometheus</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-PW25SPMWGG"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-PW25SPMWGG');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 2 - Installing Prometheus</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>This lab guides you through installing Prometheus on your local machine, configuring, and
+							running it to start gathering metrics.</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h3 class="r-fit-text">Reporting any workshop issues</h3>
+					</div>
+					<div style="height: 280px; text-align: left; font-size: xx-large;">
+						In the next slide you will choose between three installation paths, one from the pre-compiled
+						binaries offered by the Prometheus project, one using a container image, and one deploying onto
+						a local Kubernetes cluster. Should you encounter any issues, during installation or elsewhere in
+						this workshop, please report them using the link below:
+					</div>
+					<div style="height: 50px; font-size: xx-large; text-align: left;">
+						<ul>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-prometheus/-/issues/new" target="_blank">Workshop problems - click here to report</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h3 class="r-fit-text">Options for installing Prometheus</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						There are several ways to install Prometheus locally, so please click on the option you want
+						to use for the rest of this workshop:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<ul>
+							<li><a href="lab02-binary.html" target="_blank">Installing from the pre-compiled binaries</a></li>
+							<li><a href="lab02-podman.html" target="_blank">Installing in an open source container</a></li>
+							<li><a href="lab02-rancher.html" target="_blank">Installing on Kubernetes (k3s) with Helm</a></li>
+						</ul>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

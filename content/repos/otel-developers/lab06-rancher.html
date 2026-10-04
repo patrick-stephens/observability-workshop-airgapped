@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="OpenTelemetry Workshop for Java Developers">
+		<meta name="author" content="Workshop Author">
+
+		<title>Lab 6 - Traces & Metrics (Rancher k3s)</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/erics.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Traces &amp; Metrics - Rancher k3s prerequisites</h2>
+					</div>
+					<div style="height: 230px; text-align: left; font-size: xx-large;">
+						This path runs the application and Prometheus together in one pod on a local Rancher Desktop k3s
+						cluster. You need <a href="https://podman.io/" target="_blank">Podman v5+</a> to build the images,
+						<a href="https://openjdk.org/projects/jdk/21/" target="_blank">Java 21</a> and
+						<a href="https://maven.apache.org/" target="_blank">Maven 3.8+</a> to build the application, plus
+						<a href="https://rancherdesktop.io/" target="_blank">Rancher Desktop</a> with the Kubernetes (k3s)
+						engine enabled and <code>kubectl</code> on your PATH. If Rancher Desktop is not already running,
+						start it with <code><b>rdctl start</b></code>.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Traces &amp; Metrics - Verifying the cluster</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Check that <code>kubectl</code> is pointed at Rancher Desktop and the node is ready:
+					</div>
+					<div style="height: 150px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl config current-context
+								rancher-desktop
+
+								$ kubectl get nodes
+								NAME                   STATUS   ROLES                  AGE   VERSION
+								lima-rancher-desktop   Ready    control-plane,master   2d    v1.36.2+k3s1
+							</code>
+						</pre>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: large;">
+						Note: This lab binds host ports <b>9999</b> and <b>9090</b>. If <code>kubectl get pods</code> lists a pod left over from other
+						work, delete it first with <code>kubectl delete pod &lt;name&gt;</code> - two pods cannot claim the
+						same host port on a single node.<br />
+						<br />
+						Now that you have the tooling, let's get started...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & Metrics - What's an exemplar?</h2>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Exemplars are the way to connect traces to metrics, allowing you to jump from "hey what's that
+						weird spike?" on a metric chart directly to a trace associated with that context with one click!
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & Metrics - OpenTelemetry Metrics</h2>
+					</div>
+					<div style="height: 220px; text-align: left; font-size: xx-large;">
+						OpenTelemetry provides a complete metrics API in Java:
+						<ul>
+							<li><strong>Counter</strong> - monotonically increasing value (e.g., requests count)</li>
+							<li><strong>UpDownCounter</strong> - value that can increase or decrease (e.g., active connections)</li>
+							<li><strong>Histogram</strong> - distribution of values (e.g., request duration)</li>
+							<li><strong>Gauge</strong> - current value at a point in time (e.g., temperature)</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & Metrics - Add dependencies</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Add the OpenTelemetry metrics and Prometheus exporter dependencies to
+						<code><b>pom.xml</b></code> as follows:
+					</div>
+					<div style="height: 300px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								&lt;!-- OpenTelemetry Metrics SDK --&gt;
+								&lt;dependency&gt;
+									&lt;groupId&gt;io.opentelemetry&lt;/groupId&gt;
+									&lt;artifactId&gt;opentelemetry-sdk-metrics&lt;/artifactId&gt;
+									&lt;version&gt;1.65.0&lt;/version&gt;
+								&lt;/dependency&gt;
+
+								&lt;!-- Prometheus Exporter --&gt;
+								&lt;dependency&gt;
+									&lt;groupId&gt;io.opentelemetry&lt;/groupId&gt;
+									&lt;artifactId&gt;opentelemetry-exporter-prometheus&lt;/artifactId&gt;
+									&lt;version&gt;1.65.0-alpha&lt;/version&gt;
+								&lt;/dependency&gt;
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & Metrics - Configure metrics</h2>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: x-large;">
+						Update the OpenTelemetry initialization to include metrics with Prometheus exporter
+						(available for uncommenting in the <code><b>App.java</b></code> file) as follows:
+					</div>
+					<div style="height: 350px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								import io.opentelemetry.exporter.prometheus.PrometheusHttpServer;
+								import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+								import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
+
+								private static OpenTelemetry initOpenTelemetry() {
+									Resource resource = Resource.getDefault()
+										.merge(Resource.create(Attributes.of(
+											ServiceAttributes.SERVICE_NAME, "java-demo")));
+
+									// Configure Prometheus HTTP server on port 9464
+									<mark>SdkMeterProvider meterProvider = SdkMeterProvider.builder()</mark>
+										<mark>.setResource(resource)</mark>
+										<mark>.registerMetricReader(PrometheusHttpServer.builder()</mark>
+											<mark>.setPort(9464)</mark>
+											<mark>.build())</mark>
+										<mark>.build();</mark>
+
+									// ... tracer provider setup ...
+
+									return OpenTelemetrySdk.builder()
+										.setTracerProvider(tracerProvider)
+										<mark>.setMeterProvider(meterProvider)</mark>
+										.buildAndRegisterGlobal();
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & Metrics - Create a counter</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Create a counter to track homepage views (available for uncommenting in the
+						<code><b>App.java</b></code> file) as follows:
+					</div>
+					<div style="height: 300px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								import io.opentelemetry.api.metrics.LongCounter;
+								import io.opentelemetry.api.metrics.Meter;
+
+								public class App {
+									private static final OpenTelemetry openTelemetry = initOpenTelemetry();
+									private static final Tracer tracer = openTelemetry
+										.getTracer("io.chronosphere.App");
+									<mark>private static final Meter meter = openTelemetry</mark>
+										<mark>.getMeter("io.chronosphere.App");</mark>
+
+									<mark>private static final LongCounter hitsCounter = meter</mark>
+										<mark>.counterBuilder("app_hits_total")</mark>
+										<mark>.setDescription("Total number of homepage hits")</mark>
+										<mark>.setUnit("1")</mark>
+										<mark>.build();</mark>
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & Metrics - Increment the counter</h2>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						Update the handleIndex method to increment the counter (available for uncommenting in the
+						<code><b>App.java</b></code> file) as follows:
+					</div>
+					<div style="height: 280px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								import io.javalin.http.Context;
+
+								private static void handleIndex(Context ctx) {
+									int hits = HITS.incrementAndGet();
+
+									// Increment the counter with attributes
+									<mark>hitsCounter.add(1, Attributes.of(</mark>
+										<mark>AttributeKey.stringKey("endpoint"), "/"));</mark>
+
+									ctx.contentType("text/plain");
+									ctx.result("This webpage has been viewed " + hits + " times");
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & Metrics - Create a histogram</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Create a histogram to track request duration  (available for uncommenting in the
+						<code><b>App.java</b></code> file) as follows:
+					</div>
+					<div style="height: 300px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								import io.opentelemetry.api.metrics.DoubleHistogram;
+
+								<mark>private static final DoubleHistogram requestDuration = meter</mark>
+									<mark>.histogramBuilder("http_request_duration_seconds")</mark>
+									<mark>.setDescription("HTTP request duration in seconds")</mark>
+									<mark>.setUnit("s")</mark>
+									<mark>.build();</mark>
+
+								// In your handler:
+								<mark>long startTime = System.nanoTime();</mark>
+								try {
+									// Handle request...
+								} finally {
+									<mark>double duration = (System.nanoTime() - startTime) / 1_000_000_000.0;</mark>
+									<mark>requestDuration.record(duration, Attributes.of(</mark>
+										<mark>AttributeKey.stringKey("endpoint"), "/doggo"));</mark>
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces &amp; Metrics - Build the instrumented application</h2>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						Build the metrics instrumented application. On this path we will not run it directly - it goes into a
+						container image so that Prometheus can share its network:
+					</div>
+					<div style="height: 80px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ mvn clean install
+
+								$ java -jar target/java-instrumentation-demo-1.0-SNAPSHOT-with-dependencies.jar
+							</code>
+						</pre>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						On the Podman path the application runs on your host and Prometheus scrapes it at
+						<code>host.containers.internal:9464</code>. That name does not resolve from inside a k3s pod, and the
+						pod cannot reach your laptop reliably either - so instead we put both containers in a single pod,
+						where they share a network namespace and Prometheus can simply scrape
+						<code><b>localhost:9464</b></code>.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & Metrics - Verify metrics endpoint</h2>
+					</div>
+					<div style="height: 180px; text-align: left; font-size: x-large;">
+						Once the pod is running (next slides) and its ports are forwarded, make some requests to the app
+						endpoints:<br />
+						<ul>
+							<li><a href="http://localhost:9999" target="_blank">http:localhost:9999</a></li>
+							<li><a href="http://localhost:9999/doggo" target="_blank">http:localhost:9999/doggo</a></li>
+						</ul><br />
+						<br />
+						Check for the metrics in the Prometheus metrics endpoint
+						<a href="http://localhost:9464/metrics" target="_blank">http:localhost:9464/metrics</a>:
+					</div>
+					<div style="height: 200px; font-size: large;">
+						<pre>
+							<code data-trim data-noescape>
+								# HELP app_hits_total Total number of homepage hits
+								# TYPE app_hits_total counter
+								app_hits_total{endpoint="/",otel_scope_name="io.chronosphere.App"} 4.0
+								# HELP http_request_duration_seconds HTTP request duration in seconds
+								# TYPE http_request_duration_seconds histogram
+								http_request_duration_seconds_bucket{endpoint="/doggo",otel_scope_name="io.chronosphere.App",le="0.0"} 0
+								http_request_duration_seconds_bucket{endpoint="/doggo",otel_scope_name="io.chronosphere.App",le="5.0"} 3
+								http_request_duration_seconds_bucket{endpoint="/doggo",otel_scope_name="io.chronosphere.App",le="10.0"} 3
+								http_request_duration_seconds_bucket{endpoint="/doggo",otel_scope_name="io.chronosphere.App",le="25.0"} 3
+								http_request_duration_seconds_bucket{endpoint="/doggo",otel_scope_name="io.chronosphere.App",le="50.0"} 3
+								http_request_duration_seconds_bucket{endpoint="/doggo",otel_scope_name="io.chronosphere.App",le="75.0"} 3
+								http_request_duration_seconds_bucket{endpoint="/doggo",otel_scope_name="io.chronosphere.App",le="100.0"} 3
+								http_request_duration_seconds_bucket{endpoint="/doggo",otel_scope_name="io.chronosphere.App",le="250.0"} 3
+								http_request_duration_seconds_bucket{endpoint="/doggo",otel_scope_name="io.chronosphere.App",le="500.0"} 3
+								http_request_duration_seconds_bucket{endpoint="/doggo",otel_scope_name="io.chronosphere.App",le="750.0"} 3
+								http_request_duration_seconds_bucket{endpoint="/doggo",otel_scope_name="io.chronosphere.App",le="1000.0"} 3
+								http_request_duration_seconds_bucket{endpoint="/doggo",otel_scope_name="io.chronosphere.App",le="2500.0"} 3
+								http_request_duration_seconds_bucket{endpoint="/doggo",otel_scope_name="io.chronosphere.App",le="5000.0"} 3
+								http_request_duration_seconds_bucket{endpoint="/doggo",otel_scope_name="io.chronosphere.App",le="7500.0"} 3
+								http_request_duration_seconds_bucket{endpoint="/doggo",otel_scope_name="io.chronosphere.App",le="10000.0"} 3
+								http_request_duration_seconds_bucket{endpoint="/doggo",otel_scope_name="io.chronosphere.App",le="+Inf"} 3
+								http_request_duration_seconds_count{endpoint="/doggo",otel_scope_name="io.chronosphere.App"} 3
+								http_request_duration_seconds_sum{endpoint="/doggo",otel_scope_name="io.chronosphere.App"} 0.280808041
+								# TYPE target_info gauge
+								target_info{service_name="java-demo",telemetry_sdk_language="java",telemetry_sdk_name="opentelemetry",telemetry_sdk_version="1.65.0"} 1
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & Metrics - Start Prometheus</h2>
+					</div>
+					<div style="height: 140px; text-align: left; font-size: xx-large;">
+						Now let's visualize these metrics in Prometheus using a container image. The project
+						ships a <code><b>prometheus.yml</b></code> configuration that scrapes the endpoint we
+						just exposed:
+					</div>
+					<div style="height: 200px;">
+						<pre>
+							<code data-trim data-noescape>
+								global:
+								  scrape_interval: 5s
+
+								# Scraping java metrics
+								scrape_configs:
+								  - job_name: "java-demo"
+								    static_configs:
+								      - targets: ["host.containers.internal:9464"]
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces &amp; Metrics - Build the Prometheus image</h2>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Rather than mounting the configuration at run time, the project ships a
+						<code><b>Buildfile-prom</b></code> that bakes it in together with two feature flags.
+						<code><b>exemplar-storage</b></code> lets Prometheus retain the exemplars we are about to
+						emit, and <code><b>old-ui</b></code> is needed because the Prometheus 3.x web UI dropped
+						exemplar rendering on graphs - it falls back to the 2.x UI, which can still plot them:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								FROM prom/prometheus:v3.13.1
+
+								ADD prometheus.yml /etc/prometheus
+								ADD prometheus-k3s.yml /etc/prometheus
+
+								ENTRYPOINT [ "prometheus" ]
+
+								CMD [ "--config.file=/etc/prometheus/prometheus.yml", <mark>"--enable-feature=exemplar-storage,old-ui"</mark> ]
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces &amp; Metrics - Review the pod definition</h2>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Open <code><b>k8s/metrics-pod.yaml</b></code>. Both containers sit in one pod, so Prometheus reaches
+						the application on <code>localhost:9464</code>. The Prometheus container overrides its
+						<code>args</code> to pick the k3s scrape config baked into the image alongside the default one:
+					</div>
+					<div style="height: 340px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								apiVersion: v1
+								kind: Pod
+								metadata:
+								  name: java-demo-metrics
+								spec:
+								  containers:
+								    - name: java-demo
+								      image: localhost/java-demo:metrics
+								      imagePullPolicy: Never
+								      ports:
+								        - containerPort: 9999
+								        - containerPort: 9464
+
+								    - name: prometheus
+								      image: localhost/java-demo-prometheus:v3.13.1
+								      imagePullPolicy: Never
+								      args:
+								        <mark>- "--config.file=/etc/prometheus/prometheus-k3s.yml"</mark>
+								        - "--enable-feature=exemplar-storage,old-ui"
+								      ports:
+								        - containerPort: 9090
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces &amp; Metrics - Import both images into k3s</h2>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Podman builds into its own local store, but k3s runs inside Rancher Desktop's VM with a separate
+						containerd image store. Use <code><b>nerdctl</b></code>, which ships with Rancher Desktop, to load
+						both images into the VM's <code><b>k8s.io</b></code> namespace where kubelet looks for them:
+					</div>
+					<div style="height: 220px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t java-demo:metrics -f Buildfile
+
+								$ podman build -t java-demo-prometheus:v3.13.1 -f Buildfile-prom
+
+								$ podman save localhost/java-demo:metrics -o java-demo-metrics.tar
+
+								$ podman save localhost/java-demo-prometheus:v3.13.1 -o java-demo-prometheus.tar
+
+								$ nerdctl --namespace k8s.io load -i java-demo-metrics.tar
+
+								$ nerdctl --namespace k8s.io load -i java-demo-prometheus.tar
+							</code>
+						</pre>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: large;">
+						Note: If <code>nerdctl</code> fails with "cannot access containerd socket", your Container Engine is set to
+						<b>dockerd</b> - either switch it in Preferences, or use <code><b>docker load -i</b></code> instead.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces &amp; Metrics - Run the pod on k3s</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Apply the manifest, wait for both containers, then forward the ports:
+					</div>
+					<div style="height: 280px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete -f k8s/metrics-pod.yaml --ignore-not-found
+
+								$ kubectl apply -f k8s/metrics-pod.yaml
+								pod/java-demo-metrics created
+
+								$ kubectl wait --for=condition=Ready pod/java-demo-metrics --timeout=180s
+								pod/java-demo-metrics condition met
+
+								$ kubectl get pod java-demo-metrics
+								NAME                READY   STATUS    RESTARTS   AGE
+								java-demo-metrics   2/2     Running   0          25s
+
+								$ kubectl port-forward pod/java-demo-metrics 9999:9999 9090:9090 9464:9464
+							</code>
+						</pre>
+					</div>
+					<div style="height: 90px; text-align: left; font-size: large;">
+						Note: Watch for <b>2/2</b> - that is the application and Prometheus both up. Leave the port-forward running;
+						every <code>localhost</code> link in the slides that follow now works unchanged.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & Metrics - Verify targets</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Open <a href="http://localhost:9090/targets" target="_blank">http://localhost:9090/targets</a>
+						and verify that your java-demo target is UP:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab06-1.png" alt="prom targets" style="border: solid 1px black;">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & Metrics - Query metrics</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Open <a href="http://localhost:9090" target="_blank">http://localhost:9090</a>
+						and query <code><b>app_hits_total</b></code> noting we need to
+						reduce the time range to 5 minutes:
+					</div>
+					<div style="height: 450px;">
+						<img src="images/lab06-2.png" alt="Prometheus query" style="border: solid 1px black;">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Traces &amp; Metrics - Clean up</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Stop the port-forward with CTRL-C and remove the pod:
+					</div>
+					<div style="height: 80px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete -f k8s/metrics-pod.yaml
+							</code>
+						</pre>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						If you want Rancher Desktop shut down too, use <code><b>rdctl shutdown</b></code>.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						We learned how to instrument metrics with OpenTelemetry in Java and link them to traces
+						using exemplars!
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab06-2.png" alt="exemplar trace" style="border: solid 1px black;">
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://opentelemetry.io/docs/languages/java/instrumentation/#metrics" target="_blank">OpenTelemetry Java Metrics</a></li>
+							<li><a href="https://opentelemetry.io/docs/specs/otel/metrics/data-model/" target="_blank">OTLP Metrics Data Model</a></li>
+							<li><a href="https://prometheus.io/docs/concepts/metric_types/" target="_blank">Prometheus Metric Types</a></li>
+							<li><a href="https://prometheus.io/docs/prometheus/latest/feature_flags/#exemplars-storage" target="_blank">Prometheus Exemplar Storage</a></li>
+							<li><a href="https://rancherdesktop.io/" target="_blank">Rancher Desktop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+          <span class="menu-title" style="display: none">Questions or feedback?</span>
+          <div style="height: 150px">
+                  <h2 class="r-fit-text">Contact - are there any questions?</h2>
+          </div>
+          <div style="height: 200px; font-size: x-large; text-align: left">
+                  Eric D. Schabell<br/>
+                  Technology Advocate Lead<br/>
+                  Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+                  {<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+                  or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+          </div>
+        </section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab and workshop completed!</h2>
+					</div>
+					<div style="height: 400px; font-size: large">
+						<img src="images/done.jpg" alt="done">
+						<br/>
+						<a href="index.html" target="_blank" style="font-size: xx-large">Return to start</a>
+					</div>
+				</section>
+
+			</div>
+
+
+<!-- <section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Under construction, more to come...</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Come back soon for more lab content, as it's under development and will be added soon!
+					</div>
+				</section> -->
+
+
+
+		</div>
+
+
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

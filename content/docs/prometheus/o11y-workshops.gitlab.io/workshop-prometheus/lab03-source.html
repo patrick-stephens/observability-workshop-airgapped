@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Prometheus workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Lab 3 - Services source</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-PW25SPMWGG"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-PW25SPMWGG');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Installing and running</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						To install the services demo we're providing a self-contained project you can download, unzip,
+						and run an installation script to quickly get started. Just follow these easy steps:<br />
+						<br />
+						<ol>
+							<li><a href="https://gitlab.com/o11y-workshops/prometheus-service-demo-installer/-/archive/v1.0/prometheus-service-demo-installer-v1.0.zip" target="_blank">Download and unzip the Prometheus Services Demo Installer.</a></li>
+							<li>Run 'init.sh' file.</li>
+							<li>Follow the instructions in the terminal output to start the services.</li>
+						</ol>
+						<br />
+						Note: this path assumes a working Prometheus installation from earlier labs in this workshop,
+						see the earlier lab for
+						<a href="lab02-binary.html" target="_blank">installing Prometheus from the binaries</a> and
+						return here when done.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Download and unzip</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Once you have downloaded the project using the link provided previously, just unzip into its
+						own directory as shown (Note: examples shown are on Mac OS X system):
+					</div>
+					<div style="height: 170px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ unzip prometheus-service-demo-installer-v1.0.zip
+
+								creating: prometheus-service-demo-installer-v1.0/
+								inflating: prometheus-service-demo-installer-v1.0/.gitignore
+								inflating: prometheus-service-demo-installer-v1.0/README.md
+								creating: prometheus-service-demo-installer-v1.0/docs/
+								creating: prometheus-service-demo-installer-v1.0/docs/demo-images/
+								inflating: prometheus-service-demo-installer-v1.0/docs/demo-images/workshop.png
+								inflating: prometheus-service-demo-installer-v1.0/init.sh
+								creating: prometheus-service-demo-installer-v1.0/installs/
+								inflating: prometheus-service-demo-installer-v1.0/installs/README
+								creating: prometheus-service-demo-installer-v1.0/installs/demo/
+								inflating: prometheus-service-demo-installer-v1.0/installs/demo/Buildfile
+								inflating: prometheus-service-demo-installer-v1.0/installs/demo/Dockerfile
+								inflating: prometheus-service-demo-installer-v1.0/installs/demo/LICENSE
+								inflating: prometheus-service-demo-installer-v1.0/installs/demo/README.md
+								...
+								creating: prometheus-service-demo-installer-v1.0/support/
+								extracting: prometheus-service-demo-installer-v1.0/support/README
+								inflating: prometheus-service-demo-installer-v1.0/support/unzip.vbs
+								inflating: prometheus-service-demo-installer-v1.0/support/workshop-prometheus.yml
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Exploring the installer</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Now change into the project directory explore the demo source code found in the
+						<code><b>installs</b></code> directory as shown. This is the code that the installer will build
+						automatically:
+					</div>
+					<div style="height: 170px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ cd prometheus-service-demo-installer-v1.0
+
+								$ ls -1
+
+								README.md
+								docs/
+								init.sh
+								installs/
+								support/
+
+								$ ls installs/demo/
+
+								Buildfile   LICENSE     Dockerfile     README.md               api.go
+								batch.go    client.go   cpu.go         crossbuild.sh           disk.go
+								go.mod      go.sum      holiday.go     intermittent_metric.go
+								main.go     memory.go
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Run installation script</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Time to build this project, so let's run the init script to build the services
+						project. Run the command below and see the next slide for the output and explanation:
+					</div>
+					<div style="height: 100px;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./init.sh
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Installation introduction</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						The installation starts off with a nice ASCII art sign to let you know you are about to install
+						the services project:<br />
+					</div>
+					<div style="width: 460px; height: 100px; font-size: large;">
+						<pre>
+							<code data-trim data-noescape>
+								##########################################################################
+								##                                                                      ##
+								##  Setting up the Prometheus Service Demo Installer                    ##
+								##                                                                      ##
+								##      ####  ####   ###  #   # ##### ##### #   # ##### #   #  ####     ##
+								##      #   # #   # #   # ## ## #       #   #   # #     #   # #         ##
+								##      ####  ####  #   # # # # ###     #   ##### ###   #   #  ###      ##
+								##      #     #  #  #   # #   # #       #   #   # #     #   #     #     ##
+								##      #     #   #  ###  #   # #####   #   #   # #####  ###  ####      ##
+								##                                                                      ##
+								##               #### ##### ##### #   # #####  #### #####               ##
+								##              #     #     #   # #   #   #   #     #                   ##
+								##               ###  ###   ##### #   #   #   #     ###                 ##
+								##                  # #     #  #   # #    #   #     #                   ##
+								##              ####  ##### #   #   #   #####  #### #####               ##
+								##                                                                      ##
+								##                     ####  ##### #   #  ###                           ##
+								##                     #   # #     ## ## #   #                          ##
+								##                     #   # ###   # # # #   #                          ##
+								##                     #   # #     #   # #   #                          ##
+								##                     ####  ##### #   #  ###                           ##
+								##                                                                      ##
+								##        ##### #   #  #### #####  ###  #     #     ##### #####         ##
+								##          #   ##  # #       #   #   # #     #     #     #   #         ##
+								##          #   # # #  ###    #   ##### #     #     ###   #####         ##
+								##          #   #  ##     #   #   #   # #     #     #     #  #          ##
+								##        ##### #   # ####    #   #   # ##### ##### ##### #   #         ##
+								##                                                                      ##
+								##  brought to you by Eric D. Schabell                                  ##
+								##                                                                      ##
+								##  git@gitlab.com:o11y-workshops/prometheus-service-demo-installer.git ##
+								##                                                                      ##
+								##########################################################################
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Testing and building</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Next the installer tests if you have GO installed and a valid version, if not you are pointed
+						to where to install it. In this example you see that it's a valid version of Go so it continues
+						on to build the services demo code:<br />
+					</div>
+					<div style="height: 100px;">
+						<pre>
+							<code data-trim data-noescape>
+								Checking for Go version needed:
+								Go major version is good...
+								Go minor version is good...
+								Your Go version 1.26 accepted!
+
+								Building the services...
+								Prometheus service project built successfully!
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Completed building</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						If all goes well you have now seen the following successful build message with pointers to how
+						to run the services demo binary you built and have the link to verify the metrics are exposed
+						in your browser:<br />
+					</div>
+					<div style="width: 530px; height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								======================================================
+								=                                                    =
+								=  Installer complete, get ready to rock!            =
+								=                                                    =
+								=  The Prometheus services can be started from a     =
+								=  terminal with the following command:              =
+								=                                                    =
+								=     $ ./installs/demo/services_demo                =
+								=                                                    =
+								=  You can make sure the service is running by       =
+								=  viewing the exported metrics at:                  =
+								=                                                    =
+								=        http://localhost:8080/metrics               =
+								=                                                    =
+								======================================================
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Testing the metrics</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						After starting the services binary as shown in the terminal output:
+					</div>
+					<div style="height: 70px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./installs/demo/services_demo
+							</code>
+						</pre>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						It should have metrics scraping endpoints available so that you can query them with PromQL.
+						Test at <code><b>http://localhost:8080/metrics</b></code>:
+					</div>
+					<div style="height: 100px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# HELP demo_api_http_requests_in_progress The current number of API HTTP requests in progress.
+								# TYPE demo_api_http_requests_in_progress gauge
+								demo_api_http_requests_in_progress 1
+								# HELP demo_api_request_duration_seconds A histogram of the API HTTP request durations in seconds.
+								# TYPE demo_api_request_duration_seconds histogram
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0001"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.00015000000000000001"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.00022500000000000002"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0003375"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.00050625"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.000759375"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0011390624999999999"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0017085937499999998"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0025628906249999996"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0038443359374999994"} 0
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Prometheus configuration</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						While the metrics are exposed, they will not be scraped by Prometheus until you have updated its
+						configuration to add this new end point. Let's update our
+						<code><b>workshop-prometheus.yml</b></code> file to add the services job as shown along with
+						comments for clarity:
+					</div>
+					<div style="height: 100px;">
+						<pre>
+							<code data-trim data-noescape>
+								scrape_configs:
+
+								  # Scraping Prometheus.
+								  - job_name: "prometheus"
+								    static_configs:
+								      - targets: ["localhost:9090"]
+
+								  # Scraping services demo.
+								  - job_name: "services"
+								    static_configs:
+								      - targets: ["localhost:8080"]
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Applying the configuration</h3>
+					</div>
+					<div style="height: 230px; text-align: left; font-size: xx-large;">
+						Previously you learned to restart the Prometheus to apply configuration changes. If you have
+						a running instance you don't want to lose a period of collecting time series data, so let's send
+						a restart signal instead using the <code><b>kill</b></code> command. First we find the
+						Prometheus server process id (PID) using one command, then apply it using the command as shown
+						below:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large">
+						<pre>
+							<code data-trim data-noescape>
+								# Locate the Prometheus process id (PID).
+								#
+								$ ps aux  | grep prometheus
+
+								erics     94110   1:31PM   0:05.28 ./prometheus --config.file=workshop-prometheus.yml
+								erics     97648   2:43PM   0:00.00 grep prometheus
+
+								# Send a restart signal to the PID we found.
+								#
+								$ kill -s HUP 94110
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Support helper configuration file</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						The previous Prometheus configuration changes were applied by you to your workshop file. In
+						case you want to return to this workshop at a later time, we provide a working adjusted
+						configuration file in the support directory, just start Prometheus as follows to start scraping
+						both Prometheus and the service demo endpoints:
+					</div>
+					<div style="height: 200px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./prometheus --config.file=support/workshop-prometheus.yml
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Configuration applied</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						No matter which method you used to apply the new Prometheus configuration, validate it by
+						checking the log output, you should see something like this (example of using a signal to
+						restart):
+					</div>
+					<div style="height: 200px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								time=2026-07-31T12:57:28.154+02:00 level=INFO source=main.go:1678 msg="Loading configuration file" filename=workshop-prometheus.yml
+								time=2026-07-31T12:57:28.227+02:00 level=INFO source=main.go:1717 msg="Completed loading of configuration file" db_storage=3.042µs remote_storage=2.416µs web_handler=2.667µs query_engine=3.791µs scrape=70.481917ms scrape_sd=53.75µs notify=6.834µs notify_sd=2.958µs rules=4.5µs tracing=7.167µs filename=workshop-prometheus.yml totalDuration=72.287041ms
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Validating setup</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						The last check to make sure it's working, execute <b><code>demo_api_http_requests_in_progress</code></b>
+						in the Prometheus console to generate a graph output something like the following (note, this has
+						been running awhile, hence the full graph):
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab03-17.png" alt="services metrics"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 400px; font-size: xx-large">
+						<img src="images/lab03-17.png" alt="completed">
+						<br />
+						Next up, exploring basic queries...
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://youtu.be/KJvUyP4c1NQ" target="_blank">Video introduction to workshop (Open Source Edinburgh meetup)</a></li>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-prometheus" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://prometheus.io" target="_blank">Prometheus project</a></li>
+							<li><a href="https://github.com/prometheus/promlens" target="_blank">PromLens project (archived, now the Prometheus EXPLAIN tab)</a></li>
+							<li><a href="https://github.com/perses/perses" target="_blank">Perses project</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-prometheus/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Director Evangelism<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop... </h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab04.html" target="_blank">Lab 4 - Exploring Basic Queries</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMenu, RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+	</body>
+</html>

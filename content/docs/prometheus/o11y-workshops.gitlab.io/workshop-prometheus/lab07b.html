@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Prometheus workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Lab 7 - Prometheus</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-PW25SPMWGG"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-PW25SPMWGG');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Setting up the targets</h3>
+					</div>
+					<div style="height: 220px; text-align: left; font-size: x-large;">
+						Our service discovery integration using file based discovery will need a file to watch, which
+						will be a <code><b>targets.yml</b></code> file that needs to be located in the same Prometheus
+						instance directory holding your <code><b>workshop-prometheus.yml</b></code> file. Edit this
+						target file to look like this (note for container installs we are using a podman variable, if
+						using source install then replace all configuration targets with
+						<code><b>localhost:PORT_NUMBER</b></code>). For the Kubernetes path see the next slide. The
+						screenshots later in this lab were captured on the container path, so on the source and
+						Kubernetes paths the target addresses you see will read differently:
+					</div>
+					<div style="height: 50px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								- targets: ["host.containers.internal:11111"]
+								- targets: ["host.containers.internal:22222"]
+								  labels:
+								    job: "services"
+								    env: "production 2"
+
+								- targets: ["host.containers.internal:44444"]
+								  labels:
+								    job: "services"
+								    env: "development"
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Setting up the targets on Kubernetes</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						On Kubernetes, Prometheus reads its targets file from inside the pod, not from your local
+						machine, so this <code><b>targets.yml</b></code> is a plain local file for now, using the
+						Service DNS names from the previous lab. You'll load it into the cluster on the next slide:
+					</div>
+					<div style="height: 50px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								- targets: ["services-demo-prod1:8080"]
+								- targets: ["services-demo-prod2:8080"]
+								  labels:
+								    job: "services"
+								    env: "production 2"
+
+								- targets: ["services-demo-dev:8080"]
+								  labels:
+								    job: "services"
+								    env: "development"
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - A word about Prometheus setup</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						The next step is configuring a Prometheus instance to make use of the file based discovery
+						targeting our newly created <code><b>targets.yml</b></code> file. If you have been following the
+						previous workshop labs, you most likely have a heavily configured
+						<code><b>workshop-prometheus.yml</b></code> file (on Kubernetes, this is your
+						<code><b>workshop-values.yaml</b></code> file instead). In the next slide you'll see the minimum
+						setup you'll use for the rest of this lab. To achieve the same configuration, it's handy if you
+						just comment out any unused or unneeded parts of the configuration by commenting out lines using
+						<code><b>#</b></code> (hash mark or pound sign).<br />
+						<br />
+						Now let's get to work on that configuration...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Configuring file base discovery</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Now we need to adjust the configuration of our Prometheus instance to use file based discovery
+						and watch the newly created <code><b>targets.yml</b></code> file. To do that ensure the
+						<code><b>workshop-prometheus.yml</b></code> file contains the following (note the different
+						<code><b>files</b></code> location based on container image or source binary usage,
+						Kubernetes path see the next slide instead):
+					</div>
+					<div style="height: 50px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# workshop config
+								global:
+								  scrape_interval: 5s
+
+								scrape_configs:
+								  # Scraping Prometheus.
+								  - job_name: "prometheus"
+								    static_configs:
+								      - targets: ["localhost:9090"]
+
+								  # File based discovery.
+								  - job_name: "file-sd-workshop"
+								    file_sd_configs:
+								      - files:
+								        - "/tmp/targets.yml"   <<<< if using src binary, replace with: "- targets.yml"
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Mounting targets.yml on Kubernetes</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						On Kubernetes there's no local file for Prometheus to watch, so we mount your
+						<code><b>targets.yml</b></code> into the pod as a ConfigMap. Load it in first, so the mount
+						has something to attach to when you deploy:
+					</div>
+					<div style="height: 50px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl create configmap prometheus-targets --from-file=targets.yml -n prometheus
+							</code>
+						</pre>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: x-large;">
+						Now add the mount to your <code><b>workshop-values.yaml</b></code> file, under the
+						<code><b>server</b></code> block you already have:
+					</div>
+					<div style="height: 150px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								server:
+								  ...                                        &lt;&lt;&lt;&lt; LEAVE WHAT IS ALREADY THERE
+								  extraConfigmapMounts:
+								    - name: prometheus-targets
+								      mountPath: /etc/targets
+								      configMap: prometheus-targets
+								      readOnly: true
+							</code>
+						</pre>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						<b>Do not nest this under <code>/etc/config</code></b> (the chart already mounts its own
+						ConfigMap there) <b>and do not add a <code>subPath</code></b>. Mount the whole directory as
+						shown. A <code>subPath</code> mount only reads the file once at pod start and never updates,
+						silently defeating the entire point of file based discovery on this path.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Configuring file based discovery on Kubernetes</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						With the file mounted, add the matching <code><b>file_sd_configs</b></code> job to the
+						<code><b>scrapeConfigs</b></code> block in the same file, pointing at the mounted path:
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								scrapeConfigs:
+								  ...                           &lt;&lt;&lt;&lt; LEAVE WHAT IS ALREADY THERE
+								  file-sd-workshop:
+								    job_name: file-sd-workshop
+								    file_sd_configs:
+								      - files:
+								        - /etc/targets/targets.yml
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Retiring the old services job on Kubernetes</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Same as the source and container paths, comment out the old <code><b>services</b></code>
+						job from lab 3 in the same <code><b>scrapeConfigs</b></code> block. Its targets
+						(<code><b>services-demo</b></code>, <code><b>services-demo-2</b></code>) don't exist on
+						this path unless you separately deployed them, and Prometheus reports them down otherwise:
+					</div>
+					<div style="height: 150px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								  # # Scraping services demo.
+								  # services:
+								  #   job_name: services
+								  #   static_configs:
+								  #     - targets:
+								  #       - services-demo:8080
+								  #       - services-demo-2:8080
+							</code>
+						</pre>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: x-large;">
+						We will re-run the <code><b>helm upgrade</b></code> to apply soon, so stand-by.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Adding targets to Buildfile (container)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Before you rebuild the container image, noting that we don't have to add the newly created
+						<code><b>targets.yml</b></code> file to the Buildfile. This file is hosted externally to the
+						static configuration so we can dynamically update it. Rebuild the container image using the
+						following <code><b>Buildfile</b></code>:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								FROM prom/prometheus:v3.13.1
+								ADD workshop-prometheus.yml /etc/prometheus
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Service discovery - Building a container image (container)</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Now you can build your own container image with our custom configuration inserted:
+					</div>
+					<div style="height: 300px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-prometheus:v3.13 -f Buildfile
+
+								STEP 1/2: FROM prom/prometheus:v3.13.1
+								Resolving "prom/prometheus" using unqualified-search registries
+								Trying to pull docker.io/prom/prometheus:v3.13.1...
+								Getting image source signatures
+								Copying blob sha256:bd0d00e6784783d31bbe04e7b3bf2f54478ed0c46afc05a63e4a0f1f72076f03
+								Copying blob sha256:d2f8aae8d80e67a268ee5a3a7c47544bf2cdd7f9c177bd3e9a3d0b2cc100f00b
+								Copying blob sha256:fcd10bff2ba698a61831db119b3e42b946a2007e735a1c2368233950ac183c44
+								Copying config sha256:57847a717fc6727452cd1ed5b02200e3030aba04ca13cbdc536ee99402643440
+								Writing manifest to image destination
+								STEP 2/2: ADD workshop-prometheus.yml /etc/prometheus
+								--> Using cache a5e118ee2fb880b55d6b189dc6189837dd0ba73bb0f97e3b67a22eb672d1b776
+								COMMIT workshop-prometheus:v3.13
+								--> a5e118ee2fb8
+								Successfully tagged localhost/workshop-prometheus:v3.13
+								a5e118ee2fb880b55d6b189dc6189837dd0ba73bb0f97e3b67a22eb672d1b776
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Starting Prometheus instance</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						How we start Prometheus is depending on whether we've chosen to install from the source binary,
+						run it in an open source container, or deployed it on Kubernetes. Start Prometheus using a
+						command below that matches our choice:
+					</div>
+					<div style="height: 260px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Start Prometheus using source.
+								#
+								$ ./prometheus --config.file=workshop-prometheus.yml
+
+								# Start Prometheus in a container, mounting current directory to the container /tmp directory.
+								#
+								$ podman run -p 9090:9090 -v ./:/tmp workshop-prometheus:v3.13 --config.file=/etc/prometheus/workshop-prometheus.yml
+
+								# Start Prometheus on Kubernetes (k3s), applying the mount and job you just added.
+								#
+								$ helm upgrade --install workshop-prometheus prometheus-community/prometheus \
+								    --version 29.20.0 \
+								    --namespace prometheus --create-namespace \
+								    -f workshop-values.yaml
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Validating file based discovery</h3>
+					</div>
+					<div style="height: 140px; text-align: left; font-size: x-large;">
+						After starting Prometheus, validate the scraping is working through the file based discovery by
+						opening the console at <code><b>http://localhost:9090</b></code> (on Kubernetes, port-forward it
+						first: <code><b>kubectl port-forward -n prometheus svc/workshop-prometheus-server 9090:9090</b></code>)
+						and selecting from the menu <code><b>STATUS -> TARGETS</b></code> and finding the two production
+						and one development service environments grouped under <code><b>file-sd-workshop</b></code>:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab07-4.png" alt="targets"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Validating using PromQL</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: x-large;">
+						You can also validate that the three services environments are being scraped by using a PromQL
+						query <code><b>UP{job="services"}</b></code> as follows:
+					</div>
+					<div style="height: 270px;">
+						<img src="images/lab07-5.png" alt="up"><br />
+					</div>
+					<div style="height: 180px; text-align: left; font-size: x-large;">
+						But wait, why are there only two services listed? If you looked closely at the targets we
+						configured, the production 1 environment has no labels defined, so it's just using generated
+						labels, let's fix that and watch Prometheus auto-discover them.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Updating targets for discovery</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Update the <code><b>targets.yml</b></code> file, adding <code><b>job</b></code> and
+						<code><b>env</b></code> labels and have our Prometheus instance discover them dynamically. Note
+						when using container images it takes a certain amount of time for Prometheus to check for those
+						new changes (Kubernetes targets use the Service DNS names <code><b>services-demo-*:8080</b></code>,
+						not <code><b>host.containers.internal</b></code>):
+					</div>
+					<div style="height: 270px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								- targets: ["host.containers.internal:11111"]
+								  labels:
+								    job: "services"
+								    env: "production 1"
+
+								- targets: ["host.containers.internal:22222"]
+								  labels:
+								    job: "services"
+								    env: "production 2"
+
+								- targets: ["host.containers.internal:44444"]
+								  labels:
+								    job: "services"
+								    env: "development"
+							</code>
+						</pre>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: large;">
+						On Kubernetes, push the edited file back into the ConfigMap. Unlike every other config change in
+						this workshop, this needs <b>no</b> <code><b>helm upgrade</b></code>, Prometheus watches the
+						mounted file itself and notices as soon as the kubelet syncs the ConfigMap (up to a minute).
+						The first time you run this you'll see a harmless one-time warning about a missing
+						<code><b>last-applied-configuration</b></code> annotation, that's expected, it self-heals:
+					</div>
+					<div style="height: 70px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl create configmap prometheus-targets --from-file=targets.yml \
+								    -n prometheus --dry-run=client -o yaml | kubectl apply -f -
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Validating auto-discovery</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						After a period of time, you'll see the three service environments are being scraped by using a
+						PromQL query <code><b>UP{job="services"}</b></code> as follows:
+					</div>
+					<div style="height: 320px;">
+						<img src="images/lab07-5b.png" alt="up"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Updating staging for discovery</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Now we can update our <code><b>targets.yml</b></code> file and have our Prometheus instance
+						discovering those changes dynamically. Let's promote our development services infrastructure to
+						STAGING by updating the <code><b>env</b></code> label:
+					</div>
+					<div style="height: 270px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								- targets: ["host.containers.internal:11111"]
+								  labels:
+								    job: "services"
+								    env: "production 1"
+
+								- targets: ["host.containers.internal:22222"]
+								  labels:
+								    job: "services"
+								    env: "production 2"
+
+								- targets: ["host.containers.internal:44444"]
+								  labels:
+								    job: "services"
+								    env: "staging"
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						On Kubernetes, the same ConfigMap update as before applies the change, still no
+						<code><b>helm upgrade</b></code> needed:
+					</div>
+					<div style="height: 70px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl create configmap prometheus-targets --from-file=targets.yml \
+								    -n prometheus --dry-run=client -o yaml | kubectl apply -f -
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Validating staging updates</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						After saving the <code><b>targets.yml</b></code> file changes, you can query the services
+						targets using the same methods shown earlier (here with PromQL) to verify Prometheus picked
+						up the changes dynamically:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab07-6.png" alt="staging"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Individual exercise</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						Before you complete this lab, a final exercise to apply all you have learned.<br />
+						<br />
+						Start a new instance of your services infrastructure and run it on an unused port on your machine
+						(localhost:33333 for example). On Kubernetes, deploy a fourth manifest following the same
+						pattern as before and use its Service DNS name.<br />
+						<br />
+						Add this new infrastructure target, give it a job label, and name the environment testing.
+						Apply it the same way you did for the earlier target updates (rebuild and restart on
+						source/container, update the ConfigMap on Kubernetes).
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Validating testing updates</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Verify the discovery is collecting testing metrics by querying the services targets using the same
+						methods shown earlier (here with PromQL):
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab07-7.png" alt="testing"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 350px; font-size: xx-large">
+						<img src="images/lab07-7.png" alt="testing">
+						<br />
+						Next up, metrics monitoring at scale...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Optional - Cleaning up your Kubernetes environment</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						If you're on the Kubernetes path and want to tear everything down before the next lab, deleting
+						the namespace removes the Helm release, the Prometheus server, the
+						<code><b>prometheus-targets</b></code> ConfigMap, and all three services-demo instances in
+						one go, since everything lives in the same namespace:
+					</div>
+					<div style="height: 60px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete namespace prometheus
+							</code>
+						</pre>
+					</div>
+					<div style="height: 140px; text-align: left; font-size: x-large;">
+						<b>This is all-or-nothing and cannot be undone.</b> It removes everything from every
+						Kubernetes-path lab you've done in this workshop, not just this one, including your TSDB
+						history. Just so you know, the following labs will ensure you can set them up without having
+						done all the previous labs.
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://youtu.be/KJvUyP4c1NQ" target="_blank">Video introduction to workshop (Open Source Edinburgh meetup)</a></li>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-prometheus" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://prometheus.io" target="_blank">Prometheus project</a></li>
+							<li><a href="https://github.com/prometheus/promlens" target="_blank">PromLens project (archived, now the Prometheus EXPLAIN tab)</a></li>
+							<li><a href="https://github.com/perses/perses" target="_blank">Perses project</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-prometheus/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Director Evangelism<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 200px;">
+						<h2 class="r-fit-text">Up next in workshop... </h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab08.html" target="_blank">Lab 8 - Instrumenting Applications</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMenu, RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+	</body>
+</html>

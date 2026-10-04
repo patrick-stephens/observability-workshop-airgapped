@@ -1,0 +1,36 @@
+opentelemetry/lab02-rancher.html: context=workshop-opentelemetry/intro-to-instrument-VERSION command=$ podman build -t hello-otel:base -f Buildfile
+opentelemetry/lab02-rancher.html: context=workshop-opentelemetry/intro-to-instrument-VERSION command=$ podman build -t hello-otel:auto -f automatic/Buildfile-auto
+opentelemetry/lab02-rancher.html: context=workshop-opentelemetry/intro-to-instrument-VERSION command=$ podman build -t hello-otel:auto-manual -f automatic/Buildfile-auto
+opentelemetry/lab02.html: context=workshop-opentelemetry/intro-to-instrument-[VERSION] command=$ podman build -t hello-otel:base -f Buildfile
+opentelemetry/lab02.html: context=workshop-opentelemetry/intro-to-instrument-[VERSION] command=$ podman build -t hello-otel:auto -f automatic/Buildfile-auto
+opentelemetry/lab02.html: context=workshop-opentelemetry/intro-to-instrument-[VERSION] command=$ podman build -t hello-otel:auto-manual -f automatic/Buildfile-auto
+otel-developers/lab02-rancher.html: context=opentelemetry-java-tracing-demo-{VERSION} command=$ podman build -t java-demo:base -f Buildfile
+otel-developers/lab02-rancher.html: context=opentelemetry-java-tracing-demo-{VERSION} command=$ podman build -t java-demo:auto -f Buildfile-AgentContainer
+otel-developers/lab02-rancher.html: context=opentelemetry-java-tracing-demo-{VERSION} command=$ podman build -t java-demo:java-tools -f Buildfile-AgentJavaTools
+otel-developers/lab02-rancher.html: context=opentelemetry-java-tracing-demo-{VERSION} command=$ podman build -t java-demo:auto -f Buildfile-AgentContainer
+otel-developers/lab02.html: context=opentelemetry-java-tracing-demo-{VERSION} command=$ podman build -t java-demo:auto -f Buildfile-AgentContainer
+otel-developers/lab02.html: context=opentelemetry-java-tracing-demo-{VERSION} command=$ podman build -t java-demo:java-tools -f Buildfile-AgentJavaTools
+otel-developers/lab02.html: context=opentelemetry-java-tracing-demo-{VERSION} command=$ podman build -t java-demo -f Buildfile
+prometheus/lab02-podman.html: context=workshop-prometheus command=$ podman build -t workshop-prometheus:v3.13 -f Buildfile
+prometheus/lab02-podman.html: context=workshop-prometheus command=$ podman build -t workshop-prometheus:bad-target -f Buildfile
+prometheus/lab03-rancher.html: context=installs/demo command=$ docker build --load -t prometheus_services_demo:v1 -f installs/demo/Buildfile installs/demo
+prometheus/lab07-rancher.html: context=installs/demo command=$ docker build --load -t prometheus_services_demo:v1 -f installs/demo/Buildfile installs/demo
+prometheus/lab08-podman.html: context=prometheus-java-metrics-demo-v0.5 command=$ podman build -t basic-java-metrics -f Buildfile
+prometheus/lab08-podman.html: context=prometheus-java-metrics-demo-v0.5 command=$ podman build -t workshop-prometheus:v3.13 -f Buildfile
+prometheus/lab08-podman.html: context=prometheus-java-metrics-demo-v0.5 command=$ podman build -t workshop-prometheus:v3.13 -f Buildfile
+prometheus/lab08-podman.html: context=prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5 command=$ podman build -t basic-java-metrics -f Buildfile
+prometheus/lab08-podman.html: context=prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5 command=$ podman build -t basic-java-metrics -f Buildfile
+prometheus/lab08-podman.html: context=prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5 command=$ podman build -t basic-java-metrics -f Buildfile
+prometheus/lab08-podman.html: context=prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5 command=$ podman build -t basic-java-metrics -f Buildfile
+prometheus/lab08-podman.html: context=prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5 command=$ podman build -t basic-java-metrics -f Buildfile
+prometheus/lab08-podman.html: context=prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5 command=$ podman build -t basic-java-metrics -f Buildfile
+prometheus/lab08-podman.html: context=prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5 command=$ podman build -t basic-java-metrics -f Buildfile
+prometheus/lab08-podman.html: context=prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5 command=$ podman build -t workshop-prometheus:v3.13 -f Buildfile
+prometheus/lab08-rancher.html: context=prometheus-java-metrics-demo-v0.5 command=$ docker build --load -t basic-java-metrics -f Buildfile .
+prometheus/lab08-rancher.html: context=prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5 command=$ docker build --load -t basic-java-metrics -f Buildfile .
+prometheus/lab08-rancher.html: context=prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5 command=$ docker build --load -t basic-java-metrics -f Buildfile .
+prometheus/lab08-rancher.html: context=prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5 command=$ docker build --load -t basic-java-metrics -f Buildfile .
+prometheus/lab08-rancher.html: context=prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5 command=$ docker build --load -t basic-java-metrics -f Buildfile .
+prometheus/lab08-rancher.html: context=prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5 command=$ docker build --load -t basic-java-metrics -f Buildfile .
+prometheus/lab08-rancher.html: context=prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5 command=$ docker build --load -t basic-java-metrics -f Buildfile .
+prometheus/lab08-rancher.html: context=prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5 command=$ docker build --load -t basic-java-metrics -f Buildfile .

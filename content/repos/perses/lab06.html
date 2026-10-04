@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Perses workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Visualization Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-BGV1XYZ1ND"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-BGV1XYZ1ND');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 6 - Building advanced dashboard</h3>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>To build out your first basic dashboard, extending it with more components until you
+							have an advanced dashboard with extensive metrics examples.</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Starting point</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						This workshop builds on the work you did on the last lab, so your starting dashboard should
+						look like this (see next slide to jump to this point):
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab05-34.png" alt="start">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Jumping to the starting point</h3>
+					</div>
+					<div style="height: 220px; text-align: left; font-size: xx-large;">
+						If you have not completed the previous labs and just want to upload a fully completed dashboard,
+						just apply the file <code><b>support/dashboard-lab5.json</b></code> found in the
+						<a href="https://gitlab.com/o11y-workshops/perses-install-demo" target="_blank">
+							Perses Easy Install project.
+						</a>. It's a resource defining a dashboard as worked out in previous labs and can be applied as
+						follows:
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./support/bin/percli apply -f support/dashboard-lab5.json
+
+								object "Dashboard" "MyFirstDashboard"
+								     has been applied in the
+								    project "workshopproject"
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Evaluating the end results</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						If you want to just upload a fully completed lab result (basically cheating!) to see what the
+						final dashboard looks like without completing the lab work, just apply the file
+						<code><b>support/dashboard-lab6.json</b></code> found in the
+						<a href="https://gitlab.com/o11y-workshops/perses-install-demo" target="_blank">
+							Perses Easy Install project.
+						</a>. It's a resource defining a dashboard as worked out in this lab and can be applied as
+						follows:
+					</div>
+					<div style="height: 100px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./support/bin/percli apply -f support/dashboard-lab6.json
+
+								object "Dashboard" "MyFirstDashboard"
+								     has been applied in the
+								    project "workshopproject"
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Creating total memory gauge</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						You've previously created a stat chart from scratch, so now let's create two
+						<code><b>Gauge Chart</b></code> panels for each of the two previous memory stat chart queries
+						and add them to your layout in the same grid row. The first will be a total memory gauge such
+						as this:
+					</div>
+					<div style="height: 320px; text-align: right;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-1.png" alt="memory example">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Adding total memory gauge</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						To add a new panel as before, start by opening the dashboard for editing with
+						<code><b>EDIT</b></code> button in top right:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-2.png" alt="edit">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Adding gauge details</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						Click on the add panel menu in the header for the group <code><b>My First Row</b></code> and
+						start filling in the <code><b>Add Panel</b></code> details as shown:
+					</div>
+					<div style="height: 200px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-3.png" alt="gauge details">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Adding gauge query</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Scroll down and in the first query field add the following PromQL query:
+					</div>
+					<div style="height: 50px;">
+						<pre>
+							<code data-trim data-noescape>
+								go_memstats_alloc_bytes_total{instance='$instance', job='$job'}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 250px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-4.png" alt="gauge query">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Previewing gauge query</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Click on <code><b>RUN QUERY</b></code> button and notice the preview is a graph of the total
+						memory used but the colors do not show green to yellow to red as we would like, so click on the
+						tab <code><b>SETTINGS</b></code> under the graph:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-5.png" alt="gauge preview">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Adjusting gauge settings</h3>
+					</div>
+					<div style="height:120px; text-align: left; font-size: xx-large;">
+						Adjust the settings for this gauge chart as shown to adjust the Unit,
+						decimals, and as shown on the right image, click on the color dot to select red instead of
+						orange:
+					</div>
+					<div style="height: 230px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-6.png" alt="gauge colors">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-7.png" alt="gauge settings">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Adding the new gauge</h3>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: xx-large;">
+						To apply all the changes to this new panel and add it to the existing dashboard group, click
+						on the <code><b>ADD</b></code> button at the top. This results in a weird layout:
+					</div>
+					<div style="height: 420px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-8.png" alt="saving gauge">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Adjusting memory total location</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Now resize the panel and move to the location as shown here:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-9.png" alt="gauge layout">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Finalizing the changes made</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						To finalize you can resize all panels for uniformity, arrange them as shown, and save the
+						changes using the <code><b>SAVE</b></code> button:
+					</div>
+					<div style="height: 430px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-10.png" alt="gauge saved">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Creating memory usage gauge</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						Now add one more panel of the type <code><b>Gauge Chart</b></code> to show a memory usage gauge,
+						and it should eventually look something like this:
+					</div>
+					<div style="text-align: right; height: 300px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-11.png" alt="memory example">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Designing on your own </h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						You've now created a few panels on your own, so let's see if you can do this one solo with
+						just a design description:
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						<ol>
+							<li><code><b>EDIT</b></code> - open dashboard for editing</li>
+							<li><code><b>ADD</b></code> - add panel to <code>My First Row</code> opening the panel editor</li>
+							<li><code><b>NAME</b></code> - name the panel <code>Memory Usage Gauge</code></li>
+							<li><code><b>DESCRIPTION</b></code> - "This is my second gauge chart!"</li>
+							<li><code><b>TYPE</b></code> - select <code>Gauge Chart</code></li>
+						</ol>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Designing the query </h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						Now head on down to the query section and add in the PromQL query as follows:
+					</div>
+					<div style="height: 180px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								100 - ((go_memstats_sys_bytes{instance='$instance', job='$job'} * 100) /
+								(go_memstats_alloc_bytes_total{instance='$instance', job='$job'}))
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Designing the settings </h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						After the query you need to polish up the preview so that the panel makes more sense, so adjust
+						the settings:
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						<ol>
+							<li><code><b>UNIT</b></code> - set unit to measure a percentage from 0-100</li>
+							<li><code><b>DECIMALS</b></code> - make sure the percentage measures to one decimal point</li>
+							<li><code><b>COLOR</b></code> - make sure the range from 0.9 onwards is using the color RED</li>
+						</ol>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Final results, well done!</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						To finalize you can resize all panels for uniformity, arrange them as shown, and save the
+						changes using the <code><b>SAVE</b></code> button:
+					</div>
+					<div style="height: 430px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-12.png" alt="gauge final">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Fixing decimal to percentage</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Notice how the stat chart <code><b>Memory Usage</b></code> is a decimal number and not a
+						percentage? Fix that by editing the panel and adjusting the settings to percentage between 1-100
+						and to one decimal point. Your dashboard should look like this when done:
+					</div>
+					<div style="height: 450px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-13.png" alt="percentage fix">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Adding a new row</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Time to add another row to your dashboard, where you'll be putting several
+						<code><b>Time Series Charts</b></code>. Add a new <code><b>Panel Group</b></code> by editing
+						the dashboard, adding a new panel group, and also renaming your first row as shown (don't forget
+						to save the results):
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-14.png" alt="new panel group">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - New memory line chart</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Let's add your first <code><b>Line Chart</b></code> to the new row you just created. You'll be charting
+						memory totals across various aspects of your systems, and it will end up looking like this:
+					</div>
+					<div style="height: 350px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-15.png" alt="new line chart">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Adding memory chart details</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						To add a new panel as before, start by opening the dashboard for editing with
+						<code><b>EDIT</b></code> button in top right and click on add panel icon in the header for the
+						group <code><b>Time Series Row</b></code> to open the <code><b>Edit Panel</b></code> pop-up and
+						add details as shown:
+					</div>
+					<div style="height: 200px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-16.png" alt="line details">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Adding chart queries</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Scroll down to the <code><b>QUERY</b></code> tab and add three different PromQL queries to
+						collect three data sets to represent memory totals for your line chart:
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								QUERY 1 - go_memstats_heap_alloc_bytes{instance='$instance', job='$job'}
+
+								QUERY 2 - go_memstats_heap_inuse_bytes{instance='$instance', job='$job'}
+
+								QUERY 3 - go_memstats_heap_sys_bytes{instance='$instance', job='$job'}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Adjusting chart settings</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Notice the preview consists of several lines in the chart representing different memory
+						conditions. It would be nice to have thresholds outlined in the chart to give an idea as to the
+						status of the lines, so click on the tab <code><b>GENERAL SETTINGS</b></code> under the graph
+						and update settings as shown:
+					</div>
+					<div style="height: 380px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-17.png" alt="chart settings">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Previewing line chart</h3>
+					</div>
+					<div style="height:120px; text-align: left; font-size: xx-large;">
+						Preview the line chart and make sure you like what you see, the memory data tracking and the
+						three status thresholds, noting that the legend is on the right:
+					</div>
+					<div style="height: 250px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-18.png" alt="chart preview">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Adjusting memory line chart</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						To apply all the changes to this new panel and add it to the existing dashboard group, click
+						on the <code><b>ADD</b></code> button at the top. Adjust the panel size until it displays as
+						shown:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-19.png" alt="saving chart">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Finalizing the dashboard</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						Now save the dashboard and your finalized new memory total line chart should look like this:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-20.png" alt="saved chart">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Changing instance and job</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						Next you will be adding a new line chart showing the load across a few of the nodes running in
+						your infrastructure. To query these nodes, you'll need to ensure you are selecting the correct
+						instance value <code><b>localhost:9100</b></code> and the correct job value
+						<code><b>node</b></code>. Using the drop-down menus, set as shown below (if not done already):
+					</div>
+					<div style="height: 200px; text-align: right;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-21.png" alt="node data">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - New load line chart</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Now you're ready to add another <code><b>Line Chart</b></code> visualizing load across several
+						nodes. When you are done, it's going to look like this:
+					</div>
+					<div style="height: 350px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-22.png" alt="load chart">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Adding load chart details</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						To add a new panel as before, start by opening the dashboard for editing with
+						<code><b>EDIT</b></code> button in top right and click on add panel icon in the header for the
+						group <code><b>Time Series Row</b></code> to open the <code><b>Edit Panel</b></code> pop-up and
+						add details as shown:
+					</div>
+					<div style="height: 200px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-23.png" alt="load details">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Adding load chart queries</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Scroll down to the <code><b>QUERY</b></code> tab and add two different PromQL queries to
+						collect the node load data being represented in the load line chart:
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								QUERY 1 - node_load15{instance='$instance',job='node'}
+
+								QUERY 2 - node_load1{instance='$instance',job='node'}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Adjusting chart settings</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Notice the preview consists of several lines in the chart representing different load
+						conditions. It would be nice to have thresholds outlined in the chart to give an idea as to the
+						status of the lines, so click on the tab <code><b>GENERAL SETTINGS</b></code> under the graph and update
+						settings as shown:
+					</div>
+					<div style="height: 380px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-24.png" alt="load settings">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Previewing line chart</h3>
+					</div>
+					<div style="height:150px; text-align: left; font-size: xx-large;">
+						Preview the line chart and make sure you like what you see, the node tracking and the load
+						thresholds. Note that you can hover over lines in the chart and see the data legend. At this
+						time you can't name the thresholds:
+					</div>
+					<div style="height: 350px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-25.png" alt="load preview">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Adjusting memory line chart</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						To apply all the changes to this new panel and add it to the existing dashboard group, click
+						on the <code><b>ADD</b></code> button at the top. Move and adjust the panel size until it
+						displays as shown:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-26.png" alt="saving load chart">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Saving variable changes</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						When you now save the dashboard you get a pop-up asking how to handle the detected variable
+						changes. Let's make those changes stick so that everytime we return to this dashboard they are
+						automatically selected by checking that box on the option and <code><b>SAVE CHANGES</b></code>
+						button:
+					</div>
+					<div style="height: 300px; text-align: right;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-27.png" alt="saved load chart">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced dashboard - Finalizing the dashboard</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						The finalized dashboard with the load threshold line chart should look like this:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-28.png" alt="saved load chart">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 400px; font-size: xx-large">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-29.png" alt="lab6 dashboard">
+						<br />
+						Next up, creating an advanced++ dashboard...
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="reference">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://github.com/perses/perses" target="_blank">Perses project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-perses" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-perses/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Director Evangelism<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab07.html" target="_blank">Lab 7 - Building advanced++ dashboard</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

@@ -47,6 +47,7 @@ For offline use on another node, transfer the pre-commit cache from `$HOME/.cach
 Before completing a change, run `pre-commit run --all-files` and confirm it passes.
 This runs all applicable file hooks; the Conventional Commits hook is run for commit messages when a commit is created.
 The generic JSON key sorter excludes the npm-generated `slides/package-lock.json` to preserve npm's lockfile serialization; JSON syntax and other file checks still run.
+Byte-rewriting hooks, source-mode/name checks, and the generic large-file threshold exclude `content/` so upstream snapshots and generated outputs remain intact; gitleaks, JSON checks, and other applicable validation still run, while the vendored Compose binary is verified by its SHA-256 file.
 
 ## Host Prerequisites
 
@@ -180,6 +181,13 @@ On the replay node, `sudo scripts/30-stack.sh --offline` verifies the bundle, di
 `sudo scripts/95-preflight-offline.sh` then asserts there is no default route, that the registry serves every bundle image, and that `scripts/preflight.sh` passes.
 The seeded images live in the local registry's `emptyDir` volume, so `scripts/90-teardown-cluster.sh` removes them with the registry.
 The full replay procedure is in `bundle/README.md`.
+
+## Learner Workshop Content Capture
+
+On the connected online machine, run `scripts/dev/import-content.sh` to clone or reuse the five public workshop repositories, mirror their documentation, and download the latest stable Linux x86_64 Docker Compose v2 binary.
+The script records source SHAs, mirror dates, and the Compose source and checksum in `versions.lock`; use `--refresh` to replace the captured sources and documentation.
+Run `python3 scripts/dev/parse-labs.py` to extract every Docker and Podman command path into `content/extracted/`, then run `python3 scripts/dev/patch-docs.py` and `python3 scripts/dev/curate.py` to prepare the offline documentation and curated service run sets.
+The complete `content/` tree is an online-produced committed artifact for the learner VM; these development scripts are not provisioning scripts and must not be run on the airgapped VM.
 
 ## Enterprise Mirrors and Proxies
 

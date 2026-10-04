@@ -1,0 +1,886 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Prometheus workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Lab 2 - Prometheus container</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-PW25SPMWGG"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-PW25SPMWGG');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 2 - Installing Prometheus (container image)</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>This lab guides you through installing Prometheus using an open source container image on
+							your local machine, configuring, and running it to start gathering metrics.</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Container installation notes</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						This lab guides you through installing Prometheus using Podman, an open source container
+						tooling set that works on Mac OS X, Linux, and Windows systems. This workshop assumes you have
+						installed, initialized, and
+						<a href="https://podman.io" target="_blank"><b>running Podman</b></a> on
+						your machine:<br />
+						<br />
+						<ul>
+							<li>
+								<a href="https://podman.io/docs/installation#installing-on-mac--windows" target="_blank">
+								Install on Mac OS X or Windows
+								</a>
+							</li>
+							<li>
+								<a href="https://podman.io/docs/installation#installing-on-linux" target="_blank">
+									Install on Linux
+								</a>
+							</li>
+						</ul><br />
+						<br />
+						The rest of this lab is pictured using Mac OS X, but it is assumed you have enough knowledge of
+						your Linux or Windows systems to be able to achieve the same results. Also note that you can
+						run this workshop using Docker, but lets you sort out the details.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Verifying tooling installation</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						To start with a working container installation, you should see the following results for the
+						commands shown (note versions shown might differ for you):
+					</div>
+					<div style="height: 330px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman -v
+								podman version 5.x  <<<< MINIMUM VERSION REQUIRED
+
+								$ podman machine init
+								Looking up Podman Machine image at quay.io/podman/machine-os:6.0 to create VM
+								Getting image source signatures
+								Copying blob 688df5f9826a done   |
+								Copying config 44136fa355 done   |
+								Writing manifest to image destination
+								688df5f9826ad76176bca8eb720821c6f88e269a4529578aec075fd631087b31
+								Extracting compressed file: podman-machine-default-arm64.raw: done
+								Machine init complete
+
+								$ podman machine start
+								Starting machine "podman-machine-default"
+								...
+								  (more console output...)
+								...
+								Machine "podman-machine-default" started successfully
+
+								$ podman machine list
+								NAME                     VM TYPE     CREATED             LAST UP            CPUS        MEMORY      DISK SIZE
+								podman-machine-default*  applehv     About a minute ago  Currently running  9           2GiB        100GiB
+							</code>
+						</pre>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: x-large;">
+						Now that you have the tooling, let's get started installing Prometheus in a container...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Installation - Make a project directory</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						The first step will be to open a console or terminal window and start with the command line
+						to create yourself an empty workshop directory, something like this:
+					</div>
+					<div style="height: 150px;">
+						<pre>
+							<code data-trim data-noescape>
+								$ mkdir workshop-prometheus
+
+								$ cd workshop-prometheus
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Setup - A workshop configuration</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Using any editor you like, create a file named <code><b>workshop-prometheus.yml</b></code> and you are
+						going to create a basic Prometheus configuration that looks like the YAML code below which you
+						can cut-and-paste (be sure to save the results):
+					</div>
+					<div style="height: 150px;">
+						<pre>
+							<code data-trim data-noescape>
+								# workshop config
+								global:
+								  scrape_interval: 5s
+
+								# Scraping only Prometheus.
+								scrape_configs:
+								  - job_name: "prometheus"
+								    static_configs:
+								      - targets: ["localhost:9090"]
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Configuration - Some thoughts on setup</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Normally you are monitoring other targets over HTTP and scraping their endpoints, but we are
+						going to start with Prometheus as it also exposes its own metrics endpoints. Monitoring your
+						Prometheus servers health is only an exercise for this workshop. Also note that scraping metrics
+						every 5 seconds is a bit over the top, commonly you would see 10-60 seconds, but we want our
+						data to flow in a steady stream for this workshop.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Configuration - The global section</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						As you can imagine, the <code><b>global</b></code> section is used for settings and default
+						values. Here we have just set the default <code><b>scrape interval</b></code> to be 5 seconds:
+					</div>
+					<div style="height: 150px;">
+						<pre>
+							<code data-trim data-noescape>
+								# workshop config
+								global:
+								  scrape_interval: 5s
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Configuration - The scrape configs section</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						The <code><b>scrape_configs</b></code> section is where you tell Prometheus which targets to
+						scrape to collect metrics from. In the beginning we will be listing each job for our targets
+						manually, using a <code><b>host:port</b></code> format:
+					</div>
+					<div style="height: 170px;">
+						<pre>
+							<code data-trim data-noescape>
+								# Scraping only Prometheus.
+								scrape_configs:
+								  - job_name: "prometheus"
+								    static_configs:
+								      - targets: ["localhost:9090"]
+							</code>
+						</pre>
+
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Note: production configurations would use service discovery integrations to find targets, more
+						on that later in this workshop.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Installation - Creating container build file</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Next you can use any editor you like, but create a file called <code><b>Buildfile</b></code>
+						with the following which you can use through cut-and-pasting:
+					</div>
+					<div style="height: 250px;">
+						<pre>
+							<code data-trim data-noescape>
+								FROM prom/prometheus:v3.13.1
+								ADD workshop-prometheus.yml /etc/prometheus
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Installation - Building a container image</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Now you can build your own container image with our custom configuration inserted:
+					</div>
+					<div style="height: 300px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-prometheus:v3.13 -f Buildfile
+
+								STEP 1/2: FROM prom/prometheus:v3.13.1
+								Resolving "prom/prometheus" using unqualified-search registries (/usr/share/containers/registries.conf.d/999-podman-machine.conf)
+								Trying to pull docker.io/prom/prometheus:v3.13.1...
+								Getting image source signatures
+								Copying blob sha256:ffe63bd2bf8c4ac91ff1c5968544a41470cd021536129e525af0999fd61906f5
+								Copying blob sha256:905e8aa01b1377f008f4ec145adbd1d44daa0ca79c856ea75cbef37e686c0079
+								Writing manifest to image destination
+
+								STEP 2/2: ADD workshop-prometheus.yml /etc/prometheus
+								COMMIT workshop-prometheus:v3.13
+								--> 3cf22d4104ed
+								Successfully tagged localhost/workshop-prometheus:v3.13
+								3cf22d4104ed35b3569d558fd6644ccbfae323516eda4fbab057c35522f38a7b
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Installation - Verifying built image</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Looking at the <code><b>IMAGES</b></code> we see the following:
+					</div>
+					<div style="height: 250px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman images
+
+								REPOSITORY                     TAG         IMAGE ID      CREATED        SIZE
+								localhost/workshop-prometheus  v3.13       3cf22d4104ed  3 minutes ago  236 MB
+								docker.io/prom/prometheus      v3.13.1     4b91f0c2630c  3 weeks ago    236 MB
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Start your metrics engines!</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Now it's time to start the Prometheus server. We will point to our config file inside the image
+						we built using a flag (scroll to view log):
+					</div>
+					<div style="height: 170px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run -p 9090:9090 workshop-prometheus:v3.13 --config.file=/etc/prometheus/workshop-prometheus.yml
+
+								time=2026-07-31T09:57:11.564Z level=INFO source=main.go:1724 msg="updated GOGC" old=100 new=75
+								time=2026-07-31T09:57:11.565Z level=INFO source=main.go:789 msg="Leaving GOMAXPROCS=9: CPU quota undefined" component=automaxprocs
+								time=2026-07-31T09:57:11.565Z level=INFO source=memlimit.go:198 msg="GOMEMLIMIT is updated" component=automemlimit package=github.com/KimMachineGun/automemlimit/memlimit GOMEMLIMIT=1829025792 previous=9223372036854775807
+								time=2026-07-31T09:57:11.565Z level=INFO source=main.go:896 msg="Starting Prometheus Server" mode=server version="(version=3.13.1, branch=HEAD, revision=73ff57ce2b8161059ac7fe5188f03f1c3d22b29a)"
+								time=2026-07-31T09:57:11.565Z level=INFO source=main.go:901 msg="operational information" build_context="(go=go1.26.5, platform=linux/arm64, user=root@6a98665b49f7, date=20260710-08:21:41, tags=netgo,builtinassets)" host_details="(Linux 7.1.3-200.fc44.aarch64 #1 SMP PREEMPT_DYNAMIC Sat Jul  4 19:23:52 UTC 2026 aarch64 64589d0f8ec1 (none))" fd_limits="(soft=524288, hard=524288)" vm_limits="(soft=unlimited, hard=unlimited)"
+								time=2026-07-31T09:57:11.632Z level=INFO source=web.go:727 msg="Start listening for connections" component=web address=0.0.0.0:9090
+								time=2026-07-31T09:57:11.633Z level=INFO source=main.go:1456 msg="Starting TSDB ..."
+								time=2026-07-31T09:57:11.633Z level=INFO source=tls_config.go:354 msg="Listening on" component=web address=[::]:9090
+								time=2026-07-31T09:57:11.633Z level=INFO source=tls_config.go:357 msg="TLS is disabled." component=web http2=false address=[::]:9090
+								time=2026-07-31T09:57:11.634Z level=INFO source=head.go:709 msg="Replaying on-disk memory mappable chunks if any" component=tsdb
+								time=2026-07-31T09:57:11.634Z level=INFO source=head.go:795 msg="On-disk memory mappable chunks replay completed" component=tsdb duration=750ns
+								time=2026-07-31T09:57:11.634Z level=INFO source=head.go:803 msg="Replaying WAL, this may take a while" component=tsdb
+								time=2026-07-31T09:57:11.634Z level=INFO source=head.go:898 msg="WAL segment loaded" component=tsdb segment=0 maxSegment=0 duration=104.042µs
+								time=2026-07-31T09:57:11.634Z level=INFO source=head.go:935 msg="WAL replay completed" component=tsdb checkpoint_replay_duration=15.75µs wal_replay_duration=124.125µs wbl_replay_duration=125ns chunk_snapshot_load_duration=0s mmap_chunk_replay_duration=750ns total_replay_duration=148.416µs
+								time=2026-07-31T09:57:11.634Z level=INFO source=main.go:1477 msg="filesystem information" fs_type=XFS_SUPER_MAGIC
+								time=2026-07-31T09:57:11.634Z level=INFO source=main.go:1480 msg="TSDB started"
+								time=2026-07-31T09:57:11.634Z level=INFO source=main.go:1678 msg="Loading configuration file" filename=/etc/prometheus/workshop-prometheus.yml
+								time=2026-07-31T09:57:11.635Z level=INFO source=main.go:1094 msg="TSDB retention updated" duration=15d size=0B percentage=0
+								time=2026-07-31T09:57:11.635Z level=INFO source=main.go:1717 msg="Completed loading of configuration file" db_storage=14.25µs remote_storage=1.041µs web_handler=125ns query_engine=500ns scrape=132.791µs scrape_sd=14.125µs notify=584ns notify_sd=417ns rules=834ns tracing=3.208µs filename=/etc/prometheus/workshop-prometheus.yml totalDuration=293.25µs
+								time=2026-07-31T09:57:11.635Z level=INFO source=main.go:1441 msg="Server is ready to receive web requests."
+								time=2026-07-31T09:57:11.635Z level=INFO source=manager.go:211 msg="Starting rule manager..." component="rule manager"
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Adjusting settings live</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Using this container image we built means any changes you need to make to the configuration
+						that were in the flags used to start the server will require a new image be built. The old
+						container stopped, and the new container started using the new image.<br />
+						<br />
+						Now let's see if our Prometheus server is up and running on our local machine by loading the
+						status page in our browser at <a href="http://localhost:9090" target="_blank">http://localhost:9090</a>,
+						noting it needs to run a little bit to collect some data from its own HTTP metrics endpoint.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - The status page</h3>
+					</div>
+					<div style="height: 370px;">
+						<img src="images/lab02-1.png" alt="status"><br />
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Now try the dark mode feature by clicking on the half moon icon in the top right corner.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Status page (dark mode)</h3>
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab02-2.png" alt="status"><br />
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Now try the metrics endpoint
+						<a href="http://localhost:9090/metrics" target="_blank">(http://localhost:9090/metrics)</a>
+						directly in your browser.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Prometheus - Live metrics endpoint</h3>
+					</div>
+					<div style="height: 450px;">
+						<img src="images/lab02-3.png" alt="endpoint"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Checking your targets</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						After you configure a new <code><b>prometheus</b></code> target to scrape and (re)start the
+						Prometheus server, validate it's running correctly by going to the status page, using the
+						drop-down menu at the top labeled <code><b>STATUS</b></code> and selecting
+						<code><b>TARGETS</b></code>:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab02-4.png" alt="starting"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Checking your targets</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						This shows you a list of the targets, in our case just one, featuring the scrape configuration
+						details. The most important field here is the <code><b>STATE</b></code>, where we want to see a
+						green <code><b>UP</b></code>:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab02-5.png" alt="starting"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Bad target state</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Let's break our configuration and see what that looks like in the targets status page. To do this
+						open up your configuration file <code><b>workshop-prometheus.yml</b></code> and edit the
+						<code><b>scrape_configs</b></code> section to alter the targets port number as shown:
+					</div>
+					<div style="height: 170px;">
+						<pre>
+							<code data-trim data-noescape>
+								# Scraping only Prometheus.
+								scrape_configs:
+								  - job_name: "prometheus"
+								    static_configs:
+								      - targets: ["localhost:9099"]
+							</code>
+						</pre>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						Save and see next slide for applying the new configuration.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Installation - Building a new container image</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Now you can rebuild your own container image with our broken configuration inserted:
+					</div>
+					<div style="height: 350px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-prometheus:bad-target -f Buildfile
+
+								STEP 1/2: FROM prom/prometheus:v3.13.1
+								STEP 2/2: ADD workshop-prometheus.yml /etc/prometheus
+								--> Using cache 3cf22d4104ed35b3569d558fd6644ccbfae323516eda4fbab057c35522f38a7b
+								COMMIT workshop-prometheus:bad-target
+								--> 3cf22d4104ed
+								Successfully tagged localhost/workshop-prometheus:bad-target
+								Successfully tagged localhost/workshop-prometheus:v3.13
+								3cf22d4104ed35b3569d558fd6644ccbfae323516eda4fbab057c35522f38a7b
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Installation - Verifying rebuilt image</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						Looking at the <code><b>IMAGES</b></code> we see it was rebuilt just a bit ago, moving the older
+						image out of the way:
+					</div>
+					<div style="height: 250px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman images
+
+								REPOSITORY                     TAG         IMAGE ID      CREATED        SIZE
+								localhost/workshop-prometheus  bad-target  3cf22d4104ed  9 minutes ago  236 MB
+								localhost/workshop-prometheus  v3.13       3cf22d4104ed  9 minutes ago  236 MB
+								docker.io/prom/prometheus      v3.13.1     4b91f0c2630c  3 weeks ago    236 MB
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Start your broken configuration</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						First you stop the running container (using CTRL-C as we are not running the container detached),
+						then start it again as we did before, but this time the newest rebuilt image will be used:
+					</div>
+					<div style="height: 170px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run -p 9090:9090 workshop-prometheus:bad-target --config.file=/etc/prometheus/workshop-prometheus.yml
+
+								time=2026-07-31T09:57:11.564Z level=INFO source=main.go:1724 msg="updated GOGC" old=100 new=75
+								time=2026-07-31T09:57:11.565Z level=INFO source=main.go:789 msg="Leaving GOMAXPROCS=9: CPU quota undefined" component=automaxprocs
+								time=2026-07-31T09:57:11.565Z level=INFO source=memlimit.go:198 msg="GOMEMLIMIT is updated" component=automemlimit package=github.com/KimMachineGun/automemlimit/memlimit GOMEMLIMIT=1829025792 previous=9223372036854775807
+								time=2026-07-31T09:57:11.565Z level=INFO source=main.go:896 msg="Starting Prometheus Server" mode=server version="(version=3.13.1, branch=HEAD, revision=73ff57ce2b8161059ac7fe5188f03f1c3d22b29a)"
+								time=2026-07-31T09:57:11.565Z level=INFO source=main.go:901 msg="operational information" build_context="(go=go1.26.5, platform=linux/arm64, user=root@6a98665b49f7, date=20260710-08:21:41, tags=netgo,builtinassets)" host_details="(Linux 7.1.3-200.fc44.aarch64 #1 SMP PREEMPT_DYNAMIC Sat Jul  4 19:23:52 UTC 2026 aarch64 64589d0f8ec1 (none))" fd_limits="(soft=524288, hard=524288)" vm_limits="(soft=unlimited, hard=unlimited)"
+								time=2026-07-31T09:57:11.632Z level=INFO source=web.go:727 msg="Start listening for connections" component=web address=0.0.0.0:9090
+								time=2026-07-31T09:57:11.633Z level=INFO source=main.go:1456 msg="Starting TSDB ..."
+								time=2026-07-31T09:57:11.633Z level=INFO source=tls_config.go:354 msg="Listening on" component=web address=[::]:9090
+								time=2026-07-31T09:57:11.633Z level=INFO source=tls_config.go:357 msg="TLS is disabled." component=web http2=false address=[::]:9090
+								time=2026-07-31T09:57:11.634Z level=INFO source=head.go:709 msg="Replaying on-disk memory mappable chunks if any" component=tsdb
+								time=2026-07-31T09:57:11.634Z level=INFO source=head.go:795 msg="On-disk memory mappable chunks replay completed" component=tsdb duration=750ns
+								time=2026-07-31T09:57:11.634Z level=INFO source=head.go:803 msg="Replaying WAL, this may take a while" component=tsdb
+								time=2026-07-31T09:57:11.634Z level=INFO source=head.go:898 msg="WAL segment loaded" component=tsdb segment=0 maxSegment=0 duration=104.042µs
+								time=2026-07-31T09:57:11.634Z level=INFO source=head.go:935 msg="WAL replay completed" component=tsdb checkpoint_replay_duration=15.75µs wal_replay_duration=124.125µs wbl_replay_duration=125ns chunk_snapshot_load_duration=0s mmap_chunk_replay_duration=750ns total_replay_duration=148.416µs
+								time=2026-07-31T09:57:11.634Z level=INFO source=main.go:1477 msg="filesystem information" fs_type=XFS_SUPER_MAGIC
+								time=2026-07-31T09:57:11.634Z level=INFO source=main.go:1480 msg="TSDB started"
+								time=2026-07-31T09:57:11.634Z level=INFO source=main.go:1678 msg="Loading configuration file" filename=/etc/prometheus/workshop-prometheus.yml
+								time=2026-07-31T09:57:11.635Z level=INFO source=main.go:1094 msg="TSDB retention updated" duration=15d size=0B percentage=0
+								time=2026-07-31T09:57:11.635Z level=INFO source=main.go:1717 msg="Completed loading of configuration file" db_storage=14.25µs remote_storage=1.041µs web_handler=125ns query_engine=500ns scrape=132.791µs scrape_sd=14.125µs notify=584ns notify_sd=417ns rules=834ns tracing=3.208µs filename=/etc/prometheus/workshop-prometheus.yml totalDuration=293.25µs
+								time=2026-07-31T09:57:11.635Z level=INFO source=main.go:1441 msg="Server is ready to receive web requests."
+								time=2026-07-31T09:57:11.635Z level=INFO source=manager.go:211 msg="Starting rule manager..." component="rule manager"
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Verify bad target state</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Back to the target state page, and we see that indeed the target we configured is broken:
+					</div>
+					<div style="height: 300px;">
+						<img src="images/lab02-10.png" alt="broken"><br />
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<b>Exercise:</b> go back and fix this target before proceeding!
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Exploring command-line flags</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						When you started Prometheus we mentioned a flag to point at our new configuration file. There is
+						a status page you can use to view all the flags that have been set (by your or default settings).
+						Using the drop-down menu again at the top labeled <code><b>STATUS</b></code> and selecting
+						<code><b>COMMAND-LINE FLAGS</b></code>:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab02-6.png" alt="menu"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Exploring command-line flags</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						This shows you a long list of flags with their current values and a search field for locating
+						one you might be interested in:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab02-6a.png" alt="flags"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Searching for a flag</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						By filling in a search query, you can narrow down the long list to a specific area. Let's
+						explore the flag value for <code><b>--config.file</b></code>:
+					</div>
+					<div style="height: 300px;">
+						<img src="images/lab02-7.png" alt="config"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Time series database status</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						Next, there is a status page you can use to view your time series database, or TSDB, status.
+						Using the drop-down menu again at the top labeled <code><b>STATUS</b></code> and selecting
+						<code><b>TSDB-STATUS</b></code>:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab02-8.png" alt="starting"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Time series database status</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						This shows you some details for the time series being collected in an overview status line with
+						several tables below with cardinality status:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab02-8a.png" alt="flags"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Exploring active configuration</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						Lastly, at least in this lab, you can verify the exact configuration being applied to your
+						Prometheus server. Using the drop-down menu again at the top labeled <code><b>STATUS</b></code>
+						and selecting <code><b>CONFIGURATION</b></code>:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab02-9.png" alt="starting"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Exploring active configuration</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						This shows you your exact configuration, often including some defaults that you might not have
+						in your personal configuration file, yet are being used. There is even a handy copy-to-clipboard
+						button for you to grab it:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab02-9a.png" alt="flags"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Using the expression tooling</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						You can navigate back to the expression browser that lets you query your time series data
+						by clicking on the menu entry <code><b>GRAPH</b></code>. This is the default built-in query
+						interface for running Prometheus Query Language (PromQL) queries. Be sure you are in the
+						<code><b>TABLE</b></code> tab:
+					</div>
+					<div style="height: 300px;">
+						<img src="images/lab02-11.png" alt="queries"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Total samples ingested</h3>
+					</div>
+					<div style="height: 270px; text-align: left; font-size: xx-large;">
+						The <code><b>TABLE</b></code> view provides the output of a query written using PromQL expression as
+						a series. It's less expensive to use than the other option, <code><b>GRAPH</b></code>, because you are
+						not plotting out the series answers in a graph. Without worrying about the PromQL used (we'll
+						explore that later in this workshop), lets show the total number of samples ingested by our
+						Prometheus server since it started:
+					</div>
+					<div style="height: 150px;">
+						<pre>
+							<code data-trim data-noescape>
+								# Copy this line below comments into the Expression field and
+								# click on the EXECUTE button on the right side of the screen.
+								#
+								prometheus_tsdb_head_samples_appended_total
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Validating an expression</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						You will have noticed that there are three buttons to the right of the
+						<code><b>EXPRESSION</b></code> entry field. Click to show a menu with options. The first one can
+						be used to explore available metrics, the second to validate the expression you entered, and the
+						last one to show a tree view of complexer queries (this one is not complex). We'll just click
+						on the <code><b>FORMAT EXPRESSION</b></code> menu entry and if it's a good expression you get a
+						validation pop-up as shown below:
+					</div>
+					<div style="height: 250px;">
+						<img src="images/lab02-12.png" alt="queries"><br />
+					</div>
+					<div style="height: 100px; text-align: right;">
+						<img src="images/lab02-12a.png" alt="pop-up"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Execute the expression query</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						After validating our expression, run it by clicking on the <code><b>EXECUTE</b></code> button:
+					</div>
+					<div style="height: 300px;">
+						<img src="images/lab02-13.png" alt="queries"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Exploring the visualization</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Let's explore by clicking on the <code><b>GRAPH</b></code> tab. Note the features included to
+						visualize queries. I have adjusted my longer running server to look at 12h of data here, and
+						I am browsing the results:
+					</div>
+					<div style="height: 450px;">
+						<img src="images/lab02-13a.png" alt="queries"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Add another query</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Go back to the <code><b>TABLE</b></code> tab. Notice at the bottom there is a button
+						<code><b>ADD QUERY</b></code>, click on it to add another query panel in which we will execute
+						the following query expression. Let's look at the number of samples ingested per second averaged
+						over a 1m window of time:
+					</div>
+					<div style="height: 150px;">
+						<pre>
+							<code data-trim data-noescape>
+								# Copy this line below comments into the Expression field and
+								# click on the EXECUTE button on the right side of the screen.
+								#
+								rate(prometheus_tsdb_head_samples_appended_total[1m])
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Execute the second query</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						You can now see multiple expressions are possible:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab02-14.png" alt="queries"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Prometheus - Exploring second visualization</h3>
+					</div>
+					<div style="height: 550px;">
+						<img src="images/lab02-15.png" alt="graphs"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Warning about pages</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						If you now select any of the status pages from the <code><b>STATUS</b></code> menu at the top and
+						then return to the expression query page using the <code><b>GRAPH</b></code> menu entry. You will
+						notice that extra panels you might have added will be gone.<br />
+						<br />
+						<b>Pro tip:</b> you might want to work using browser tabs.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - One last query</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Assuming you went to another status page and back, we have a last query we will run here to
+						simulate the same query used to fill the system UP metric we viewed for our Prometheus target:
+					</div>
+					<div style="height: 250px;">
+						<pre>
+							<code data-trim data-noescape>
+								# Copy this line below comments into the Expression field and
+								# click on the EXECUTE button on the right side of the screen.
+								#
+								up{job="prometheus"}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Execute the UP query</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						You can now see the results as a boolean value suggesting it is really UP:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab02-16.png" alt="queries"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Prometheus - Exploring this silly visualization</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						This is a rather silly metric to visualize this way, but this is what it looks like going back
+						over 1d as my server was running during this lab's development (you can check my working hours!):
+					</div>
+					<div style="height: 450px;">
+						<img src="images/lab02-17.png" alt="graphs"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 400px; font-size: xx-large">
+						<img src="images/lab02-2.png" alt="completed">
+						<br />
+						Next up, exploring the query language...
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://youtu.be/KJvUyP4c1NQ" target="_blank">Video introduction to workshop (Open Source Edinburgh meetup)</a></li>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-prometheus" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://prometheus.io" target="_blank">Prometheus project</a></li>
+							<li><a href="https://github.com/prometheus/promlens" target="_blank">PromLens project (archived, now the Prometheus EXPLAIN tab)</a></li>
+							<li><a href="https://github.com/perses/perses" target="_blank">Perses project</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-prometheus/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Director Evangelism<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop... </h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab03.html" target="_blank">Lab 3 - Introduction to the Query Language</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMenu, RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+	</body>
+</html>

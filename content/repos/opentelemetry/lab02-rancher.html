@@ -1,0 +1,830 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="OpenTelemetry Workshop">
+		<meta name="author" content="Paige Cruz">
+
+		<title>Lab 2 - Installing OTel</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-33MFF345ZY"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-33MFF345ZY');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Rancher k3s prerequisites</h2>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						This path swaps <code>podman run</code> for a local Rancher Desktop k3s cluster. Make sure
+						you have <a href="https://podman.io/" target="_blank">Podman v5+</a> to build the image, plus
+						<a href="https://rancherdesktop.io/" target="_blank">Rancher Desktop</a> with the Kubernetes
+						(k3s) engine enabled, and <code>kubectl</code> on your PATH.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Start Rancher Desktop</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						This lab assumes Rancher Desktop is installed but <b>not yet running</b>. Launch it now:
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ rdctl start
+							</code>
+						</pre>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<ul>
+							<li>Open the Rancher Desktop application</li>
+							<li>In <b>Preferences → Kubernetes</b>, confirm "Enable Kubernetes" is checked (k3s)</li>
+							<li>Also check <b>Container Engine</b>, confirm "containerd" is checked</li>
+							<li>Wait for the status indicator in the bottom left to turn green and show
+								"Kubernetes is running" - this can take a minute or two on first start</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Verifying tooling installation</h2>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						Before diving in, confirm your cluster is actually up and <code>kubectl</code> is pointed at
+						it (note versions shown might differ for you):
+					</div>
+					<div style="height: 120px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl config current-context
+								rancher-desktop
+
+								$ kubectl get nodes
+								NAME                   STATUS   ROLES                  AGE   VERSION
+								lima-rancher-desktop   Ready    control-plane,master   2d    v1.36.2+k3s1
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Now that you have the tooling, let's get started...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Getting started</h2>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						For applicable languages, OpenTelemetry provides a way to auto-instrument your application
+						without making code changes by adding the API and SDK to the application and any detected
+						instrumentation libraries and exporter dependencies.<br />
+						<br />
+						We are working with a Python Flask app in this workshop and Python dynamically injects bytecode
+						to capture telemetry from popular libraries and frameworks.<br />
+						<br />
+						Let's see what we can get out-of-the-box!
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Make a project directory</h2>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						Open a console or terminal window and create an empty workshop directory to work in like:
+					</div>
+					<div style="height: 150px;">
+						<pre>
+							<code data-trim data-noescape >
+								$ mkdir workshop-opentelemetry
+
+								$ cd workshop-opentelemetry
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Download demo application</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						<ul>
+							<li><a href="https://gitlab.com/o11y-workshops/intro-to-instrumentation/-/archive/v1.4/intro-to-instrumentation-v1.4.zip" target="_blank">Click to download and unzip the project.</a></li>
+							<li>Move into the project directory and build the image as shown:</li>
+						</ul>
+					</div>
+					<div style="height: 100px;">
+						<pre>
+							<code data-trim data-noescape>
+								$ cd intro-to-instrument-VERSION
+
+								$ podman build -t hello-otel:base -f Buildfile
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Verify you get a success message in the console like below:
+					</div>
+					<div style="height: 70px;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								Successfully tagged localhost/hello-otel:base  \
+								516c5299a32b68e7a4634ce15d1fd659eed2164ebe945ef1673f7a55630e22c8
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Import the image into k3s</h2>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						Podman built the image locally, but k3s runs inside Rancher Desktop's own VM with a separate
+						containerd image store - there's no <code>k3s</code> binary on your host, so use the
+						<code>nerdctl</code> CLI Rancher Desktop installed on your PATH to load the image straight into
+						the VM's <code>k8s.io</code> namespace where kubelet looks for it:
+					</div>
+					<div style="height: 100px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman save localhost/hello-otel:base -o hello-otel-base.tar
+
+								$ nerdctl --namespace k8s.io load -i hello-otel-base.tar
+
+								unpacking localhost/hello-otel:base (sha256:560d1e0ad0cfda2e8bdf0fccb7524cce8c983bba61fa7f1b12510a4b1ccd1e16)...
+								Loaded image: localhost/hello-otel:base
+							</code>
+						</pre>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: large;">
+						Note: if <code>nerdctl</code> fails with "cannot access containerd socket", your Container
+						Engine is set to <b>dockerd</b> instead of containerd - either switch it in Preferences, or
+						use <code>docker load -i hello-otel-base.tar</code> for every import in this lab.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Run on k3s</h2>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						Run the image as a pod, mapping container port 8000 the same way the Podman path maps to
+						local port 8001, this time with <code>kubectl port-forward</code>. Note the image name must
+						match exactly what was loaded - <code>localhost/hello-otel:base</code>, not just
+						<code>hello-otel:base</code> - or <code>--image-pull-policy=Never</code> can't find it. The
+						<code>delete --ignore-not-found</code> clears out any pod left over from a previous attempt
+						so re-running this is safe:
+					</div>
+					<div style="height: 220px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete pod hello-otel --ignore-not-found
+
+								$ kubectl run hello-otel --image=localhost/hello-otel:base --image-pull-policy=Never \
+								  --port=8000 --env="FLASK_RUN_PORT=8000"
+
+								pod/hello-otel created
+
+								$ kubectl port-forward pod/hello-otel 8001:8000
+								Forwarding from 127.0.0.1:8001 -> 8000
+								Forwarding from [::1]:8001 -> 8000
+							</code>
+						</pre>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: x-large;">
+						Open <a href="http://localhost:8001/" target="_blank"> http://localhost:8001</a> in your
+						browser and confirm you see this displayed:
+					</div>
+					<div style="height: 100px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape >
+								This webpage has been viewed 1 times
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Explore the demo app</h2>
+					</div>
+					<div style="text-align: left; font-size: xx-large;">
+						<p>The demo application is a <a href="https://flask.palletsprojects.com/en/2.3.x/" target="_blank">Flask</a> web application written in Python. </p>
+						Routes:
+					</div>
+					<div style="height: 320px; text-align: left; font-size: x-large;">
+						<ul>
+							<li><b><a href="http://localhost:8001/" target="_blank">/</a></b> - displays count of how many times the page has been loaded. </li>
+							<li>
+								<strong><a href="http://localhost:8001/doggo" target="_blank">/doggo</a></strong>- displays random photo of a dog from the <a href="https://dog.ceo/dog-api/" target="_blank">Dog API</a>
+								<div><img src="images/lab02-successful-doggo.png" width="200" height="100" style="vertical-align:middle" alt=""></div>
+							</li>
+							<li><b><a href="http://localhost:8001/rolldice" target="_blank">/rolldice</a></b> - displays result of a randomized simulated dice roll </li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Check the logs</h2>
+					</div>
+					<div style="text-align: left; font-size: xx-large;">
+						Notice that without adding any instrumentation, Flask provides logs on startup and for each
+						request - view them with <code>kubectl logs</code> in a second terminal (the first stays busy
+						running <code>port-forward</code>):
+					</div>
+						<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl logs -f pod/hello-otel
+
+								* Debug mode: off
+								WARNING: This is a development server. Do not use it in a production deployment.
+								Use a production WSGI server instead.
+								 * Running on all addresses (0.0.0.0)
+								 * Running on http://127.0.0.1:8000
+								 * Running on http://10.42.0.145:8000
+								Press CTRL+C to quit
+								127.0.0.1 - - [12/Aug/2026 13:45:05] "GET / HTTP/1.1" 200 -
+								127.0.0.1 - - [12/Aug/2026 13:45:05] "GET /favicon.ico HTTP/1.1" 404 -
+								127.0.0.1 - - [12/Aug/2026 13:45:22] "GET /doggo HTTP/1.1" 200 -
+								127.0.0.1 - - [12/Aug/2026 13:45:26] "GET /rolldice HTTP/1.1" 200 -
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Stopping the pod</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Now let's stop <code>port-forward</code> using CTRL-C and delete the pod, so that we can set
+						up automatic instrumentation for our existing application:
+					</div>
+					<div style="height: 70px;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete pod hello-otel
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Instrument traces </h2>
+					</div>
+					<div style="height: 450px; text-align: left; font-size: x-large;">
+						Open <strong>automatic/Buildfile-auto</strong> which installs packages and updates the run
+						command for auto-instrumentation:<br/>
+						<br/>
+						<ul>
+							<li><strong>opentelemetry-distro[otlp]</strong> - contains the API, SDK, opentelemetry-bootstrap, opentelemetry-instrument</li>
+							<li><strong>opentelemetry-bootstrap</strong> - installs instrumentation libraries corresponding to installed packages</li>
+							<li><strong>opentelemetry-instrument</strong> - agent that dynamically injects bytecode to capture telemetry. Configures a global tracer and by default OTLP exporter</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Build the image</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Build an image from the container file with Podman:
+					</div>
+					<div style="height: 70px;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t hello-otel:auto -f automatic/Buildfile-auto
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Verify you get a success message in the console like below:
+					</div>
+					<div style="height: 70px;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								Successfully tagged localhost/hello-otel:auto  \
+								516c5299a32b68e7a4634ce15d1fd659eed2164ebe945ef1673f7a55630e22c8
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Import and run on k3s</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Import the new image the same way, then run it - this time overriding the pod's command to
+						wrap <code>flask run</code> with the <code>opentelemetry-instrument</code> agent:
+					</div>
+					<div style="height: 60px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman save localhost/hello-otel:auto -o hello-otel-auto.tar
+
+								$ nerdctl --namespace k8s.io load -i hello-otel-auto.tar
+								unpacking localhost/hello-otel:auto (sha256:48aa64b75af77661c86ab5d904ac3e563f270a5c)
+								Loaded image: localhost/hello-otel:auto
+
+								$ kubectl delete pod hello-otel-auto --ignore-not-found
+
+								$ kubectl run hello-otel-auto --image=localhost/hello-otel:auto --image-pull-policy=Never \
+								  --port=8000 --env="FLASK_RUN_PORT=8000" --command -- \
+								  opentelemetry-instrument \
+								  --traces_exporter console \
+								  --metrics_exporter none \
+								  --service_name hello-otel \
+								  flask run --host=0.0.0.0
+
+								pod/hello-otel-auto created
+
+								$ kubectl port-forward pod/hello-otel-auto 8001:8000
+								Forwarding from 127.0.0.1:8001 -> 8000
+								Forwarding from [::1]:8001 -> 8000
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Generating traffic</h2>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						Open a browser and make requests to the endpoints:
+					</div>
+					<div style="text-align: left; font-size: x-large;">
+						<ul>
+							<li><b><a href="http://localhost:8001/" target="_blank">/</a></b></li>
+							<li><strong><a href="http://localhost:8001/doggo" target="_blank">/doggo</a></strong></li>
+							<li><b><a href="http://localhost:8001/rolldice" target="_blank">/rolldice</a></b></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Verify instrumentation</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						In a second terminal, watch <code>kubectl logs -f pod/hello-otel-auto</code> and check for
+						spans! Here is a span that represents converting the Jinja2 HTML template into Python for the
+						first request to the <strong>/doggo</strong> endpoint.
+					</div>
+					<div style="font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								{
+									"name": "jinja2.compile",
+									"context": {
+										"trace_id": "0xcc03abd2bda0d500f650509da7aafd8e",
+										"span_id": "0xcc036db1701c8f49",
+										"trace_state": "[]"
+									},
+									"kind": "SpanKind.INTERNAL",
+									"parent_id": "0x1d73545725fd3568",
+									"start_time": "2024-04-18T17:57:16.631588Z",
+									"end_time": "2024-04-18T17:57:16.636529Z",
+									"status": {
+										"status_code": "UNSET"
+									},
+									"attributes": {
+										"jinja2.template_name": "random-pet-pic.html"
+									},
+									"events": [],
+									"links": [],
+									"resource": {
+										"attributes": {
+											"telemetry.sdk.language": "python",
+											"telemetry.sdk.name": "opentelemetry",
+											"telemetry.sdk.version": "1.44.0",
+											"service.name": "hello-otel",
+											"telemetry.auto.version": "0.65b0"
+										},
+										"schema_url": ""
+									}
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Stopping the pod</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Stop <code>port-forward</code> with CTRL-C and delete the pod, so that we can set up some
+						manual instrumentation for our application:
+					</div>
+					<div style="height: 70px;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete pod hello-otel-auto
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Mixing Manual & Automatic</h2>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: xx-large;">
+						Auto-instrumentation provides broad coverage - to get a deeper level of visibility you can
+						manually create new spans or modify existing spans. <br/><br/>
+
+						One of the libraries <code>opentelemetry-bootstrap</code> installed was
+						<code>opentelemetry-instrumentation-flask</code>. This instruments web requests to the Flask
+						application. <br/><br/>
+
+						Let's add the number of times the homepage has been loaded as an attribute on the
+						auto-instrumented span.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Auto-instrument - Current span telemetry</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Here's a span representing a homepage request - by default it has attributes about the request
+						itself like <code>http.method</code> or <code>net.host.port</code> but nothing about the
+						<code>HITS</code> variable which is our custom code (scroll to view all the code below):
+					</div>
+					<div style="font-size: x-large; ">
+						<pre>
+							<code data-trim data-noescape style="overflow: auto;">
+								{
+									"name": "/",
+									"context": {
+										"trace_id": "0x42b9a36256ff46ba99060ddc45c02626",
+										"span_id": "0xbb725f3712a259f5",
+										"trace_state": "[]"
+									},
+									"kind": "SpanKind.SERVER",
+									"parent_id": null,
+									"start_time": "2024-04-18T21:53:52.327122Z",
+									"end_time": "2024-04-18T21:53:52.328112Z",
+									"status": {
+										"status_code": "UNSET"
+									},
+									"attributes": {
+										"http.method": "GET",
+										"http.server_name": "0.0.0.0",
+										"http.scheme": "http",
+										"net.host.port": 8000,
+										"http.host": "localhost:8001",
+										"http.target": "/",
+										"net.peer.ip": "10.42.0.12",
+										"http.user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+										"net.peer.port": 52096,
+										"http.flavor": "1.1",
+										"http.route": "/",
+										"http.status_code": 200
+									},
+									"events": [],
+									"links": [],
+									"resource": {
+										"attributes": {
+											"telemetry.sdk.language": "python",
+											"telemetry.sdk.name": "opentelemetry",
+											"telemetry.sdk.version": "1.44.0",
+											"service.name": "hello-otel",
+											"telemetry.auto.version": "0.65b0"
+										},
+										"schema_url": ""
+									}
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Import OpenTelemetry SDK</h2>
+					</div>
+					<div style="height: auto; text-align: left; font-size: xx-large; margin-bottom: 20px;">
+						Let's add the number of times the homepage has been loaded. Open <code><b>automatic/app.py</b></code>
+						and import the OpenTelemetry SDK, which is already installed by <code><b>opentelemetry-distro</b></code>:
+					</div>
+					<div style="font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								import random
+								import re
+								import urllib3
+
+								import requests
+								<mark>from opentelemetry import trace</mark>
+								from flask import Flask, render_template, request
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Access tracer</h2>
+					</div>
+					<div style="height: auto; text-align: left; font-size: x-large; margin-bottom: 20px;">
+						To access the auto-instrumented spans we need to get access to the tracer which is
+						responsible for span creation and management. <br/><br/>
+						The <code><b>opentelemetry-instrument</b></code> agent creates one automatically,
+						so our code only needs to be responsible for accessing it.
+					</div>
+					<div style="font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								import random
+								import re
+								import urllib3
+
+								import requests
+								from opentelemetry import trace
+								from flask import Flask, render_template, request
+								from breeds import breeds
+
+								app = Flask(__name__)
+								<mark>tracer = trace.get_tracer(app.name)</mark>
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Auto-instrument - Manually adjust span attribute</h2>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						We know Flask routes are already instrumented so we need to access the existing span instead of
+						creating a new span. Find the <code>index()</code> method associated with the <strong>/</strong>
+						route and update to access the auto-instrumented span and add an attribute key-value pair for
+						"hits" and the value stored in HITS:
+					</div>
+					<div style="height: 90px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape lang="python">
+								@app.route('/')
+								def index():
+								  <mark>span = trace.get_current_span()</mark>
+									global HITS
+									HITS = HITS + 1
+								  <mark>span.set_attribute("hits", HITS)</mark>
+									msg = f'This webpage has been viewed {HITS} times'
+									return msg
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Build container image</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Run this to build a new image, this time with the tag <strong>auto-manual</strong>:
+					</div>
+					<div style="height: 70px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t hello-otel:auto-manual -f automatic/Buildfile-auto
+							</code>
+						</pre>
+					</div>
+					<div style="height: 40px; text-align: left; font-size: xx-large;">
+						Verify you get a success message in the console like below:
+					</div>
+					<div style="height: 50px;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								Successfully tagged localhost/hello-otel:auto-manual   /
+								516c5299a32b68e7a4634ce15d1fd659eed2164ebe945ef1673f7a55630e22c8
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Import and run on k3s</h2>
+					</div>
+					<div style="height: 60px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman save localhost/hello-otel:auto-manual -o hello-otel-auto-manual.tar
+
+								$ nerdctl --namespace k8s.io load -i hello-otel-auto-manual.tar
+								unpacking localhost/hello-otel:auto-manual (sha256:48aa64b75af77661c86ab5d904ac3e563f270a5c)
+								Loaded image: localhost/hello-otel:auto-manual
+
+								$ kubectl delete pod hello-otel-auto-manual --ignore-not-found
+
+								$ kubectl run hello-otel-auto-manual --image=localhost/hello-otel:auto-manual \
+								  --image-pull-policy=Never --port=8000 --env="FLASK_RUN_PORT=8000" \
+								  --command -- \
+								  opentelemetry-instrument \
+								  --traces_exporter console \
+								  --metrics_exporter none \
+								  --service_name hello-otel \
+								  flask run --host=0.0.0.0
+
+								pod/hello-otel-auto-manual created
+
+								$ kubectl port-forward pod/hello-otel-auto-manual 8001:8000
+								Forwarding from 127.0.0.1:8001 -> 8000
+								Forwarding from [::1]:8001 -> 8000
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Auto-instrument - Verifying manual instrumentation</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Open <a href="http://localhost:8001/" target="_blank"> http://localhost:8001 </a> in your
+						browser. Watch <code>kubectl logs -f pod/hello-otel-auto-manual</code> for a span with "hits"
+						in the <b>attributes</b> block (scroll to view code):
+					</div>
+					<div style="height: 220px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								{
+								"name": "/",
+								"context": {
+									"trace_id": "0x51f7a355b313fb63b733bd6aadbd5a46",
+									"span_id": "0xd4d29507a68dc3d1",
+									"trace_state": "[]"
+								},
+								"kind": "SpanKind.SERVER",
+								"parent_id": null,
+								"start_time": "2024-04-18T22:45:59.436677Z",
+								"end_time": "2024-04-18T22:45:59.445243Z",
+								"status": {
+									"status_code": "UNSET"
+								},
+								"attributes": {
+									"http.method": "GET",
+									"http.server_name": "0.0.0.0",
+									"http.scheme": "http",
+									"net.host.port": 8000,
+									"http.host": "localhost:8001",
+									"http.target": "/",
+									"net.peer.ip": "10.42.0.14",
+									"http.user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+									"net.peer.port": 33384,
+									"http.flavor": "1.1",
+									"http.route": "/",
+							    <mark>"hits": 2,</mark>
+									"http.status_code": 200
+								},
+								"events": [],
+								"links": [],
+								"resource": {
+									"attributes": {
+										"telemetry.sdk.language": "python",
+										"telemetry.sdk.name": "opentelemetry",
+										"telemetry.sdk.version": "1.44.0",
+										"service.name": "hello-otel",
+										"telemetry.auto.version": "0.65b0"
+									},
+									"schema_url": ""
+								}
+							}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Stop the pod</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						<p>Enter CTRL-C to stop <code>port-forward</code>, then clean up:</p>
+					</div>
+					<div style="height: 70px;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete pod hello-otel-auto-manual
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 220px; font-size: xx-large;">
+						We installed and configured OpenTelemetry in the demo application and saw trace data via
+						<code>kubectl logs</code> using the Python auto-instrumentation agent on a local Rancher k3s
+						cluster, and manually instrumented a span attribute.
+
+						<br />
+						<br />
+						Next up, leaving the agent behind and using <em>programmatic</em> instrumentation.
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://opentelemetry.io/" target="_blank">OpenTelemetry Official Site</a></li>
+							<li><a href="https://opentelemetry.io/docs/instrumentation/python/automatic/agent-config/">Python Auto-Instrumentation Agent Configuration</a></li>
+							<li><a href="https://www.mankier.com/1/opentelemetry-instrument">opentelemetry-instrument Man Page</a></li>
+							<li><a href="https://rancherdesktop.io/" target="_blank">Rancher Desktop</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-opentelemetry" target="_blank">This workshop project repository</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact – are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Technology Advocate Lead<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab03.html" target="_blank">Lab 03 - Programmatic Instrumentation</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

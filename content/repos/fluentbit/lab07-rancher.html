@@ -1,0 +1,777 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Fluent Bit workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Telemetry Pipelines Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-799E08H5WD"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-799E08H5WD');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Configuring the collector (k3s)</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						There are three things to configure when processing telemetry data through an OTel Collector; a
+						<code><b>receiver</b></code>, <code><b>processor</b></code>, and <code><b>exporter</b></code> as
+						shown below. On Kubernetes we install the collector with Helm, just like Fluent Bit previously:
+					</div>
+					<div style="height: 300px;">
+						<img src="images/lab07-4.png" alt="receiver">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Adding the collector chart (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						The OpenTelemetry project publishes a Helm chart for the collector. Add the repository and
+						refresh your local chart index:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm repo add open-telemetry \
+								       https://open-telemetry.github.io/opentelemetry-helm-charts
+
+								$ helm repo update
+
+								Hang tight while we grab the latest from your chart repositories...
+								...Successfully got an update from the "fluent" chart repository
+								...Successfully got an update from the "open-telemetry" chart repository
+								Update Complete. ⎈Happy Helming!⎈
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Configuring the collector values (k3s)</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						Create a new Helm values file <code><b>workshop-otel-helm.yaml</b></code>, starting with how the
+						collector pod itself is deployed. Setting <code><b>resources</b></code> is worth doing here: the
+						chart warns when they are missing, and the collector's built in
+						<code><b>memory_limiter</b></code> sizes itself from them. Without a limit it takes 80% of the
+						whole node instead of 80% of the pod:
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# This file is our workshop OpenTelemetry Helm configuration.
+								#
+								mode: deployment
+
+								image:
+								  repository: otel/opentelemetry-collector-contrib
+
+								resources:
+								  limits:
+								    memory: 256Mi
+								  requests:
+								    cpu: 100m
+								    memory: 128Mi
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Configuring the receivers (k3s)</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						The <code><b>receivers</b></code> section is where we define a delivery destination that Fluent
+						Bit can push its telemetry (logs) to. Continuing in the same file, expose an OTLP endpoint on
+						port <code><b>4317</b></code>. The chart ships ports for receivers we don't need, so we switch
+						those off:
+					</div>
+					<div style="height: 300px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								ports:
+								  otlp:
+								    enabled: true
+								    containerPort: 4317
+								    servicePort: 4317
+								    protocol: TCP
+								    appProtocol: http
+								  otlp-http:
+								    enabled: false
+								  jaeger-compact:
+								    enabled: false
+								  jaeger-thrift:
+								    enabled: false
+								  jaeger-grpc:
+								    enabled: false
+								  zipkin:
+								    enabled: false
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Configuring the receivers (k3s) cont.</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Continuing in the same file, add the <code><b>config</b></code> section. The chart merges this
+						with its own defaults, so we set the receivers we don't want to <code><b>null</b></code> and put
+						the OTLP receiver on <code><b>4317</b></code> using HTTP, matching the other paths in this lab:
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								config:
+								  receivers:
+								    jaeger: null
+								    zipkin: null
+								    prometheus: null
+								    otlp:
+								      protocols:
+								        grpc: null
+								        http:
+								          endpoint: 0.0.0.0:4317
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Configuring the exporters (k3s)</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						Now expand <code><b>workshop-otel-helm.yaml</b></code> with an <code><b>exporters</b></code>
+						section to define where our telemetry (logs) will be sent after processing. In this case we want
+						output to the pod's console as follows:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								config:
+								  receivers:
+								    ...
+
+								  exporters:
+								    debug:
+								      verbosity: basic
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Configuring the processing (k3s)</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						Finally, we add a <code><b>service</b></code> section to complete our collector configuration.
+						Here we are defining the level of log reporting and creating a collector pipeline for our logs.
+						We assign specific <code><b>receivers</b></code> and <code><b>exporters</b></code>, and switch
+						off the default traces and metrics pipelines as this workshop only deals with logs:
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								config:
+								  receivers:
+								    ...
+
+								  exporters:
+								    ...
+
+								  service:
+								    telemetry:
+								      logs:
+								        level: debug
+								    pipelines:
+								      traces: null
+								      metrics: null
+								      logs:
+								        receivers: [otlp]
+								        exporters: [debug]
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Installing the collector (k3s)</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Install the collector into the same <code><b>logging</b></code> namespace as our Fluent Bit
+						pipeline, from the <code><b>fluentbit-install-demo</b></code> root directory. Note we pin the
+						collector version with <code><b>image.tag</b></code>, the same way we pin Fluent Bit, so this
+						path runs the version used elsewhere in this lab:
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm --kube-context rancher-desktop upgrade --install otel-collector \
+								       open-telemetry/opentelemetry-collector \
+								       --set image.tag=0.159.0 \
+								       --namespace logging --create-namespace \
+								       --values workshop-otel-helm.yaml
+
+								Release "otel-collector" does not exist. Installing it now.
+								NAME: otel-collector
+								NAMESPACE: logging
+								STATUS: deployed
+								REVISION: 1
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Verifying the collector (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Check the collector pod is running and note the service that was created. This service name is
+						how our Fluent Bit pipeline will reach the collector:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging get pods,svc \
+								          -l app.kubernetes.io/name=opentelemetry-collector
+
+								NAME                                                          READY   STATUS    RESTARTS   AGE
+								pod/otel-collector-opentelemetry-collector-7bd6ffbbd8-hv46x   1/1     Running   0          22s
+
+								NAME                                             TYPE        CLUSTER-IP     PORT(S)    AGE
+								service/otel-collector-opentelemetry-collector   ClusterIP   10.43.215.25   4317/TCP   22s
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Console output pipeline (k3s)</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						We now have both halves running, so let's look at each in turn before connecting them. First the
+						Fluent Bit pod, still sending its events to its own console only. Note each event carries the
+						OTel Envelope (<code><b>resource</b></code>, <code><b>scope</b></code>,
+						<code><b>attributes</b></code>) we added earlier, which is the shape it needs to be in before it
+						can be pushed onwards as OTLP (exit with CTRL-C):
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+
+								...
+								{"date":1785173655.86197,"__internal__":{"group_attributes":{"resource":{},"scope":{}},"log_metadata":{}},"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":1785173656.862522,"__internal__":{"group_attributes":{"resource":{},"scope":{}},"log_metadata":{}},"service":"backend","log_entry":"Generating a 200 success code."}
+								{"date":1785173657.862218,"__internal__":{"group_attributes":{"resource":{},"scope":{}},"log_metadata":{}},"service":"backend","log_entry":"Generating a 200 success code."}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Console output collector (k3s)</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						Now the other half, the collector pod. There are no log events arriving yet, as nothing is
+						pointed at it, but the highlighted line shows the port is open and receiving on
+						<code><b>4317</b></code>. The resource attributes on every line have been shortened here with
+						<code><b>...</b></code> as Kubernetes adds pod and node details (exit with CTRL-C):
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging logs \
+								          -l app.kubernetes.io/name=opentelemetry-collector -f
+
+								...
+								2026-07-27T12:53:15.858Z info service@v0.159.0/service.go:256 Starting otelcol-contrib... {"resource": {...}, "Version": "0.159.0", "NumCPU": 2}
+								2026-07-27T12:53:15.859Z info extensions/extensions.go:41 Starting extensions... {"resource": {...}}
+								<mark>2026-07-27T12:53:15.859Z info otlpreceiver@v0.159.0/otlp.go:175 Starting HTTP server {"resource": {...}, "otelcol.component.id": "otlp", "otelcol.component.kind": "receiver", "endpoint": "[::]:4317"}</mark>
+								2026-07-27T12:53:15.859Z info service@v0.159.0/service.go:279 Everything is ready. Begin running and processing data. {"resource": {...}}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Adding pipeline outputs (k3s)</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						Now we head back to our Fluent Bit pipeline to add an output destination pushing telemetry data
+						to the collector endpoint. Add a second entry called <code><b>opentelemetry</b></code> to the
+						existing outputs section in <code><b>workshop-fb-helm.yaml</b></code>. Where the container path
+						needed the collector's IP address, on Kubernetes we simply use the collector's service name:
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								      pipeline:
+								        inputs:
+								          ...
+
+								        outputs:
+								          # This entry directs all tags to the console (pod stdout).
+								          - name: stdout
+								            match: '*'
+								            format: json_lines
+
+								          # This entry pushes logs to our OTel collector in the cluster.
+								          - name: opentelemetry
+								            match: '*'
+								            host: otel-collector-opentelemetry-collector.logging.svc.cluster.local
+								            port: 4317
+								            logs_body_key_attributes: true  # allows for OTel attribute modification.
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Rolling out collector pipeline (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Apply the updated configuration with another <code><b>helm upgrade</b></code> from the
+						<code><b>fluentbit-install-demo</b></code> root directory, rolling out a new Fluent Bit pod that
+						pushes to our collector:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+								       --set image.tag=5.1.1 \
+								       --namespace logging --create-namespace \
+								       --values workshop-fb-helm.yaml
+
+								Release "fluent-bit" has been upgraded. Happy Helming!
+								NAME: fluent-bit
+								NAMESPACE: logging
+								STATUS: deployed
+								REVISION: 11
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Console output collector pipeline (k3s)</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Back in the Fluent Bit pod console we see the same envelope events as before, but now each one is
+						followed by a push to the collector service on port 4317 returning an
+						<code><b>HTTP status=200</b></code>. Let's go back to the collector logs and check ingestion
+						(exit with CTRL-C):
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+
+								...
+								[2026/07/27 19:16:48.865] [ info] [output:opentelemetry:opentelemetry.1] otel-collector-opentelemetry-collector.logging.svc.cluster.local:4317, HTTP status=200
+								{"date":1785179808.86274,"__internal__":{"group_attributes":{"resource":{},"scope":{}},"log_metadata":{}},"service":"backend","log_entry":"Generating a 200 success code."}
+								[2026/07/27 19:16:49.862] [ info] [output:opentelemetry:opentelemetry.1] otel-collector-opentelemetry-collector.logging.svc.cluster.local:4317, HTTP status=200
+								{"date":1785179809.861942,"__internal__":{"group_attributes":{"resource":{},"scope":{}},"log_metadata":{}},"service":"backend","log_entry":"Generating a 200 success code."}
+								[2026/07/27 19:16:50.863] [ info] [output:opentelemetry:opentelemetry.1] otel-collector-opentelemetry-collector.logging.svc.cluster.local:4317, HTTP status=200
+								{"date":1785179810.862751,"__internal__":{"group_attributes":{"resource":{},"scope":{}},"log_metadata":{}},"service":"backend","log_entry":"Generating a 200 success code."}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Console output collector (k3s)</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						The console output from the OTel collector looks something like this, with one line for each log
+						event sent from our Fluent Bit based pipeline. This means it's working fine! What we don't see
+						is the log event details, so let's add a new exporter to send our log data to a file (exit with
+						CTRL-C):
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging logs \
+								          -l app.kubernetes.io/name=opentelemetry-collector -f
+
+								...
+								2026-07-27T19:16:55.977Z        info    Logs    {"resource": {"host.name": "lima-rancher-desktop", "k8s.namespace.name": "logging", "k8s.node.ip": "192.168.5.15", "k8s.node.name": "lima-rancher-desktop", "k8s.pod.ip": "10.42.0.83", "k8s.pod.name": "otel-collector-opentelemetry-collector-566464b788-dtb5m", "service.instance.id": "f125652f-cfe2-487d-8afb-6a85b4729d43", "service.name": "otelcol-contrib", "service.version": "0.159.0"}, "otelcol.component.id": "debug", "otelcol.component.kind": "exporter", "otelcol.signal": "logs", "resource logs": 1, "log records": 1}
+								2026-07-27T19:16:56.497Z        debug   memorylimiter@v0.159.0/memorylimiter.go:260     Currently used memory.  {"resource": {"host.name": "lima-rancher-desktop", "k8s.namespace.name": "logging", "k8s.node.ip": "192.168.5.15", "k8s.node.name": "lima-rancher-desktop", "k8s.pod.ip": "10.42.0.83", "k8s.pod.name": "otel-collector-opentelemetry-collector-566464b788-dtb5m", "service.instance.id": "f125652f-cfe2-487d-8afb-6a85b4729d43", "service.name": "otelcol-contrib", "service.version": "0.159.0"}, "otelcol.component.kind": "processor", "cur_mem_mib": 17}
+								2026-07-27T19:16:56.979Z        info    Logs    {"resource": {"host.name": "lima-rancher-desktop", "k8s.namespace.name": "logging", "k8s.node.ip": "192.168.5.15", "k8s.node.name": "lima-rancher-desktop", "k8s.pod.ip": "10.42.0.83", "k8s.pod.name": "otel-collector-opentelemetry-collector-566464b788-dtb5m", "service.instance.id": "f125652f-cfe2-487d-8afb-6a85b4729d43", "service.name": "otelcol-contrib", "service.version": "0.159.0"}, "otelcol.component.id": "debug", "otelcol.component.kind": "exporter", "otelcol.signal": "logs", "resource logs": 1, "log records": 1}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Configuring collector file exporter (k3s)</h3>
+					</div>
+					<div style="height: 180px; text-align: left; font-size: x-large;">
+						Open <code><b>workshop-otel-helm.yaml</b></code> and add a <code><b>file</b></code> exporter
+						writing to <code><b>/output/output.json</b></code>. A pod has no local directory to write into,
+						so we also give it an <code><b>emptyDir</b></code> volume.<br />
+						<br />
+						Note the highlighted line. Defining an exporter is not enough, it must also be listed in the
+						logs pipeline, so we edit the <code><b>exporters</b></code> line written earlier, changing it
+						from <code><b>[debug]</b></code>. An exporter that is left out of the pipeline is silently
+						ignored and no file is ever created:
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								config:
+								  exporters:
+								    # This exporter writes each log record to a file.
+								    file:
+								      path: /output/output.json
+								    debug:
+								      verbosity: basic
+
+								  service:
+								    pipelines:
+								      logs:
+								        receivers: [otlp]
+								        <mark>exporters: [file, debug]</mark>
+
+								extraVolumes:
+								  - name: otel-output
+								    emptyDir: {}
+
+								extraVolumeMounts:
+								  - name: otel-output
+								    mountPath: /output
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Adding a file viewer (k3s)</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						The collector image is built without a shell, so there is no way to read that file with a
+						<code><b>kubectl exec</b></code> on the collector container itself. Add a small sidecar
+						container to the same pod, mounting the same volume, purely so we have something to read the
+						file with. Add this to the end of <code><b>workshop-otel-helm.yaml</b></code>:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								extraContainers:
+								  - name: output-viewer
+								    image: busybox:1.36
+								    command: ["sh", "-c", "sleep infinity"]
+								    volumeMounts:
+								      - name: otel-output
+								        mountPath: /output
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Rolling out file exporter (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Apply the updated collector configuration with another <code><b>helm upgrade</b></code>, then
+						check the pod comes back with both containers showing ready (see yellow highlight):
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm --kube-context rancher-desktop upgrade --install otel-collector \
+								       open-telemetry/opentelemetry-collector \
+								       --set image.tag=0.159.0 \
+								       --namespace logging --create-namespace \
+								       --values workshop-otel-helm.yaml
+
+								Release "otel-collector" has been upgraded. Happy Helming!
+								REVISION: 2
+
+								$ kubectl --context rancher-desktop -n logging get pods \
+								          -l app.kubernetes.io/name=opentelemetry-collector
+
+								NAME                                                      <mark>READY</mark>   STATUS    RESTARTS   AGE
+								otel-collector-opentelemetry-collector-85579cbcc8-8cllg   <mark>2/2</mark>     Running   0          30s
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Verifying the file exporter (k3s)</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						Before looking for the output file, confirm the file exporter really did make it into the
+						running logs pipeline. The collector renders our values into a config map, so we can read back
+						exactly what it is running. Both <code><b>file</b></code> and <code><b>debug</b></code> should
+						be listed. If you see only <code><b>debug</b></code>, the exporters line highlighted two slides
+						back was missed, and no output file will ever appear:
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging get cm \
+								          otel-collector-opentelemetry-collector \
+								          -o jsonpath='{.data.relay}' | sed -n '/pipelines:/,/telemetry:/p'
+
+								  pipelines:
+								    logs:
+								      <mark>exporters:
+								      - file
+								      - debug</mark>
+								      processors:
+								      - memory_limiter
+								      - batch
+								      receivers:
+								      - otlp
+								  telemetry:
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Verifying logs to collector to file (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Verify that the pipeline with Fluent Bit is ingesting, processing and forwarding logs (pod
+						console). Check that the collector is receiving these logs (pod console). Finally, verify the
+						collector is exporting to the <code><b>output.json</b></code> file by reading it through our
+						sidecar container with <code><b>-c output-viewer</b></code>:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Viewing file output.json through the sidecar.
+								$ kubectl --context rancher-desktop -n logging exec \
+								          deploy/otel-collector-opentelemetry-collector \
+								          -c output-viewer -- tail -f /output/output.json
+
+								...
+								{"resourceLogs":[{"resource":{},"scopeLogs":[{"scope":{},"logRecords":[{"timeUnixNano":"1785181012862597359","body":{"kvlistValue":{"values":[{"key":"service","value":{"stringValue":"backend"}},{"key":"log_entry","value":{"stringValue":"Generating a 200 success code."}}]}}}]}]}]}
+								{"resourceLogs":[{"resource":{},"scopeLogs":[{"scope":{},"logRecords":[{"timeUnixNano":"1785181013862288526","body":{"kvlistValue":{"values":[{"key":"service","value":{"stringValue":"backend"}},{"key":"log_entry","value":{"stringValue":"Generating a 200 success code."}}]}}}]}]}]}
+								{"resourceLogs":[{"resource":{},"scopeLogs":[{"scope":{},"logRecords":[{"timeUnixNano":"1785181014862469693","body":{"kvlistValue":{"values":[{"key":"service","value":{"stringValue":"backend"}},{"key":"log_entry","value":{"stringValue":"Generating a 200 success code."}}]}}}]}]}]}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">OTel integration - Pretty file output (k3s)</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						A more visually pleasing view of the JSON can be achieved as follows, piping the output into
+						<code><b>jq</b></code> on your own machine, with each log event presented in structured JSON:
+					</div>
+					<div style="height: 400px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Viewing structured JSON output using jq.
+								$ kubectl --context rancher-desktop -n logging exec \
+								          deploy/otel-collector-opentelemetry-collector \
+								          -c output-viewer -- tail -n 1 /output/output.json | jq
+
+								{
+								  "resourceLogs": [
+									{
+									  "resource": {},
+									  "scopeLogs": [
+										{
+										  "scope": {},
+										  "logRecords": [
+											{
+											  "timeUnixNano": "1785181085861955935",
+											  "body": {
+												"kvlistValue": {
+												  "values": [
+													{
+													  "key": "service",
+													  "value": {
+														"stringValue": "backend"
+													  }
+													},
+													{
+													  "key": "log_entry",
+													  "value": {
+														"stringValue": "Generating a 200 success code."
+													  }
+														...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section data-background="images/lab03-2.jpg">
+					<div style="height: 400px;">
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<h1 class="r-fit-text" style="color: white;">
+							Integration of pipelines with Fluent Bit to OpenTelemetry completed!
+						</h1>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Pipeline with Fluent Bit ingest, processing and output.
+								$ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+
+								...
+								[2026/07/27 19:16:48.865] [ info] [output:opentelemetry:opentelemetry.1] otel-collector-opentelemetry-collector.logging.svc.cluster.local:4317, HTTP status=200
+								{"date":1785179808.86274,"__internal__":{"group_attributes":{"resource":{},"scope":{}},"log_metadata":{}},"service":"backend","log_entry":"Generating a 200 success code."}
+								...
+							</code>
+						</pre>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# OTel collector ingesting events.
+								$ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=opentelemetry-collector -f
+
+								...
+								2026-07-27T19:16:55.977Z        info    Logs    {"resource": {"host.name": "lima-rancher-desktop", "k8s.namespace.name": "logging", "k8s.node.ip": "192.168.5.15", "k8s.node.name": "lima-rancher-desktop", "k8s.pod.ip": "10.42.0.83", "k8s.pod.name": "otel-collector-opentelemetry-collector-566464b788-dtb5m", "service.instance.id": "f125652f-cfe2-487d-8afb-6a85b4729d43", "service.name": "otelcol-contrib", "service.version": "0.159.0"}, "otelcol.component.id": "debug", "otelcol.component.kind": "exporter", "otelcol.signal": "logs", "resource logs": 1, "log records": 1}
+								...
+							</code>
+						</pre>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Viewing file output.json through the sidecar.
+								$ kubectl --context rancher-desktop -n logging exec deploy/otel-collector-opentelemetry-collector \
+								          -c output-viewer -- tail -f /output/output.json
+
+								...
+								{"resourceLogs":[{"resource":{},"scopeLogs":[{"scope":{},"logRecords":[{"timeUnixNano":"1785181012862597359","body":{"kvlistValue":{"values":[{"key":"service","value":{"stringValue":"backend"}},{"key":"log_entry","value":{"stringValue":"Generating a 200 success code."}}]}}}]}]}]}
+								...
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; font-size: xx-large">
+						Next up, controlling logs on Kubernetes...
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://github.com/fluent/fluent-bit/blob/master/README.md" target="_blank">Fluent Bit repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Technology Advocate Lead<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 200px;">
+						<h2 class="r-fit-text">Up next in workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab08.html" target="_blank">Lab 8 - Controlling Logs with Fluent Bit on Kubernetes</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

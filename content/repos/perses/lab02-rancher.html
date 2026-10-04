@@ -1,0 +1,469 @@
+<!doctype html>
+<!--suppress HtmlDeprecatedAttribute -->
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Perses workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Visualization Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-BGV1XYZ1ND"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-BGV1XYZ1ND');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses - Kubernetes installation notes</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						This lab guides you through installing Perses on a local Kubernetes cluster provided by
+						<a href="https://rancherdesktop.io" target="_blank"><b>Rancher Desktop</b></a>, an open source
+						desktop application that ships a lightweight Kubernetes distribution (k3s) and works on Mac
+						OS X, Linux, and Windows systems. This workshop assumes you have installed and started it with
+						<b>Kubernetes enabled</b> in the preferences:<br />
+						<br />
+						<ul>
+							<li>
+								<a href="https://docs.rancherdesktop.io/getting-started/installation/" target="_blank">
+									Install Rancher Desktop (Mac OS X, Linux, or Windows)
+								</a>
+							</li>
+							<li>
+								<a href="https://helm.sh/docs/intro/install/" target="_blank">
+									Install the Helm command line tooling
+								</a>
+							</li>
+						</ul><br />
+						<br />
+						The rest of this lab is pictured using Mac OS X, but it is assumed you have enough knowledge of
+						your Linux or Windows systems to be able to achieve the same results. Also note that any other
+						local Kubernetes cluster works here (minikube, kind, Docker Desktop), but we leave you to sort
+						out the details.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Perses - Verifying tooling installation</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: x-large;">
+						To start with a working Kubernetes installation, you should see the following results for the
+						commands shown (note versions shown might differ for you):
+					</div>
+					<div style="height: 250px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl config current-context
+								rancher-desktop
+
+								$ kubectl get nodes
+								NAME                   STATUS   ROLES                  AGE   VERSION
+								lima-rancher-desktop   Ready    control-plane,master   2d    v1.33.3+k3s1
+
+								$ helm version
+								version.BuildInfo{Version:"v3.x"}  &lt;&lt;&lt;&lt; MINIMUM VERSION REQUIRED
+							</code>
+						</pre>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: x-large;">
+						Now that you have the tooling, let's get started installing Perses on Kubernetes...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Setup - Adding the Helm repository</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						The Perses project publishes an official Helm chart. Add the repository, refresh it, and
+						confirm that the chart version you are about to install ships the Perses version this
+						workshop is built on:
+					</div>
+					<div style="height: 300px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm repo add perses https://perses.github.io/helm-charts
+								"perses" has been added to your repositories
+
+								$ helm repo update
+								...
+								...Successfully got an update from the "perses" chart repository
+								Update Complete. ⎈Happy Helming!⎈
+
+								$ helm search repo perses/perses --version 0.23.2
+								NAME           CHART VERSION  APP VERSION  DESCRIPTION
+								perses/perses  0.23.2         <mark>v0.54.0</mark>    Perses helm chart
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Installation - Deploying the Helm chart</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Now you can install Perses into its own <code><b>perses</b></code> namespace. We use
+						<code><b>helm upgrade --install</b></code> instead of <code><b>helm install</b></code> so that
+						this exact command keeps working whether it is the first time you run it or the tenth:
+					</div>
+					<div style="height: 300px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm upgrade --install workshop-perses perses/perses \
+								    --version 0.23.2 \
+								    --namespace perses --create-namespace
+
+								Release "workshop-perses" does not exist. Installing it now.
+								NAME: workshop-perses
+								LAST DEPLOYED: Tue Aug 25 13:04:49 2026
+								NAMESPACE: perses
+								STATUS: deployed
+								REVISION: 1
+								DESCRIPTION: Install complete
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Installation - A note on names</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Naming the release <code><b>workshop-perses</b></code> matters. The chart collapses the name
+						when the release already contains "perses", so our resources land as
+						<code><b>workshop-perses</b></code> instead of the rather silly
+						<code><b>workshop-perses-perses</b></code>. Every command in this lab passes
+						<code><b>-n perses</b></code> explicitly. If you get tired of typing it, you can make that
+						namespace your default:
+					</div>
+					<div style="height: 150px;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl config set-context --current --namespace=perses
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Installation - Verifying the deployment</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Give it a few seconds and check that the pod is running and the service is there. The exact
+						pod name suffix will differ for you:
+					</div>
+					<div style="height: 300px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl get pods -n perses
+
+								NAME                READY   STATUS    RESTARTS   AGE
+								workshop-perses-0   1/1     Running   0          42s
+
+								$ kubectl get svc -n perses
+
+								NAME              TYPE        CLUSTER-IP    PORT(S)    AGE
+								workshop-perses   ClusterIP   10.43.74.55   8080/TCP   42s
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Installation - Start your dashboard engines!</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						The service is a <code><b>ClusterIP</b></code>, which means it is only reachable from inside
+						the cluster. Forward it to your machine so that the rest of this workshop can reach Perses on
+						the same <code><b>localhost:8080</b></code> that every other installation path uses. Leave
+						this running in its own console window for the rest of the workshop:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl port-forward -n perses svc/workshop-perses 8080:8080
+
+								Forwarding from 127.0.0.1:8080 -&gt; 8080
+								Forwarding from [::1]:8080 -&gt; 8080
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Kubernetes - Connect a browser (default)</h3>
+					</div>
+					<div style="height: 50px; text-align: center; font-size: xx-large;">
+						<code><a href="http://localhost:8080" target="_blank">http://localhost:8080</a></code>
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab02-1.png" alt="default">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Kubernetes - Connect a browser (dark mode)</h3>
+					</div>
+					<div style="height: 50px; font-size: xx-large;">
+						Click on icon top right to switch themes for dark mode:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab02-2.png" alt="dark mode">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Examples - An empty Perses is a boring Perses</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						What you are looking at is a completely empty Perses server. The container installation path
+						arrives preloaded with a workshop project and two example dashboards, and you want the same
+						starting point here.<br />
+						<br />
+						You load them with <code><b>percli</b></code>, the Perses command line tool, which you will
+						meet properly in the next lab. The installation project ships both the tool and the example
+						files, so download and unzip it now:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<a href="https://gitlab.com/o11y-workshops/perses-install-demo/-/archive/v1.10/perses-install-demo-v1.10.zip">
+							download the project.
+						</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Examples - Doing it the easy way</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						The installation project can do everything in this lab for you. If you would rather not run
+						the Helm and kubectl commands by hand, stop your port-forward, delete the namespace, and let
+						the script do the work instead:
+					</div>
+					<div style="height: 150px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete namespace perses
+
+								$ ./init.sh rancher
+							</code>
+						</pre>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						It installs the chart, waits for the pod, starts the port-forward in the background, and
+						loads the examples. Note that <code><b>init.bat</b></code> does <b>not</b> support this mode,
+						so on Windows follow the commands in this lab by hand.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Examples - Loading them by hand</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						If you prefer to do it yourself, unzip the percli tool for your machine and log in to the
+						Perses instance you just forwarded (from the project directory):
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ unzip support/bin/percli-darwin-amd64.zip -d support/bin/
+
+								$ cd support
+
+								$ ./bin/percli login http://localhost:8080
+
+								successfully logged in
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Examples - Applying the workshop project</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Now apply the workshop project, the example dashboard, and the Prometheus data source. These
+						are the exact same files the container installation path loads for you:
+					</div>
+					<div style="height: 300px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ./bin/percli apply -f workshop-project.json
+
+								$ ./bin/percli apply -f workshop-myfirstdashboard.json
+
+								$ ./bin/percli apply -f workshop-datasource-prometheusdemolocal.json
+
+								$ ./bin/percli apply -f data/globaldatasource.json
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Why localhost still works</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: x-large;">
+						You might be wondering how a data source pointing at
+						<code><b>http://localhost:9090</b></code> is going to work when Perses is running inside a
+						Kubernetes pod, where <code><b>localhost</b></code> means the pod itself.<br />
+						<br />
+						The answer is that this workshop uses a <code><b>directUrl</b></code> data source, which means
+						<b>your browser</b> issues the queries, not the Perses server. As long as Prometheus is
+						reachable on <code><b>localhost:9090</b></code> from the machine your browser is running on,
+						it works exactly the same on every installation path in this workshop. You will set that up in
+						lab 5.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Kubernetes - Connecting in a browser</h3>
+					</div>
+					<div style="height: 50px; text-align: center; font-size: xx-large;">
+						<code><b><a href="http://localhost:8080" target="_blank">http://localhost:8080</a></b></code>
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab02-5.png" alt="example">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Kubernetes - Connecting in a browser (dark mode)</h3>
+					</div>
+					<div style="height: 50px; text-align: center; font-size: xx-large;">
+						Flip the switch in the top right corner for dark mode:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab02-6.png" alt="example-dark">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Kubernetes - Cleaning up later on</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						You do not need this yet, but when you are completely finished with the workshop, stopping the
+						port-forward and deleting the namespace removes the Helm release, the Perses server, and
+						everything else this lab created:
+					</div>
+					<div style="height: 80px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete namespace perses
+							</code>
+						</pre>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Leave it running for now, the rest of the workshop needs it.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 450px; font-size: xx-large">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab02-5.png" alt="completed">
+						<br />
+						Next up, exploring dashboard tooling...
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://github.com/perses/perses" target="_blank">Perses project repository</a></li>
+							<li><a href="https://github.com/perses/helm-charts" target="_blank">Perses Helm charts repository</a></li>
+							<li><a href="https://rancherdesktop.io" target="_blank">Rancher Desktop project</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-perses" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-perses/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Director Evangelism<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab03.html" target="_blank">Lab 3 - Exploring dashboard tooling</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

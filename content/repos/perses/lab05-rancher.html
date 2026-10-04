@@ -1,0 +1,405 @@
+<!doctype html>
+<!--suppress HtmlDeprecatedAttribute -->
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Perses workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Visualization Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-BGV1XYZ1ND"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-BGV1XYZ1ND');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data source - Kubernetes installation notes</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						This lab assumes you completed lab 2 on the Kubernetes path, so you already have a local
+						cluster running with Perses installed in the <code><b>perses</b></code> namespace and a
+						port-forward serving it on <code><b>localhost:8080</b></code>.<br />
+						<br />
+						You are going to add Prometheus and the node exporter to that same namespace using the
+						community Helm chart, and forward Prometheus to
+						<code><b>localhost:9090</b></code> so your browser can query it. If you have not done lab 2
+						on this path yet, go back and do that first.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Setup - Adding the Helm repository</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Add the Prometheus community chart repository and confirm the chart version you are about to
+						install ships the Prometheus version this workshop is built on:
+					</div>
+					<div style="height: 300px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+								"prometheus-community" has been added to your repositories
+
+								$ helm repo update
+								...
+								...Successfully got an update from the "prometheus-community" chart repository
+								Update Complete. ⎈Happy Helming!⎈
+
+								$ helm search repo prometheus-community/prometheus --version 29.20.0
+								NAME                             CHART VERSION  APP VERSION  DESCRIPTION
+								prometheus-community/prometheus  29.20.0        <mark>v3.13.1</mark>    Prometheus is a monitoring system and time seri...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Setup - A workshop values file</h3>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: x-large;">
+						Create a file called <code><b>workshop-values.yaml</b></code> with the following contents:
+					</div>
+					<div style="height: 350px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# workshop config
+								server:
+								  image:
+								    tag: v3.13.1
+								  global:
+								    scrape_interval: 5s
+								    scrape_timeout: 4s
+								  persistentVolume:
+								    enabled: false
+								  service:
+								    servicePort: 9090
+
+								# Keep the workshop lean - but we DO want the node exporter.
+								alertmanager:
+								  enabled: false
+								kube-state-metrics:
+								  enabled: false
+								prometheus-pushgateway:
+								  enabled: false
+								prometheus-node-exporter:
+								  enabled: true
+								  fullnameOverride: node-exporter
+								  image:
+								    tag: v1.12.1
+							</code>
+						</pre>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: x-large;">
+						Note the <code><b>scrape_timeout</b></code> must be smaller than the
+						<code><b>scrape_interval</b></code>, the chart writes both out and Prometheus refuses to start
+						if the timeout is the larger of the two. The <code><b>fullnameOverride</b></code> is there
+						because the subchart would otherwise name the service
+						<code><b>workshop-perses-prometheus-prometheus-node-exporter</b></code>.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Setup - Trimming down the chart</h3>
+					</div>
+					<div style="height: 90px; text-align: left; font-size: x-large;">
+						The chart also ships a set of Kubernetes scrape jobs we don't need, and we want one job of our
+						own for the node exporter. Add this block at the very bottom of the same
+						<code><b>workshop-values.yaml</b></code> file:
+					</div>
+					<div style="height: 350px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Scraping Prometheus and the node exporter only.
+								scrapeConfigs:
+								  node:                                        &lt;&lt;&lt;&lt; ADD THESE SIX LINES
+								    job_name: node
+								    static_configs:
+								      - targets: ["node-exporter:9100"]
+								        labels:
+								          instance: "localhost:9100"
+								  kubernetes-api-servers: { enabled: false }
+								  kubernetes-nodes: { enabled: false }
+								  kubernetes-nodes-cadvisor: { enabled: false }
+								  kubernetes-service-endpoints: { enabled: false }
+								  kubernetes-service-endpoints-slow: { enabled: false }
+								  kubernetes-services: { enabled: false }
+								  kubernetes-pods: { enabled: false }
+								  kubernetes-pods-slow: { enabled: false }
+								  prometheus-pushgateway: { enabled: false }
+							</code>
+						</pre>
+					</div>
+					<div style="height: 90px; text-align: left; font-size: x-large;">
+						<b>Watch the indentation.</b> Everything under <code><b>scrapeConfigs</b></code> is indented
+						two spaces, and the rest of the file sits at the left margin. Do <b>not</b> add a second
+						<code><b>scrapeConfigs:</b></code> line, YAML quietly lets the last one win.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Why pin the instance label?</h3>
+					</div>
+					<div style="height: 420px; text-align: left; font-size: x-large;">
+						That <code><b>instance: "localhost:9100"</b></code> line is doing something worth
+						understanding. Left alone, Prometheus sets the <code><b>instance</b></code> label to whatever
+						address it scraped, which in a cluster is a service DNS name, not
+						<code><b>localhost:9100</b></code>.<br />
+						<br />
+						Setting the label explicitly on the target tells Prometheus not to fill it in for you. That
+						keeps the variable drop-downs and the example dashboards in the rest of this workshop reading
+						exactly the same on this path as they do on the local binary path, so you can follow along
+						without mentally translating every screenshot.<br />
+						<br />
+						This is ordinary Prometheus relabeling, not a trick. It is also a good reminder that labels
+						are something you control, not something handed down to you.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Installation - Deploying the Helm chart</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Install Prometheus into the same <code><b>perses</b></code> namespace, from the directory
+						holding your values file:
+					</div>
+					<div style="height: 320px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm upgrade --install workshop-perses-prometheus prometheus-community/prometheus \
+								    --version 29.20.0 \
+								    --namespace perses \
+								    -f workshop-values.yaml
+
+								Release "workshop-perses-prometheus" does not exist. Installing it now.
+								NAME: workshop-perses-prometheus
+								LAST DEPLOYED: Tue Aug 25 13:04:58 2026
+								NAMESPACE: perses
+								STATUS: deployed
+								REVISION: 1
+								DESCRIPTION: Install complete
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Installation - Verifying the deployment</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						You should now have the Perses pod from lab 2, a Prometheus server, and a node exporter
+						running as a daemonset. The exact name suffixes will differ for you:
+					</div>
+					<div style="height: 320px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl get pods -n perses
+
+								NAME                                                 READY  STATUS   AGE
+								workshop-perses-0                                    1/1    Running  2m21s
+								node-exporter-m7p25                                  1/1    Running  64s
+								workshop-perses-prometheus-server-5956577698-jcch5   2/2    Running  86s
+
+								$ kubectl get svc -n perses
+
+								NAME                                TYPE       CLUSTER-IP     PORT(S)
+								workshop-perses                     ClusterIP  10.43.74.55    8080/TCP
+								workshop-perses-prometheus-server   ClusterIP  10.43.189.23   9090/TCP
+								node-exporter                       ClusterIP  10.43.175.34   9100/TCP
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - That 2/2 is not a typo</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: x-large;">
+						The Prometheus pod reports <code><b>2/2</b></code> because the chart runs a
+						<code><b>configmap-reload</b></code> sidecar alongside the server. It watches the ConfigMap
+						holding your scrape configuration and tells Prometheus to reload when it changes.<br />
+						<br />
+						That is why there is no <code><b>workshop-prometheus.yml</b></code> to edit on this path.
+						Your configuration lives in <code><b>workshop-values.yaml</b></code>, Helm renders it into the
+						ConfigMap, and to apply a change you re-run the same
+						<code><b>helm upgrade --install</b></code> command. Give it up to a minute, ConfigMap updates
+						do not propagate instantly.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Installation - Start your metrics engines!</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Prometheus is a <code><b>ClusterIP</b></code> service too, so forward it to your machine on
+						the same <code><b>localhost:9090</b></code> the rest of this workshop expects. Leave this
+						running in its own console window, alongside the Perses port-forward from lab 2:
+					</div>
+					<div style="height: 120px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl port-forward -n perses svc/workshop-perses-prometheus-server 9090:9090
+
+								Forwarding from 127.0.0.1:9090 -&gt; 9090
+								Forwarding from [::1]:9090 -&gt; 9090
+							</code>
+						</pre>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						You now need <b>two</b> port-forwards running: 8080 for Perses and 9090 for Prometheus.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Installation - Checking the server logs</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						If you want to watch Prometheus start up, or debug a configuration that will not load, the
+						logs are one command away (use a third console window):
+					</div>
+					<div style="height: 120px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl logs -n perses -f \
+								    deploy/workshop-perses-prometheus-server -c prometheus-server
+							</code>
+						</pre>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						The <code><b>-c prometheus-server</b></code> matters, without it kubectl has to guess which of
+						the two containers in that pod you meant.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Verifying - Checking your targets</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Open the Prometheus status page in your browser at
+						<a href="http://localhost:9090" target="_blank">http://localhost:9090</a>, and look under
+						<code><b>Status &gt; Target health</b></code>. Both jobs should be UP:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab05-2.png" alt="status"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Verifying - The labels you should see</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						This is the check that matters for the rest of the workshop. Query
+						<code><b>up</b></code> in the expression browser and confirm you get exactly these two
+						series:
+					</div>
+					<div style="height: 120px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								up{instance="localhost:9090", job="prometheus"}  1
+								up{instance="localhost:9100", job="node"}        1
+							</code>
+						</pre>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: x-large;">
+						If the node instance shows a service name or a pod IP instead, your
+						<code><b>instance</b></code> label did not take. Recheck the indentation of the
+						<code><b>labels:</b></code> block in your values file and re-run the helm upgrade.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Kubernetes - Cleaning up later on</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Not yet, but when you are completely finished with the workshop, stopping your port-forwards
+						and deleting the namespace removes both Helm releases, Perses, Prometheus, the node exporter,
+						and everything else these labs created:
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete namespace perses
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h3 class="r-fit-text">Data source installed - Results</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						Prometheus is scraping itself and the node exporter, both are reachable from your browser,
+						and the labels read the same as every other path in this workshop.<br />
+						<br />
+						Leave both port-forwards running for the rest of the workshop, 8080 for Perses and 9090 for
+						Prometheus, they are what your dashboards are going to be querying.<br />
+						<br />
+						Next up, building your first dashboard...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab05b.html" target="_blank">Building your first dashboard</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Fluent Bit workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Telemetry Pipelines Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax-highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-799E08H5WD"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-799E08H5WD');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 2 – Installing Fluent Bit in a container</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>To install using a container image with Podman open source container tooling and run the
+							container on your local machine.</h4>
+					</div>
+				</section>
+
+				<section id="local-install">
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Container – Installing Podman tooling</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Installing Fluent Bit using a container image is going to be demonstrated here using the open source
+						project <a href="https://podman.io/" target="_blank">Podman</a>. It's assumed you have already
+						installed the Podman commandline tooling previously.<br />
+						<br />
+						If you want to use other container tooling, such as Docker, most of the commands are the same
+						with just a substitution of the tooling name (<code><b>docker</b></code> instead of
+						<code><b>podman</b></code>).
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Container - Starting Podman machine</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						You need to make sure that the Podman virtual machine has been started, so, assuming you have
+						initialized a podman machine already:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								podman machine start
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Container – Running container image</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						It's pretty straight forward to running Fluent Bit in a container, start the container
+						image as follows:
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								podman run --rm --name fb -ti ghcr.io/fluent/fluent-bit:5.1.1
+							</code>
+						</pre>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						The details in this command are a flag that automatically removes the container after we stop it
+						just to keep our registry tidy (<code><b>--rm</b></code>), that we give the container a name we
+						can reference (<code><b>--name fb</b></code>), assign it a console for output and stay
+						interactive (<code><b>-ti</b></code>), and use the image version supported in this workshop
+						(<code><b>ghcr.io/fluent/fluent-bit:5.1.1</b></code>).
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Container – What's Fluent Bit doing?</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						You'll notice the container starts and takes over the console for its output, where Fluent Bit
+						is measuring CPU usage and dumping it to the console (CTRL-C will stop the container):
+					</div>
+					<div style="height: 100px; text-align: center; font-size: large;">
+						<pre>
+							<code data-trim data-noescape>
+								Fluent Bit v5.1.1
+								* Copyright (C) 2015-2026 The Fluent Bit Authors
+								* Fluent Bit is a CNCF graduated project under the Fluent organization
+								* https://fluentbit.io
+
+								______ _                  _    ______ _ _           _____  __
+								|  ___| |                | |   | ___ (_) |         |  ___|/  |
+								| |_  | |_   _  ___ _ __ | |_  | |_/ /_| |_  __   _|___ \ `| |
+								|  _| | | | | |/ _ \ '_ \| __| | ___ \ | __| \ \ / /   \ \ | |
+								| |   | | |_| |  __/ | | | |_  | |_/ / | |_   \ V //\__/ /_| |_
+								\_|   |_|\__,_|\___|_| |_|\__| \____/|_|\__|   \_/ \____(_)___/
+
+								[2026/04/02 11:33:15.148] [ info] [fluent bit] version=5.1.1, commit=6315162a8d, pid=1
+								[2026/04/02 11:33:15.148] [ info] [storage] ver=1.5.4, type=memory, sync=normal, checksum=off, max_chunks_up=128
+								[2026/04/02 11:33:15.148] [ info] [simd    ] NEON
+								[2026/04/02 11:33:15.148] [ info] [cmetrics] version=2.2.1
+								[2026/04/02 11:33:15.148] [ info] [ctraces ] version=0.7.1
+								[2026/04/02 11:33:15.148] [ info] [input:cpu:cpu.0] initializing
+								[2026/04/02 11:33:15.148] [ info] [input:cpu:cpu.0] storage_strategy='memory' (memory only)
+								[2026/04/02 11:33:15.148] [ info] [sp] stream processor started
+								[2026/04/02 11:33:15.148] [ info] [engine] Shutdown Grace Period=5, Shutdown Input Grace Period=2
+								[2026/04/02 11:33:15.148] [ info] [output:stdout:stdout.0] worker #0 started
+								[0] cpu.local: [[1775129595.430135893, {}], {"cpu_p"=>0.000000, "user_p"=>0.000000, "system_p"=>0.000000, "cpu0.p_cpu"=>0.000000, "cpu0.p_user"=>0.000000, "cpu0.p_system"=>0.000000, "cpu1.p_cpu"=>0.000000, "cpu1.p_user"=>0.000000, "cpu1.p_system"=>0.000000, "cpu2.p_cpu"=>0.000000, "cpu2.p_user"=>0.000000, "cpu2.p_system"=>0.000000, "cpu3.p_cpu"=>0.000000, "cpu3.p_user"=>0.000000, "cpu3.p_system"=>0.000000, "cpu4.p_cpu"=>0.000000, "cpu4.p_user"=>0.000000, "cpu4.p_system"=>0.000000, "cpu5.p_cpu"=>0.000000, "cpu5.p_user"=>0.000000, "cpu5.p_system"=>0.000000, "cpu6.p_cpu"=>0.000000, "cpu6.p_user"=>0.000000, "cpu6.p_system"=>0.000000}]
+								...
+							</code>
+						</pre>
+						(Scroll to the right to see log lines)
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo – What to do with any failures?</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						At any time in the workshop should you encounter failures, during installation, testing, data
+						population, or build results. Don't worry, this can be rerun any time after you fix any problems
+						reported. Stop and restart it (CTRL-C for interactive containers in your console):
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								podman run --rm --name fb -ti ghcr.io/fluent/fluent-bit:5.1.1
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo – Shutdown your container environment</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						At anytime in the workshop you can pause and come back later. To do this, we stop our container
+						environment by stopping the running Fluent Bit container and then shutting down our Podman
+						virtual machine as follows (after stopping any running containers with CTRL-C):
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								podman machine stop
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed – Results</h2>
+					</div>
+					<div style="height: 270px; text-align: center; font-size: large;">
+						<pre>
+							<code data-trim data-noescape>
+								Fluent Bit v5.1.1
+								* Copyright (C) 2015-2026 The Fluent Bit Authors
+								* Fluent Bit is a CNCF graduated project under the Fluent organization
+								* https://fluentbit.io
+
+								______ _                  _    ______ _ _           _____  __
+								|  ___| |                | |   | ___ (_) |         |  ___|/  |
+								| |_  | |_   _  ___ _ __ | |_  | |_/ /_| |_  __   _|___ \ `| |
+								|  _| | | | | |/ _ \ '_ \| __| | ___ \ | __| \ \ / /   \ \ | |
+								| |   | | |_| |  __/ | | | |_  | |_/ / | |_   \ V //\__/ /_| |_
+								\_|   |_|\__,_|\___|_| |_|\__| \____/|_|\__|   \_/ \____(_)___/
+
+								[2026/04/02 11:33:15.148] [ info] [fluent bit] version=5.1.1, commit=6315162a8d, pid=1
+								[2026/04/02 11:33:15.148] [ info] [storage] ver=1.5.4, type=memory, sync=normal, checksum=off, max_chunks_up=128
+								[2026/04/02 11:33:15.148] [ info] [simd    ] NEON
+								[2026/04/02 11:33:15.148] [ info] [cmetrics] version=2.2.1
+								[2026/04/02 11:33:15.148] [ info] [ctraces ] version=0.7.1
+								[2026/04/02 11:33:15.148] [ info] [input:cpu:cpu.0] initializing
+								[2026/04/02 11:33:15.148] [ info] [input:cpu:cpu.0] storage_strategy='memory' (memory only)
+								[2026/04/02 11:33:15.148] [ info] [sp] stream processor started
+								[2026/04/02 11:33:15.148] [ info] [engine] Shutdown Grace Period=5, Shutdown Input Grace Period=2
+								[2026/04/02 11:33:15.148] [ info] [output:stdout:stdout.0] worker #0 started
+								[0] cpu.local: [[1775129595.430135893, {}], {"cpu_p"=>0.000000, "user_p"=>0.000000, "system_p"=>0.000000, "cpu0.p_cpu"=>0.000000, "cpu0.p_user"=>0.000000, "cpu0.p_system"=>0.000000, "cpu1.p_cpu"=>0.000000, "cpu1.p_user"=>0.000000, "cpu1.p_system"=>0.000000, "cpu2.p_cpu"=>0.000000, "cpu2.p_user"=>0.000000, "cpu2.p_system"=>0.000000, "cpu3.p_cpu"=>0.000000, "cpu3.p_user"=>0.000000, "cpu3.p_system"=>0.000000, "cpu4.p_cpu"=>0.000000, "cpu4.p_user"=>0.000000, "cpu4.p_system"=>0.000000, "cpu5.p_cpu"=>0.000000, "cpu5.p_user"=>0.000000, "cpu5.p_system"=>0.000000, "cpu6.p_cpu"=>0.000000, "cpu6.p_user"=>0.000000, "cpu6.p_system"=>0.000000}]
+								...
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; font-size: xx-large">
+						Next up, exploring observability pipelines...
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://github.com/fluent/fluent-bit/blob/master/README.md" target="_blank">Fluent Bit repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact – are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Technology Advocate Lead<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in the workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab03.html" target="_blank">Lab 3 - Exploring first pipelines</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

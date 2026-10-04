@@ -1,0 +1,835 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="OpenTelemetry Workshop">
+		<meta name="author" content="Paige Cruz">
+
+		<title>Lab 6 - Traces &amp; Metrics (Rancher k3s)</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-33MFF345ZY"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-33MFF345ZY');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<div style="height: 110px;">
+						<h2 class="r-fit-text">Traces &amp; metrics - Rancher k3s prerequisites</h2>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						This path builds the images with <a href="https://podman.io/" target="_blank">Podman</a> and runs
+						them on a local <a href="https://rancherdesktop.io/" target="_blank">Rancher Desktop</a> k3s
+						cluster, with <code>kubectl</code> and <code>nerdctl</code> on your PATH. Start Rancher Desktop
+						if it is not already running:
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ rdctl start
+							</code>
+						</pre>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						<ul>
+							<li>In <b>Preferences → Kubernetes</b>, confirm "Enable Kubernetes" is checked (k3s)</li>
+							<li>In <b>Container Engine</b>, confirm "containerd" is selected</li>
+							<li>Wait for the status indicator to turn green and show "Kubernetes is running"</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 110px;">
+						<h2 class="r-fit-text">Traces &amp; metrics - Verifying the cluster</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Confirm the cluster is up and <code>kubectl</code> is pointed at it (versions shown might
+						differ for you):
+					</div>
+					<div style="height: 150px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl config current-context
+								rancher-desktop
+
+								$ kubectl get nodes
+								NAME                   STATUS   ROLES                  AGE   VERSION
+								lima-rancher-desktop   Ready    control-plane,master   2d    v1.36.2+k3s1
+							</code>
+						</pre>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: large;">
+						This lab binds host ports <b>8001</b>, <b>9090</b> and <b>16686</b>. If <code>kubectl get
+						pods</code> lists a pod left over from other work, delete it first with <code>kubectl delete
+						pod &lt;name&gt;</code> - two pods cannot claim the same host port on a single node.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - What's an exemplar?</h2>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Exemplars are the way to connect traces to metrics allowing you to jump from "hey what's that weird spike?" on a metric chart
+						directly to a trace associated with that context with one click!
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - Open source metrics</h2>
+					</div>
+					<div style="height: 220px; text-align: left; font-size: xx-large;">
+						<ul>
+							<li>
+								<a href="https://opentelemetry.io/docs/concepts/signals/metrics/">OpenTelemetry</a> -
+								Metrics SDK is marked as "mixed" and under active development. Python SDK does not yet
+								support exemplars.
+							</li>
+							<li>
+								<a href="https://prometheus.io/docs/concepts/metric_types/">Prometheus</a> - Stable APIs,
+								extensive ecosystem of instrumented libraries and dashboards.
+							</li>
+						</ul>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Our goal is to tie metrics with traces via exemplars, so we'll instrument metrics with <strong>Prometheus</strong> and keep
+						traces instrumented with OpenTelemetry!
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - Prometheus config file</h2>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						In the <code><b>metrics/prometheus</b></code> directory you can view the config file named
+						<code><b>prometheus.yml</b></code>:
+					</div>
+					<div style="height: 200px;">
+						<pre>
+							<code data-trim data-noescape>
+								global:
+								  scrape_interval: 5s
+
+								scrape_configs:
+								  - job_name: "prometheus"
+								    static_configs:
+								      - targets: ["localhost:9090"]
+							</code>
+						</pre>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						Normally you monitor other targets over HTTP and scrape their endpoints, but we are
+						going to start with Prometheus itself. The scrape_configs section is where you tell Prometheus which targets to
+						scrape to collect metrics from.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - Building Prometheus for k3s</h2>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						Podman builds the image locally, but k3s runs inside Rancher Desktop's own VM with a separate
+						containerd image store, so the image has to be exported and loaded into the VM's
+						<code>k8s.io</code> namespace where kubelet looks for it. <b>You will repeat this save/load
+						step every time you rebuild an image in this lab:</b>
+					</div>
+					<div style="height: 150px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-prometheus:v3.13.1 -f ./metrics/prometheus/Buildfile-prom
+
+								$ podman save localhost/workshop-prometheus:v3.13.1 -o workshop-prometheus.tar
+
+								$ nerdctl --namespace k8s.io load -i workshop-prometheus.tar
+								Loaded image: localhost/workshop-prometheus:v3.13.1
+							</code>
+						</pre>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: large;">
+						Note: if <code>nerdctl</code> fails with "cannot access containerd socket", your Container
+						Engine is set to <b>dockerd</b> instead of containerd - either switch it in Preferences, or
+						use <code>docker load -i workshop-prometheus.tar</code> for every import in this lab.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - Running Prometheus on k3s</h2>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: large;">
+						Run it as a throwaway pod. No arguments are needed - the image's own <code>CMD</code> already
+						carries <code>--config.file</code> and <code>--enable-feature=exemplar-storage,old-ui</code>.
+						<code>port-forward</code> holds its terminal, so leave it running:
+					</div>
+					<div style="height: 250px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl run prometheus --image=localhost/workshop-prometheus:v3.13.1 \
+								  --image-pull-policy=Never --port=9090
+
+								pod/prometheus created
+
+								$ kubectl wait --for=condition=Ready pod/prometheus --timeout=120s
+								pod/prometheus condition met
+
+								$ kubectl port-forward pod/prometheus 9090:9090
+
+								Forwarding from 127.0.0.1:9090 -> 9090
+								Forwarding from [::1]:9090 -> 9090
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: large;">
+						Verify our targets are configured by opening the targets page in the Prometheus console at
+						<code><b><a href="http://localhost:9090/targets" target="_blank">http://localhost:9090/targets</a></b></code>,
+						noting that Prometheus is scraping itself and waiting for the <code><b>hello-otel</b></code>
+						application to come online:
+					</div>
+					<div style="height: 250px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-prom-targets-page.png" alt="prom targets">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - Deleting the Prometheus pod</h2>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						Stop the <code>port-forward</code> with <code><b>CTRL-C</b></code> and delete the pod, as we
+						will later run the application and metrics collection tooling together in a single pod:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete pod prometheus
+								pod "prometheus" deleted
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & Metrics - Using Prometheus metrics</h2>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Let's use the
+						<a href="https://pypi.org/project/prometheus-flask-exporter/">prometheus-flask-exporter</a> and
+						see what metrics we get out of the box.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - Modifying the build</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Open <strong>metrics/Buildfile-metrics</strong> and ensure the command to install the
+						<code><b>prometheus_flask_exporter</b></code> has been added:
+					</div>
+					<div style="height: 100px;font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								FROM python:3.13-bullseye
+
+								WORKDIR /app
+
+								COPY requirements.txt requirements.txt
+
+								RUN pip install -r requirements.txt
+
+								RUN pip install opentelemetry-api==1.44.0 \
+								  opentelemetry-sdk==1.44.0 \
+								  opentelemetry-exporter-otlp==1.44.0 \
+								  opentelemetry-instrumentation-flask==0.65b0 \
+								  opentelemetry-instrumentation-jinja2==0.65b0 \
+								  opentelemetry-instrumentation-requests==0.65b0 \
+								  <mark>prometheus-flask-exporter</mark>
+
+								COPY . .
+
+								CMD [ "flask", "run", "--host=0.0.0.0"]
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - Adding imports</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Open the file <code><b>metrics/app.py</b></code> and ensure the imports include the line
+						using the <code><b>prometheus-flask-exporter</b></code> to import
+						<code><b>PrometheusMetrics</b></code> as shown:
+					</div>
+					<div style="height: 70px;font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								from opentelemetry.trace import set_tracer_provider
+								from opentelemetry.sdk.trace import TracerProvider
+								from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+								from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+								from opentelemetry.instrumentation.flask import FlaskInstrumentor
+								from opentelemetry.instrumentation.jinja2 import Jinja2Instrumentor
+								from opentelemetry.instrumentation.requests import RequestsInstrumentor
+								<mark>from prometheus_flask_exporter import PrometheusMetrics</mark>
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - Instrument Prometheus Flask metrics</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Continue down the file <code><b>metrics/app.py</b></code> and verify that the programmatic Flask
+						metric instrumentation has been added as shown:
+					</div>
+					<div style="height: 100px;font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								provider = TracerProvider()
+								processor = SimpleSpanProcessor(OTLPSpanExporter(endpoint="http://localhost:4318/v1/traces"))
+								provider.add_span_processor(processor)
+
+								set_tracer_provider(provider)
+
+								app = Flask("hello-otel")
+								FlaskInstrumentor().instrument_app(app)
+								Jinja2Instrumentor().instrument()
+								RequestsInstrumentor().instrument()
+								<mark>metrics = PrometheusMetrics(app)</mark>
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - Building the app image for k3s</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Build the application image and load it into the cluster's containerd store:
+					</div>
+					<div style="height: 220px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t hello-otel:metrics -f metrics/Buildfile-metrics
+
+								$ podman save localhost/hello-otel:metrics -o hello-otel-metrics.tar
+
+								$ nerdctl --namespace k8s.io load -i hello-otel-metrics.tar
+								Loaded image: localhost/hello-otel:metrics
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - Run the pod on k3s</h2>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						Apply the pod with the app, Prometheus and Jaeger. The Jaeger image is pulled from the
+						registry, so the pod sits <b>Pending</b> for a while - <code>kubectl wait</code> blocks until
+						all three containers are ready, otherwise <code>port-forward</code> fails with "unable to
+						forward port because pod is not running". Note <code>port-forward</code> holds its terminal and
+						dies with the pod, so it is restarted after every rebuild:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete -f metrics/app-prom-pod.yml --ignore-not-found
+
+								$ kubectl apply -f metrics/app-prom-pod.yml
+								pod/hello-otel-metrics created
+
+								$ kubectl wait --for=condition=Ready pod/hello-otel-metrics --timeout=180s
+								pod/hello-otel-metrics condition met
+
+								$ kubectl port-forward pod/hello-otel-metrics 8001:5000 9090:9090 16686:16686
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						In a second terminal or a browser, make several requests to the pages below:
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						<ul>
+							<li><a href="http://localhost:8001" target="_blank">http://localhost:8001</a></li>
+							<li><a href="http://localhost:8001/rolldice" target="_blank">http://localhost:8001/rolldice</a></li>
+							<li><a href="http://localhost:8001/doggo" target="_blank">http://localhost:8001/doggo</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - Verifying Flask metrics</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Prometheus uses a pull-model where a Prometheus server scrapes a <code><b>/metric</b></code>
+						endpoint. Let's check our metrics endpoint to verify that the
+						<code><b>prometheus-flask-exporter</b></code> is working. Open
+						<a href="http://localhost:8001/metrics" target="_blank">http://localhost:8001/metrics</a> and confirm you see
+						metrics prefixed with <code><b>flask_*</b></code> and <code><b>python_*</b></code>:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-prom-metrics-endpoint.png" alt="list of Prom metrics returned">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - Verifying targets up in Prometheus</h2>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Verify our targets are up and being scraped by opening the targets page in the Prometheus
+						console at
+						<code><b><a href="http://localhost:9090/targets" target="_blank">http://localhost:9090/targets</a></b></code>,
+						noting that Prometheus is scraping itself and now also the <code><b>hello-otel</b></code>
+						application (with the status UP):
+					</div>
+					<div style="height: 350px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-prom-targets-page-app.png" alt="prom app target">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - Deleting the pod</h2>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						Stop the <code>port-forward</code> with CTRL-C and delete the pod, so that we can start adding
+						our exemplars to explore a journey from metrics to traces:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete -f metrics/app-prom-pod.yml
+								pod "hello-otel-metrics" deleted
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - Updating Prometheus configuration</h2>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						We start by adding exemplars to our Prometheus metrics which will be tying in our traces from
+						OpenTelemetry. Open up the <code><b>metrics/prometheus/prometheus.yml</b></code> file, add or
+						ensure there is a scrape job defined for the <code><b>hello-otel</b></code> application as
+						shown, and save the file:
+					</div>
+					<div style="height: 180px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								global:
+								  scrape_interval: 5s
+
+								scrape_configs:
+								  - job_name: "prometheus"
+									static_configs:
+									  - targets: ["localhost:9090"]
+
+								  <mark>- job_name: "hello-otel"</mark>
+									<mark>static_configs:</mark>
+									  <mark>- targets: ["localhost:5000"]</mark>
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - Updating Prometheus build file</h2>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Open up the <code><b>metrics/prometheus/Buildfile-prom</b></code> and ensure the CMD enables
+						both features shown below. <code>exemplar-storage</code> lets Prometheus store the exemplars we
+						are about to emit, and <code>old-ui</code> is needed because the Prometheus 3.x web UI dropped
+						exemplar rendering on graphs - it falls back to the 2.x UI, which can still plot them:
+					</div>
+					<div style="height: 150px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								FROM prom/prometheus:v3.13.1
+
+								ADD prometheus.yml /etc/prometheus
+
+								ENTRYPOINT [ "prometheus" ]
+
+								CMD [ "--config.file=/etc/prometheus/prometheus.yml", <mark>"--enable-feature=exemplar-storage,old-ui"</mark> ]
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - Rebuilding Prometheus for k3s</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Rebuild the image and load it into the cluster again so the new config is picked up:
+					</div>
+					<div style="height: 220px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-prometheus:v3.13.1 -f metrics/prometheus/Buildfile-prom
+
+								$ podman save localhost/workshop-prometheus:v3.13.1 -o workshop-prometheus.tar
+
+								$ nerdctl --namespace k8s.io load -i workshop-prometheus.tar
+								Loaded image: localhost/workshop-prometheus:v3.13.1
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - Updating imports</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Open <strong>metrics/app.py</strong> and ensure the import for the <code><b>Counter</b></code>
+						metric from Prometheus Client has been added as shown:
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								import random
+								import re
+								import urllib3
+
+								import requests
+								from flask import Flask, render_template, request
+								from breeds import breeds
+
+								from opentelemetry.trace import set_tracer_provider
+								from opentelemetry.sdk.trace import TracerProvider
+								from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+								from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+								from opentelemetry.instrumentation.flask import FlaskInstrumentor
+								from opentelemetry.instrumentation.jinja2 import Jinja2Instrumentor
+								from opentelemetry.instrumentation.requests import RequestsInstrumentor
+								from prometheus_flask_exporter import PrometheusMetrics
+								<mark>from prometheus_client import Counter</mark>
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - Create a counter</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						In the same file <strong>metrics/app.py</strong> ensure that a counter for the number of
+						homepage loads is added as shown:
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								provider = TracerProvider()
+								processor = SimpleSpanProcessor(OTLPSpanExporter(endpoint="http://localhost:4318/v1/traces"))
+								provider.add_span_processor(processor)
+
+								set_tracer_provider(provider)
+
+								app = Flask("hello-otel")
+								FlaskInstrumentor().instrument_app(app)
+								Jinja2Instrumentor().instrument()
+								RequestsInstrumentor().instrument()
+								metrics = PrometheusMetrics(app)
+
+								<mark>HITS_COUNTER = Counter('hits_counter', 'count of homepage loads')</mark>
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - Increment the counter</h2>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Continuing down in the same file, ensure code is added in the <code><b>index()</b></code> to
+						increment (increase) the <code><b>hits_counter</b></code> and configure
+						exemplars to attach to the metric as shown. Save the file when done:
+					</div>
+					<div style="height: 70px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								@app.route('/')
+								def index():
+									global HITS
+									span = trace.get_current_span()
+									<mark>trace_id = '{:032x}'.format(span.get_span_context().trace_id)</mark>
+									HITS = HITS + 1
+									span.set_attribute("hits", HITS)
+									<mark>HITS_COUNTER.inc(1, exemplar={"trace_id": trace_id, "trace_url": f"http://localhost:16686/trace/{trace_id}"})</mark>
+									msg = f'This webpage has been viewed {HITS} times'
+									return msg
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - Updating app image</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Open <code><b>metrics/Buildfile-metrics</b></code> and ensure the command to install
+						<code><b>prometheus_flask_exporter</b></code> is added as shown:
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								FROM python:3.13-bullseye
+
+								WORKDIR /app
+
+								COPY requirements.txt requirements.txt
+
+								RUN pip install -r requirements.txt
+
+								RUN pip install opentelemetry-api==1.44.0 \
+								  opentelemetry-sdk==1.44.0 \
+								  opentelemetry-exporter-otlp==1.44.0 \
+								  opentelemetry-instrumentation-flask==0.65b0 \
+								  opentelemetry-instrumentation-jinja2==0.65b0 \
+								  opentelemetry-instrumentation-requests==0.65b0 \
+								  <mark>prometheus-flask-exporter</mark>
+
+								COPY . .
+
+								CMD [ "flask", "run", "--host=0.0.0.0"]
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - Rebuild the app image for k3s</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Rebuild the application image and load it into the cluster again:
+					</div>
+					<div style="height: 220px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t hello-otel:metrics -f metrics/Buildfile-metrics
+
+								$ podman save localhost/hello-otel:metrics -o hello-otel-metrics.tar
+
+								$ nerdctl --namespace k8s.io load -i hello-otel-metrics.tar
+								Loaded image: localhost/hello-otel:metrics
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - Running the pod on k3s</h2>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: xx-large;">
+						Apply the pod again, wait for it to be ready, then forward all three ports:
+					</div>
+					<div style="height: 170px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete -f metrics/app-prom-pod.yml --ignore-not-found
+
+								$ kubectl apply -f metrics/app-prom-pod.yml
+								pod/hello-otel-metrics created
+
+								$ kubectl wait --for=condition=Ready pod/hello-otel-metrics --timeout=180s
+								pod/hello-otel-metrics condition met
+
+								$ kubectl port-forward pod/hello-otel-metrics 8001:5000 9090:9090 16686:16686
+							</code>
+						</pre>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						In a second terminal or a browser, make several requests (over time, refresh to generate more
+						in the resulting graph on the next slide) to the homepage:
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						<ul>
+							<li><a href="http://localhost:8001" target="_blank">http://localhost:8001</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - Verify exemplars</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Open the Prometheus console in your browser
+						<code><b><a href="http://localhost:9090/" target="_blank">http://localhost:9090</a></b></code>
+						and query <code><b>hits_counter_total</b></code> in Graph view. Select by clicking on the
+						<code><b>Show Exemplars</b></code> button in the middle to see them as little blue diamonds (note
+						you need to reduce the time window down to 5 minutes or so to see a graph plots):
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-exemplar-on-graph.png" alt="exemplars on chart">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - From metric to trace</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Click on one of the exemplars (blue dot) on the chart and copy the <code><b>trace_url</b></code> i
+						nto a new browser tab:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-exemplar-detail-panel.png" alt="exemplars detail panel">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - Verify exemplars</h2>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: x-large;">
+						Ta-da! You should see the trace waterfall for one of the requests made:
+					</div>
+					<div style="height: 450px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-exemplar-trace.png" alt="exemplars detail panel">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Traces & metrics - Deleting the pod</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Let's clean up by stopping the <code>port-forward</code> with CTRL-C and deleting the pod:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete -f metrics/app-prom-pod.yml
+								pod "hello-otel-metrics" deleted
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						We reviewed the concept of exemplars and one way approach to linking Prometheus native metrics to OpenTelemetry traces!
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab06-exemplar-trace.png" alt="exemplars detail panel">
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://opentelemetry.io/docs/concepts/signals/metrics/" target="_blank">OpenTelemetry Metrics Explainer </a></li>
+							<li><a href="https://opentelemetry.io/docs/specs/otel/metrics/data-model/" target="_blank">OTLP Data Model Metrics</a> </li>
+							<li><a href="https://opentelemetry.io/docs/specs/otel/metrics/sdk/">Metrics SDK</a></li>
+							<li><a href="https://prometheus.io/docs/concepts/metric_types/">Prometheus Metric Types</a></li>
+							<li><a href="https://github.com/prometheus/client_python">Prometheus Client for Python</a></li>
+							<li><a href="https://rancherdesktop.io/" target="_blank">Rancher Desktop</a></li>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-opentelemetry" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact – are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Technology Advocate Lead<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab and workshop completed!</h2>
+					</div>
+					<div style="height: 400px; font-size: large">
+						<img src="images/done.jpg" alt="done">
+						<br/>
+						<a href="index.html" target="_blank" style="font-size: xx-large">Return to start</a>
+					</div>
+				</section>
+
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

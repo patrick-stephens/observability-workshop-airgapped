@@ -1,0 +1,1062 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="OpenTelemetry Workshop for Java Developers">
+		<meta name="author" content="Workshop Author">
+
+		<title>Lab 2 - Automatic Instrumentation</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/erics.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 2 - Automatic Instrumentation</h3>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>Use the OpenTelemetry Java Agent for zero-code automatic instrumentation, configure
+							the agent, run the demo application, and view trace data in the console.</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Getting started</h2>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						The OpenTelemetry Java Agent provides automatic instrumentation by attaching to the JVM
+						and dynamically injecting bytecode. This means you get tracing without changing a single
+						line of your application code. The agent automatically instruments:<br />
+                        <br />
+						<ul>
+							<li>HTTP clients and servers</li>
+							<li>Database calls</li>
+							<li>Messaging systems</li>
+							<li>And many more libraries</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Choose your runtime</h2>
+					</div>
+					<div style="height: 190px; text-align: left; font-size: xx-large;">
+						The next slides package the Java Agent into a container image. You can run those images
+						directly with Podman as shown on the following slides, or deploy them to a local Rancher
+						Desktop k3s cluster instead:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						<ul>
+							<li>Continue onwards to run with <b>Podman</b></li>
+							<li><a href="lab02-rancher.html" target="_blank">Continue to run using Kubernetes (k3s)</a></li>
+						</ul>
+					</div>
+				</section>
+
+        		<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Demo project introduction</h2>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						The <a href="https://github.com/open-telemetry/opentelemetry-java-tracing-demo" target="_blank">Java Tracing Demo</a>
+                        project is a simple Java HTTP server designed to demonstrate OpenTelemetry instrumentation. It includes endpoints for
+						page views, random dog images, and dice rolls.<br />
+						<br />
+						This lab uses the OpenTelemetry Java Agent for automatic instrumentation without modifying application code.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Using the easy install project</h2>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						The <a href="https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo" target="_blank">
+              OpenTelemetry Java Tracing demo
+            </a>
+            project takes just 3 steps to a running server:<br />
+						<br />
+						<ol>
+							<li><a href="https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo/-/archive/v1.1/opentelemetry-java-tracing-demo-v1.1.zip" target="_blank">Download</a> and unzip project.</li>
+							<li>Build the Java application with the following in a console:<br /> <code style="font-size: large;"><b>mvn clean install</b></code></li>
+							<li>Test installation by running the application with:<br /> <code style="font-size: large;"><b>java -jar target/java-instrumentation-demo-1.0-SNAPSHOT-with-dependencies.jar</b></code></li>
+						</ol>
+						<br />
+            <br />
+						Let's walk through these steps one by one in the next slides...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Downloading and unzip project</h2>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						The first step is to download the project. Unzipping (use your file manager or console) should look something like this:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ unzip opentelemetry-java-tracing-demo-v1.1.zip
+
+								Archive: opentelemetry-java-tracing-demo-v1.1.zip
+								creating: opentelemetry-java-tracing-demo-v1.1/
+								extracting: opentelemetry-java-tracing-demo-v1.1/.gitignore
+								inflating: opentelemetry-java-tracing-demo-v1.1/README.md
+								inflating: opentelemetry-java-tracing-demo-v1.1/Buildfile
+								creating: opentelemetry-java-tracing-demo-v1.1/src/
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Starting the build</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Change to the project directory and build using Maven (note the VERSION text below is to be replaced with the version of the project you have downloaded):
+					</div>
+					<div style="height: 150px;">
+						<pre>
+							<code data-trim data-noescape>
+								$ cd opentelemetry-java-tracing-demo-{VERSION}
+
+								$ mvn clean install
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Building application completes</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						As we watch the build output, notice testing is done on the code, then it builds the Java application:
+					</div>
+					<div style="height: 200px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[INFO] --- maven-surefire-plugin:3.2.2:test (default-test) @ java-instrumentation-demo ---
+								[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+								[INFO]
+								[INFO] -------------------------------------------------------
+								[INFO]  T E S T S
+								[INFO] -------------------------------------------------------
+								[INFO] Running io.chronosphere.AppTest
+								[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.315 s -- in io.chronosphere.AppTest
+								[INFO] Running io.chronosphere.BreedsTest
+								[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s -- in io.chronosphere.BreedsTest
+								[INFO]
+								[INFO] Results:
+								[INFO]
+								[INFO] Tests run: 14, Failures: 0, Errors: 0, Skipped: 0
+								[INFO]
+								...
+								[INFO] --- maven-install-plugin:2.4:install (default-install) @ java-instrumentation-demo ---
+								[INFO] Installing opentelemetry-java-tracing-demo/target/java-instrumentation-demo-1.0-SNAPSHOT.jar to /Users/erics/demo-projects/maven-repository/io/chronosphere/java-instrumentation-demo/1.0-SNAPSHOT/java-instrumentation-demo-1.0-SNAPSHOT.jar
+								[INFO] Installing opentelemetry-java-tracing-demo/pom.xml to /Users/erics/demo-projects/maven-repository/io/chronosphere/java-instrumentation-demo/1.0-SNAPSHOT/java-instrumentation-demo-1.0-SNAPSHOT.pom
+								[INFO] Installing opentelemetry-java-tracing-demo/target/java-instrumentation-demo-1.0-SNAPSHOT-with-dependencies.jar to /Users/erics/demo-projects/maven-repository/io/chronosphere/java-instrumentation-demo/1.0-SNAPSHOT/java-instrumentation-demo-1.0-SNAPSHOT-with-dependencies.jar
+								[INFO] ------------------------------------------------------------------------
+								[INFO] BUILD SUCCESS
+								[INFO] ------------------------------------------------------------------------
+								[INFO] Total time:  1.300 s
+								[INFO] Finished at: 2026-01-05T13:30:37+01:00
+								[INFO] ------------------------------------------------------------------------
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Run without instrumentation</h2>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: x-large;">
+						First, let's run the application without any instrumentation to see the baseline:
+					</div>
+					<div style="height: 300px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ java -jar target/java-instrumentation-demo-1.0-SNAPSHOT-with-dependencies.jar
+
+								[main] INFO io.javalin.Javalin - Starting Javalin ...
+								[main] INFO org.eclipse.jetty.server.Server - jetty-11.0.24; built: 2024-08-26T18:11:22.448Z; git: 5dfc59a691b748796f922208956bd1f2794bcd16; jvm 21.0.9
+								[main] INFO org.eclipse.jetty.server.session.DefaultSessionIdManager - Session workerName=node0
+								[main] INFO org.eclipse.jetty.server.handler.ContextHandler - Started o.e.j.s.ServletContextHandler@139982de{/,null,AVAILABLE}
+								[main] INFO org.eclipse.jetty.server.AbstractConnector - Started ServerConnector@351d0846{HTTP/1.1, (http/1.1)}{0.0.0.0:9999}
+								[main] INFO org.eclipse.jetty.server.Server - Started Server@1d548a08{STARTING}[11.0.24,sto=0] @171ms
+								[main] INFO io.javalin.Javalin -
+											 __                  ___           _____
+											/ /___ __   ______ _/ (_)___      / ___/
+								 __  / / __ `/ | / / __ `/ / / __ \    / __ \
+								/ /_/ / /_/ /| |/ / /_/ / / / / / /   / /_/ /
+								\____/\__,_/ |___/\__,_/_/_/_/ /_/    \____/
+
+											 https://javalin.io/documentation
+
+								[main] INFO io.javalin.Javalin - Javalin started in 89ms \o/
+								[main] INFO io.javalin.Javalin - Listening on http://localhost:9999/
+								[main] INFO io.javalin.Javalin - You are running Javalin 6.4.0 (released December 17, 2024. Your Javalin version is 383 days old. Consider checking for a newer version.).
+								Server started on http://localhost:9999
+							</code>
+						</pre>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: x-large;">
+						Open <a href="http://localhost:9999/" target="_blank">http://localhost:9999</a> and confirm you see:
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape >
+								This webpage has been viewed 1 times
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Explore the demo app</h2>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						The demo application is a simple Java HTTP server using <a href="https://javalin.io/" target="_blank">Javalin</a> (a lightweight framework built on Jetty) and has the following endpoints:<br />
+						<br />
+						<ul>
+							<li><b><a href="http://localhost:9999/" target="_blank">/</a></b> - displays count of how many times the page has been loaded. </li>
+							<li>
+								<strong><a href="http://localhost:9999/doggo" target="_blank">/doggo</a></strong> - displays random photo of a dog from the <a href="https://dog.ceo/dog-api/" target="_blank">Dog API</a>
+							</li>
+							<li><b><a href="http://localhost:9999/rolldice" target="_blank">/rolldice</a></b> - displays result of a randomized simulated dice roll </li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Check the Console</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Without instrumentation, you only see the basic startup log:
+					</div>
+					<div style="height: 70px;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								Server started on http://localhost:9999
+							</code>
+						</pre>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						No request logs, no tracing - just a simple server. Time to add some automatic instrumentation
+						to generate some trace data from our application.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Stop the application</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Press CTRL-C in the console to stop the application so we can add automatic instrumentation.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Download the Java Agent</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Download the OpenTelemetry Java Agent JAR file (v2.30.0):
+					</div>
+					<div style="height: 70px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ curl -L -o opentelemetry-javaagent-2.30.0.jar \
+									https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v2.30.0/opentelemetry-javaagent.jar
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						This downloads version of the agent (~20MB) matching the SDK v1.65+ requirement.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Run with the Java Agent</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Run the application with the Java Agent attached and configure it to export traces to the console:
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ java -javaagent:opentelemetry-javaagent-2.30.0.jar \
+								-Xshare:off \
+								-Dotel.service.name=java-demo \
+								-Dotel.traces.exporter=logging \
+								-Dotel.metrics.exporter=none \
+								-Dotel.logs.exporter=none \
+								-jar target/java-instrumentation-demo-1.0-SNAPSHOT-with-dependencies.jar
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Understanding the flags</h2>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						The flags used in the previous command could use some explanation:<br />
+						<br />
+						<ul>
+							<li><code><b>-javaagent:opentelemetry-javaagent-2.30.0.jar</b></code> - attaches the OTel agent to the JVM</li>
+							<li><code><b>-Xshare:off</b></code> - disables class data sharing (CDS) to avoid conflicts with agent bytecode instrumentation</li>
+							<li><code><b>-Dotel.service.name=java-demo</b></code> - sets the service name for traces</li>
+							<li><code><b>-Dotel.traces.exporter=logging</b></code> - exports traces to console/logs</li>
+							<li><code><b>-Dotel.metrics.exporter=none</b></code> - disables metrics for now</li>
+							<li><code><b>-Dotel.logs.exporter=none</b></code> - disables log export for now</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Generating traffic</h2>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						Open a browser and make requests to the endpoints:
+					</div>
+					<div style="text-align: left; font-size: x-large;">
+						<ul>
+							<li><b><a href="http://localhost:9999/" target="_blank">/</a></b></li>
+							<li><strong><a href="http://localhost:9999/doggo" target="_blank">/doggo</a></strong></li>
+							<li><b><a href="http://localhost:9999/rolldice" target="_blank">/rolldice</a></b></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Verify / endpoint</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Watch the console output! Here's the span for the <strong>/</strong> (index) endpoint:
+					</div>
+					<div style="font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								[otel.javaagent 2026-01-05 17:01:59] [JettyServerThreadPool-39] INFO io.opentelemetry.exporter.logging.LoggingSpanExporter -
+								'GET /' : c8c5576fa0a09e4f7864c189b6cbc489 32d037c93871de56 SERVER
+								[tracer: io.opentelemetry.jetty-11.0:2.30.0-alpha]
+								AttributesMap{
+									data={
+										server.address=localhost,
+										client.address=[0:0:0:0:0:0:0:1],
+										network.peer.address=[0:0:0:0:0:0:0:1],
+										url.path=/,
+										http.request.method=GET,
+										http.route=/,
+										http.response.status_code=200,
+										thread.id=39,
+										server.port=9999,
+										user_agent.original=Mozilla/5.0 ...,
+										network.protocol.version=1.1,
+										url.scheme=http,
+										thread.name=JettyServerThreadPool-39,
+										network.peer.port=51490},
+										capacity=128,
+										totalAddedValues=14
+									}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Verify /doggo endpoint</h2>
+					</div>
+					<div style="height: 10px; text-align: left; font-size: large;">
+						The <strong>/doggo</strong> endpoint generates two spans - a CLIENT span for the external API call:
+					</div>
+					<div style="height: 170px; font-size: large;">
+						<pre>
+							<code data-trim data-noescape>
+								[otel.javaagent 2026-01-05 17:05:09] [JettyServerThreadPool-58] INFO io.opentelemetry.exporter.logging.LoggingSpanExporter -
+								'GET' : 2a4b8d1dfdfdb87920f8b6da349057e1 d93fe942edc837eb CLIENT
+								[tracer: io.opentelemetry.http-url-connection:2.30.0-alpha]
+								AttributesMap{
+									data={
+										server.address=dog.ceo,
+										http.request.method=GET,
+										network.protocol.version=1.1,
+										http.response.status_code=200,
+										thread.id=58,
+										thread.name=JettyServerThreadPool-58,
+										url.full=https://dog.ceo/api/breeds/image/random},
+										capacity=128,
+										totalAddedValues=7
+									}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 10px; text-align: left; font-size: large;">
+							...and a SERVER span for the incoming request (similar to the / endpoint).
+					</div>
+					<div style="height: 100px; font-size: large;">
+						<pre>
+							<code data-trim data-noescape>
+								[otel.javaagent 2026-01-05 17:05:09] [JettyServerThreadPool-58] INFO io.opentelemetry.exporter.logging.LoggingSpanExporter -
+								'GET /doggo' : 2a4b8d1dfdfdb87920f8b6da349057e1 8e44d0d239a550e8 SERVER
+								[tracer: io.opentelemetry.jetty-11.0:2.30.0-alpha]
+								AttributesMap{
+									data={
+										server.address=localhost,
+										client.address=[0:0:0:0:0:0:0:1],
+										network.peer.address=[0:0:0:0:0:0:0:1],
+										url.path=/doggo,
+										http.request.method=GET,
+										http.route=/doggo,
+										http.response.status_code=200,
+										thread.id=58,
+										server.port=9999,
+										user_agent.original=Mozilla/5.0 ...,
+										network.protocol.version=1.1,
+										url.scheme=http,
+										thread.name=JettyServerThreadPool-58,
+										network.peer.port=51634},
+										capacity=128,
+										totalAddedValues=14
+									}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Verify /rolldice endpoint</h2>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: xx-large;">
+						Here's the span for the <strong>/rolldice</strong> endpoint:
+					</div>
+					<div style="font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								[otel.javaagent 2026-01-05 20:55:05] [JettyServerThreadPool-61] INFO io.opentelemetry.exporter.logging.LoggingSpanExporter -
+								'GET /rolldice' : 4076a98916315573f70d130409c21724 22ae5814e96149ef SERVER
+								[tracer: io.opentelemetry.jetty-11.0:2.30.0-alpha]
+								AttributesMap{
+									data={
+										server.address=localhost,
+										client.address=[0:0:0:0:0:0:0:1],
+										network.peer.address=[0:0:0:0:0:0:0:1],
+										url.path=/rolldice,
+										http.request.method=GET,
+										http.route=/rolldice,
+										http.response.status_code=200,
+										thread.id=61,
+										server.port=9999,
+										user_agent.original=Mozilla/5.0 ...,
+										network.protocol.version=1.1,
+										url.scheme=http,
+										thread.name=JettyServerThreadPool-61,
+										network.peer.port=56707},
+										capacity=128,
+										totalAddedValues=14
+									}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Stop the application</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Press CTRL-C in the console to stop the application.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Using environment variables</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Instead of system properties, you can use environment variables. This is often cleaner
+						for production deployments:
+					</div>
+					<div style="height: 150px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ export OTEL_SERVICE_NAME=java-demo
+								$ export OTEL_TRACES_EXPORTER=logging
+								$ export OTEL_METRICS_EXPORTER=none
+								$ export OTEL_LOGS_EXPORTER=none
+
+								$ java -javaagent:opentelemetry-javaagent-2.30.0.jar \
+									-jar target/java-instrumentation-demo-1.0-SNAPSHOT-with-dependencies.jar
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Java Agent in container</h2>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						The first option is to auto-instrument in a container by adding the agent JAR and include
+						<code><b>-javaagent:/app/opentelemetry-javaagent-2.30.0.jar</b></code> in the ENTRYPOINT.
+						Create a file called <code><b>Buildfile-AgentContainer</b></code> with the following content:
+					</div>
+					<div style="height: 220px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								FROM eclipse-temurin:21
+								WORKDIR /app
+
+								# Download the OpenTelemetry Java Agent
+								ADD https://github.com/open-telemetry/opentelemetry-java-instrumentation/\
+								releases/download/v2.30.0/opentelemetry-javaagent.jar /app/opentelemetry-javaagent-2.30.0.jar
+
+								COPY target/java-instrumentation-demo-1.0-SNAPSHOT-with-dependencies.jar /app/app.jar
+
+								ENTRYPOINT ["java", "-javaagent:/app/opentelemetry-javaagent-2.30.0.jar", "-jar", "/app/app.jar"]
+								EXPOSE 9999
+							</code>
+						</pre>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						In the next slide we will build and run this container to verify the auto-instrumentation.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Build and verify container</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Build the image and run with OpenTelemetry environment variables:
+					</div>
+					<div style="height: 180px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t java-demo:auto -f Buildfile-AgentContainer
+
+								$ podman run --rm --name agent-container -p 9999:9999 \
+									-e OTEL_SERVICE_NAME=java-demo \
+									-e OTEL_TRACES_EXPORTER=logging \
+									-e OTEL_METRICS_EXPORTER=none \
+									-e OTEL_LOGS_EXPORTER=none \
+									java-demo:auto
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						This solution has the agent is baked into the image and the configuration is passed at runtime
+						via environment variables so no need to modify the application code.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Generating traffic</h2>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						Open a browser and make requests to the endpoints to verify the auto-instrumentation tracing data
+						is being generated as shown the first example:<br />
+						<br />
+						<ul>
+							<li><b><a href="http://localhost:9999/" target="_blank">/</a></b></li>
+							<li><strong><a href="http://localhost:9999/doggo" target="_blank">/doggo</a></strong></li>
+							<li><b><a href="http://localhost:9999/rolldice" target="_blank">/rolldice</a></b></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Using <code>JAVA_TOOL_OPTIONS</code></h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						An alternative is using <code><b>JAVA_TOOL_OPTIONS</b></code> where the JVM automatically picks up
+						this environment variable. Create a file called <code><b>Buildfile-AgentJavaTools</b></code> with
+						the following content:
+					</div>
+					<div style="height: 250px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								FROM eclipse-temurin:21
+								WORKDIR /app
+
+								ADD https://github.com/open-telemetry/opentelemetry-java-instrumentation/\
+								releases/download/v2.30.0/opentelemetry-javaagent.jar /app/opentelemetry-javaagent-2.30.0.jar
+
+								COPY target/java-instrumentation-demo-1.0-SNAPSHOT-with-dependencies.jar /app/app.jar
+
+								# Agent attaches automatically via JAVA_TOOL_OPTIONS
+								ENV JAVA_TOOL_OPTIONS="-javaagent:/app/opentelemetry-javaagent-2.30.0.jar"
+								ENV OTEL_SERVICE_NAME=java-demo
+								ENV OTEL_TRACES_EXPORTER=logging
+								ENV OTEL_METRICS_EXPORTER=none
+								ENV OTEL_LOGS_EXPORTER=none
+
+								ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+								EXPOSE 9999
+							</code>
+						</pre>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						In the next slide we will build and run this container to verify the auto-instrumentation with this approach.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Build and verify <code>JAVA_TOOL_OPTIONS</code></h2>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: xx-large;">
+						Build the image and run - no extra flags needed!
+					</div>
+					<div style="height: 80px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t java-demo:java-tools -f Buildfile-AgentJavaTools
+
+								$ podman run --rm --name java-tools-container -p 9999:9999 java-demo:java-tools
+							</code>
+						</pre>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Everything is baked into the image - agent attachment and OTel configuration.
+						No runtime flags needed, making deployment simple and consistent.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Intermezzo - <code>JAVA_TOOL_OPTIONS</code> benefits</h2>
+					</div>
+					<div style="height: 230px; text-align: left; font-size: x-large;">
+						Benefits of the <code><b>JAVA_TOOL_OPTIONS</b></code> approach:
+						<br /><br />
+						<ul>
+							<li>No need to modify the <code>java</code> command or ENTRYPOINT</li>
+							<li>Works with any existing Java container image</li>
+							<li>Configuration baked in but can be overridden at runtime</li>
+							<li>Easy to disable: <code><b>-e JAVA_TOOL_OPTIONS=""</b></code></li>
+						</ul>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: x-large;">
+						Try that last one - every baked-in setting can be overridden from the outside:
+					</div>
+					<div style="height: 80px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run --rm -p 9999:9999 -e JAVA_TOOL_OPTIONS="" java-demo:java-tools
+							</code>
+						</pre>
+					</div>
+					<div style="height: 90px; text-align: left; font-size: x-large;">
+						Make a request and notice the console has no <code><b>[otel.javaagent]</b></code> lines and no spans
+						at all - the agent never attached. Stop it with CTRL-C.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Intermezzo - Overriding to OTLP</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						The override you would actually use in production swaps the console exporter for OTLP. Two things
+						have to be right, and the second one catches people out:
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						<ul>
+							<li>Something has to be <b>listening</b> for OTLP - we have no collector running yet, that
+								arrives in the next lab with Jaeger</li>
+							<li>Inside a container, <code><b>localhost</b></code> is the <b>container</b>, not your machine.
+								The agent defaults to <code>http://localhost:4318</code>, so it must be pointed at the host
+								explicitly</li>
+						</ul>
+					</div>
+					<div style="height: 130px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run --rm -p 9999:9999 \
+									-e OTEL_TRACES_EXPORTER=otlp \
+									<mark>-e OTEL_EXPORTER_OTLP_ENDPOINT=http://host.containers.internal:4318</mark> \
+									java-demo:java-tools
+							</code>
+						</pre>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: large;">
+						Don't run this yet - with nothing listening on 4318 the agent logs
+						<code>Failed to export spans ... Connection refused</code> every few seconds and no traces appear
+						anywhere. Come back to it once Jaeger is up in lab 3.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Mount agent at runtime</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						The third option is to keep the Java Agent completely outside the image. Use the simple
+						<code><b>Buildfile</b></code> that contains only the application (no Java Agent):
+					</div>
+					<div style="height: 170px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								FROM eclipse-temurin:21
+
+								ADD target/java-instrumentation-demo-1.0-SNAPSHOT-with-dependencies.jar \
+									java-instrumentation-demo-1.0-SNAPSHOT-with-dependencies.jar
+
+								ENTRYPOINT ["java", "-jar", \
+									"java-instrumentation-demo-1.0-SNAPSHOT-with-dependencies.jar"]
+								EXPOSE 9999
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						This is the original project build file - no agent and no OpenTelemetry configuration.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Build and run with mounted agent</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Build the basic image, then mount the agent at runtime (assumes you have already
+						downloaded the Java Agent to the current directory):
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t java-demo -f Buildfile
+
+								$ podman run --rm --name mounted-agent -p 9999:9999 \
+									-v ./opentelemetry-javaagent-2.30.0.jar:/otel/agent.jar:ro \
+									-e JAVA_TOOL_OPTIONS="-javaagent:/otel/agent.jar" \
+									-e OTEL_SERVICE_NAME=java-demo \
+									-e OTEL_TRACES_EXPORTER=logging \
+									-e OTEL_METRICS_EXPORTER=none \
+									-e OTEL_LOGS_EXPORTER=none \
+									java-demo
+							</code>
+						</pre>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						This keeps your application image unchanged and allows you to update the agent
+						version without rebuilding the image.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Adding custom attributes</h2>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Even with automatic instrumentation, you can add custom attributes to the current span.
+						The agent makes the OpenTelemetry API available, so we can add this dependency to our
+						<code><b>pom.xml</b></code> to provide programmatic access to the API. (Note that this
+						has been provided in the <code><b>OpenTelemetry Java Tracing Demo</b></code> project
+						<code><b>pom.xml</b></code> file already):
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								&lt;!-- OpenTelemetry API --&gt;
+								&lt;dependency&gt;
+									&lt;groupId&gt;io.opentelemetry&lt;/groupId&gt;
+									&lt;artifactId&gt;opentelemetry-api&lt;/artifactId&gt;
+									&lt;version&gt;1.65.0&lt;/version&gt;
+								&lt;/dependency&gt;
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Rebuild with API dependency</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						To gain access to the Opentelemetry API, we need to rebuild the demo project to download
+						the Opentelemetry API dependencies as shown below:
+					</div>
+					<div style="height: 320px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ mvn clean install
+
+								...
+								[INFO] Building Java Instrumentation Demo 1.0-SNAPSHOT
+								[INFO] --------------------------------[ jar ]---------------------------------
+								Downloading from central: .../opentelemetry-api/1.65.0/opentelemetry-api-1.65.0.pom
+								Downloaded from central: .../opentelemetry-api/1.65.0/opentelemetry-api-1.65.0.pom (1.8 kB at 7.8 kB/s)
+								Downloading from central: .../opentelemetry-context/1.65.0/opentelemetry-context-1.65.0.pom
+								Downloaded from central: .../opentelemetry-context/1.65.0/opentelemetry-context-1.65.0.pom (1.8 kB at 26 kB/s)
+								Downloading from central: .../opentelemetry-api/1.65.0/opentelemetry-api-1.65.0.jar
+								Downloading from central: .../opentelemetry-context/1.65.0/opentelemetry-context-1.65.0.jar
+								Downloading from central: .../opentelemetry-common/1.65.0/opentelemetry-common-1.65.0.jar
+								Downloaded from central: .../opentelemetry-api/1.65.0/opentelemetry-api-1.65.0.jar (159 kB at 1.7 MB/s)
+								Downloaded from central: .../opentelemetry-common/1.65.0/opentelemetry-common-1.65.0.jar (2.1 kB at 22 kB/s)
+								Downloaded from central: .../opentelemetry-context/1.65.0/opentelemetry-context-1.65.0.jar (50 kB at 459 kB/s)
+								...
+								[INFO] BUILD SUCCESS
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Access current span</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						In the <code>OpenTelemetry Java Tracing Demo</code> project we will modify the
+						<code><b>src/main/java/io/chronosphere/App.java</b></code> file, uncommenting the import and
+						the code found in the <code><b>handleIndex</b></code> method to access the current span,
+						adding custom attributes (marked lines shown below):
+					</div>
+					<div style="height: 270px; font-size: large;">
+						<pre>
+							<code data-trim data-noescape>
+
+								// =============================================================================
+								// LAB 2 - WORKSHOP REFERENCE CODE
+								// Uncommenting adds import to access the current span from automatic instrumentation:
+								//
+								<mark>// import io.opentelemetry.api.trace.Span;</mark>
+								// =============================================================================
+
+								...
+
+								/**
+									* Handler for the index page (/).
+									* Tracks and displays the number of times the page has been viewed.
+									*/
+									private static void handleIndex(Context ctx) {
+
+											int hits = HITS.incrementAndGet();
+
+											// =========================================================================
+											// LAB 2 - WORKSHOP REFERENCE CODE
+											// Uncomment the following to add custom attributes to auto-instrumented spans:
+											//
+											<mark>// // Get the current span created by the agent</mark>
+											<mark>// Span span = Span.current();</mark>
+											//
+											<mark>// // Add custom attribute to the span</mark>
+											<mark>// span.setAttribute("app.hits", hits);</mark>
+											// =========================================================================
+
+											ctx.contentType("text/plain");
+											ctx.result("This webpage has been viewed " + hits + " times");
+									}
+									...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Rebuild and run custom attribute</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Rebuild the project and run the application with the agent to verify the custom attribute as shown below
+						(it's left to the reader to explore running this in a containerized environment):
+					</div>
+					<div style="height: 150px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ mvn clean install
+
+								$ java -javaagent:opentelemetry-javaagent-2.30.0.jar \
+									-Dotel.service.name=java-demo \
+									-Dotel.traces.exporter=logging \
+									-jar target/java-instrumentation-demo-1.0-SNAPSHOT-with-dependencies.jar
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Auto-instrument - Verify custom tracing attribute</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Make a request to <a href="http://localhost:9999/" target="_blank">http://localhost:9999</a>
+						and check the console for your custom attribute, something like the following, noting the
+						highlighted <code><b>app.hits</b></code> attribute:
+					</div>
+					<div style="height: 250px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								[otel.javaagent 2026-01-06 14:56:42] [JettyServerThreadPool-52] INFO io.opentelemetry.exporter.logging.LoggingSpanExporter -
+								'GET /' : 2cae6a66a58a1e7f4c39ca19cb88a572 969ec33ad60926ac SERVER
+								[tracer: io.opentelemetry.jetty-11.0:2.30.0-alpha]
+								AttributesMap{
+									data={
+										network.protocol.version=1.1,
+										<mark>app.hits=2,</mark>
+										network.peer.port=50234,
+										user_agent.original=Mozilla/5.0 ...,
+										url.scheme=http,
+										thread.name=JettyServerThreadPool-52,
+										http.route=/,
+										http.response.status_code=200,
+										thread.id=52,
+										http.request.method=GET,
+										url.path=/,
+										server.port=9999,
+										network.peer.address=[0:0:0:0:0:0:0:1],
+										server.address=localhost,
+										client.address=[0:0:0:0:0:0:0:1]},
+										capacity=128,
+										totalAddedValues=15
+									}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Auto-instrument - Stop the application</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xxx-large;">
+						<p>Press CTRL-C in the console to stop the application</p>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						We used the <code><b>OpenTelemetry Java Agent</b></code> for zero-code automatic instrumentation, configured
+						the agent to export traces to the console, and added custom attributes to auto-instrumented spans.
+					</div>
+					<div style="height: 250px; font-size: large;">
+						<pre>
+							<code data-trim data-noescape>
+								[otel.javaagent 2026-01-06 14:56:42] [JettyServerThreadPool-52] INFO io.opentelemetry.exporter.logging.LoggingSpanExporter -
+								'GET /' : 2cae6a66a58a1e7f4c39ca19cb88a572 969ec33ad60926ac SERVER
+								[tracer: io.opentelemetry.jetty-11.0:2.30.0-alpha]
+								AttributesMap{
+									data={
+										network.protocol.version=1.1,
+										<mark>app.hits=2,</mark>
+										network.peer.port=50234,
+										user_agent.original=Mozilla/5.0 ...,
+										url.scheme=http,
+										thread.name=JettyServerThreadPool-52,
+										http.route=/,
+										http.response.status_code=200,
+										thread.id=52,
+										http.request.method=GET,
+										url.path=/,
+										server.port=9999,
+										network.peer.address=[0:0:0:0:0:0:0:1],
+										server.address=localhost,
+										client.address=[0:0:0:0:0:0:0:1]},
+										capacity=128,
+										totalAddedValues=15
+									}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Next up, programmatic instrumentation with the OpenTelemetry SDK.
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://opentelemetry.io/docs/languages/java/automatic/" target="_blank">OpenTelemetry Java Agent Documentation</a></li>
+							<li><a href="https://opentelemetry.io/docs/languages/java/automatic/configuration/" target="_blank">Java Agent Configuration Options</a></li>
+							<li><a href="https://github.com/open-telemetry/opentelemetry-java-instrumentation" target="_blank">OpenTelemetry Java Instrumentation GitHub</a></li>
+							<li><a href="https://github.com/open-telemetry/opentelemetry-java-instrumentation/blob/main/docs/supported-libraries.md" target="_blank">Supported Libraries</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact – are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Technology Advocate Lead<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab03.html" target="_blank">Lab 03 - Programmatic Instrumentation</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

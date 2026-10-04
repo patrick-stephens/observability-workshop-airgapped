@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Fluent Bit workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Telemetry Pipelines Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax-highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-799E08H5WD"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-799E08H5WD');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 6 – Avoiding telemetry data loss</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>
+							This lab explores how to avoid losing telemetry data in your telemetry pipeline with
+							Fluent Bit.
+						</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo – Jumping to the solution</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						If you happen to be exploring Fluent Bit as an architect and want to jump to the solution in
+						action, we've included the configuration files in the easy install project from the source
+						install support directory. Please see the previous installing from source lab. Instead of creating all
+						the configurations as shown in this lab, you'll find them ready to use as shown below from the
+						<code><b>fluentbit-install-demo</b></code> root directory:
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ls -l support/configs-lab-6/
+
+								-rw-r--r--@ 1 erics  staff   158B Jul 24 09:00 Buildfile
+								-rw-r--r--@ 1 erics  staff   886B Jul 24 11:10 workshop-fb-helm.yaml
+								-rw-r--r--@ 1 erics  staff   760B Jan 15  2026 workshop-fb.yaml
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss – The problem statement</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: x-large;">
+						In the previous lab we explored how input plugins can hit their ingestion limits when our
+						telemetry pipelines scale beyond memory limits when using default in-memory buffering of our
+						events.<br />
+						<br />
+						We also saw that we can limit the size of our input plugin buffers to prevent our pipeline from
+						failing on out-of-memory errors. We also saw the pausing of the ingestion can also lead to data loss
+						if the clearing of the input buffers takes too long.<br />
+						<br />
+						In this lab, we'll explore another buffering solution that Fluent Bit offers to ensure data and
+						memory safety at scale by configuring
+						<a href="https://docs.fluentbit.io/manual/administration/buffering-and-storage" target="_blank">
+							filesystem buffering
+						</a>.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss – The solution background</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: x-large;">
+						Let's explore how the Fluent Bit engine processes data that input plugins emit. When an input
+						plugin emits events, the engine groups them in a
+						<b><a href="https://docs.fluentbit.io/manual/administration/buffering-and-storage#chunks-memory-filesystem-and-backpressure" target="_blank">
+							Chunk
+						</a></b>. A Chunk size is around 2MB. The default is for the engine to place this Chunk only
+						in memory.<br />
+						<br />
+						We saw that limiting in-memory buffer size did not solve the problem, so we are looking at
+						modifying this default behavior of only placing Chunk's into memory. This is done by changing
+						the property <code><b>storage.type</b></code> from the default <code><b>Memory</b></code> to
+						<code><b>Filesystem</b></code>.<br />
+						<br />
+						It's important to understand that <code><b>Memory</b></code> and <code><b>Filesystem</b></code>
+						buffering mechanisms are not mutually exclusive. By enabling filesystem buffering for our input
+						plugin we automatically get performance and data safety.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo – Filesystem configuration tips</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						By changing our buffering from memory to filesystem with the property
+						<code><b>storage.type filesystem</b></code>, the settings for <code><b>mem_buf_limit</b></code>
+						are ignored.<br />
+						<br />
+						Instead, we need to use the property <code><b>storage.max_chunks_up</b></code> for controlling
+						the size of our memory buffer. Shockingly, when using the default settings the property
+						<code><b>storage.pause_on_chunks_overlimit</b></code> is set to <code><b>off</b></code>, causing
+						the input plugins not to pause. Instead, input plugins will switch to buffering into the
+						filesystem only. We can control the amount of disk space used with
+						<code><b>storage.total_limit_size</b></code>.<br />
+						<br />
+						If the property <code><b>storage.pause_on_chunks_overlimit</b></code> is set to
+						<code><b>on</b></code>, then the buffering mechanism to the filesystem behaves just like our
+						<code><b>mem_buf_limit</b></code> scenario demonstrated in the previous lab.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h3 class="r-fit-text">Data loss – Choose your path</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						We can explore this data loss scenario and its filesystem buffering fix using either a
+						container runtime or a Kubernetes cluster. Pick the path that matches your environment and
+						continue:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<ul>
+							<li>Container (Podman) – continue to the next slide</li>
+							<li><a href="lab06-rancher.html" target="_blank">Kubernetes (k3s) using Rancher Desktop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss – Configuration inputs</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: x-large;">
+						We will be using a backpressure (stressed) configuration for our Fluent Bit pipelines in this
+						lab, <b>all examples are going to be shown using containers (Podman)</b>. It is assumed you are
+						familiar with container tooling such as Podman or Docker.<br />
+						<br />
+						We begin with a configuration file <code><b>workshop-fb.yaml</b></code> with the
+						<code><b>INPUT</b></code> phase, a simple dummy plugin generating a large number of entries to
+						flood our pipeline (note that the previous <code><b>mem_buf_limit</b></code> fix is commented
+						out):
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# This file is our workshop Fluent Bit configuration.
+								#
+								service:
+								  flush: 1
+								  log_level: info
+
+								pipeline:
+								  inputs:
+								    # This entry generates a large amount of success messages for the workshop.
+								    - name: dummy
+								      tag: big.data
+								      copies: 15000
+								      dummy: '{"message":"true 200 success", "big_data": "blah blah blah blah blah blah blah blah"}'
+								      #mem_buf_limit 2MB
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss – Configuring outputs</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						Now ensure the output section of our configuration file <code><b>workshop-fb.yaml</b></code>
+						following the inputs section is as follows:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								outputs:
+								  # This entry directs all tags (it matches any we encounter)
+								  # to print to our console.
+								  - name: stdout
+								    match: '*'
+								    format: json_lines
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss – Testing this stressed pipeline (container)</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Let's now try testing our configuration by running it using a container image. First thing that
+						is needed is to ensure a file called <code><b>Buildfile</b></code> is created. This is going to
+						be used to build a new container image and insert our configuration file. Note this file needs
+						to be in the same directory as our configuration file, otherwise adjust the file path names:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								FROM ghcr.io/fluent/fluent-bit:5.1.1
+
+								COPY ./workshop-fb.yaml /fluent-bit/etc/workshop-fb.yaml
+
+								CMD [ "fluent-bit", "-c", "/fluent-bit/etc/workshop-fb.yaml"]
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss – Building stressed image (container)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Now we'll build a new container image, naming it with a version tag, as follows using the
+						<code><b>Buildfile</b></code> and assuming you are in the same directory:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-fb:v10 -f Buildfile
+
+								STEP 1/3: FROM ghcr.io/fluent/fluent-bit:5.1.1
+								STEP 2/3: COPY ./workshop-fb.yaml /fluent-bit/etc/workshop-fb.yaml
+								--> a1a35a700d37
+								STEP 3/3: CMD [ "fluent-bit", "-c", "/fluent-bit/etc/workshop-fb.yaml"]
+								COMMIT workshop-fb:v10
+								--> 6e6ef0d3e464
+								Successfully tagged localhost/workshop-fb:v10
+								6e6ef0d3e4647242d465cf5c08bd7ebfbbd6bdaac40bf90737d46e0be794b060
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss – Running this stressed pipeline (container)</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						If we run our pipeline in a container configured with constricted memory, in our case we need
+						to give it around 10.2MB limit (adjust this number for your machine as needed), then we'll see the
+						pipeline run for a bit and then fail due to overloading (OOM):
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run -it --memory 10.2MB --name fbv10 workshop-fb:v10
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss – Console output stressed pipeline (container)</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						The console output shows that the pipeline ran for a bit, in our case below before it hit the
+						OOM limits of our container environment (10.2MB). We can validate this by inspecting the container
+						image on the next slide:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								{"date":1722510405.222825,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah blah blah blah blah blah"}
+								{"date":1722510405.222826,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah blah blah blah blah blah"}
+								{"date":1722510405.222826,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah blah blah blah blah blah"}
+								{"date":1722510405.222827,           <<<< CONTAINER KILLED WITH OOM HERE
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss – Validating stressed == OOM</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Below we view our container, inspecting it for an OOM failure to validate our backpressure
+						worked. The following commands show that our container kernel failed and killed it due to an
+						OOM error:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Use the container name to inspect for reason it failed.
+								$ podman inspect fbv10 | grep OOM
+
+								"OOMKilled": true,
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss – Prevention with filesystem buffering</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						What we've seen is that when a channel floods with too many events to process, our pipeline
+						instance fails. From that point onwards we are now unable to collect, process, or deliver any
+						more events.<br />
+						<br />
+						Already having tried in a previous lab to manage this with <code><b>mem_buf_limit</b></code>
+						settings, we've seen that this also is not the real fix. To prevent data loss, we need to enable
+						filesystem buffering so that overloading the memory buffer means that events will be buffered in
+						the filesystem until there is memory free to process them. Let's try this...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss – Filesystem buffering </h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						The configuration of our telemetry pipeline in the <code><b>INPUT</b></code> phase needs a
+						slight adjustment by adding <code><b>storage.type: filesystem</b></code> to as shown along with
+						a few <code><b>SERVICE</b></code> section attributes to enable it as shown:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# This file is our workshop Fluent Bit configuration.
+								#
+								service:
+								  flush: 1
+								  log_level: info
+								  <mark>storage.path: /tmp/fluentbit-storage</mark>
+								  <mark>storage.sync: normal</mark>
+								  <mark>storage.checksum: off</mark>
+								  <mark>storage.max_chunks_up: 5</mark>
+
+								pipeline:
+								  inputs:
+								    # This entry generates a large amount of success messages for the workshop.
+								    - name: dummy
+								      tag: big.data
+								      copies: 15000
+								      dummy: '{"message":"true 200 success", "big_data": "blah blah blah blah blah blah blah blah"}'
+								      #mem_buf_limit 2MB
+								      <mark>storage.type: filesystem</mark>
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss – Notes about SERVICE section</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						The properties that might need some explanation are:<br />
+						<br />
+						<ul>
+							<li><b>storage.path</b> – putting filesystem buffering in the tmp filesystem</li>
+							<li><b>storage.sync</b> – using normal and turning off checksum processing</li>
+							<li><b>storage.max_chunks_up</b> – set to ~10MB, amount of allowed memory for events</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss – Testing filesystem pipeline (container)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Now we'll build a new container image, naming it with a version tag, as follows using the
+						<code><b>Buildfile</b></code> and assuming you are in the same directory:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-fb:v11 -f Buildfile
+
+								STEP 1/3: FROM ghcr.io/fluent/fluent-bit:5.1.1
+								STEP 2/3: COPY ./workshop-fb.yaml /fluent-bit/etc/workshop-fb.yaml
+								--> e93ff93e466b
+								STEP 3/3: CMD [ "fluent-bit", "-c", "/fluent-bit/etc/workshop-fb.yaml"]
+								COMMIT workshop-fb:v11
+								--> d78206548aaa
+								Successfully tagged localhost/workshop-fb:v11
+								d78206548aaaa855c25a9ef2596200c241a2e13c99fe74203f7604493a76fc53
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss – Running filesystem pipeline (container)</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						If we run our pipeline in a container configured with constricted memory (slightly larger value
+						due to memory needed for mounting the filesystem), in our case we need to give it around 12MB
+						limit. Then we'll see the pipeline running without failure. See next slide to validate filesystem
+						buffering is working:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run --rm -v ./:/tmp --memory 12MB --name fbv11 workshop-fb:v11
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss – Console output filesystem pipeline (container)</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						The console output shows that the pipeline runs until we stop it with CTRL-C, with events
+						rolling by as shown below. We can now validate the filesystem buffering by looking at the
+						filesystem as shown on the next slide:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								{"date":1722514136.218682,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah blah blah blah blah blah"}
+								{"date":1722514136.218682,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah blah blah blah blah blah"}
+								{"date":1722514136.218683,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah blah blah blah blah blah"}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss – Validating filesystem buffering (container)</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						Check the filesystem from the directory where you started your container from. While the pipeline
+						is running, with memory restrictions, it will be using the filesystem to store events until the
+						memory is free to process them. If you view the contents of the file before stopping your
+						pipeline, you'll see a messy message format stored inside (cleaned up for you here):
+					</div>
+					<div style="height: 100px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ls -l ./fluentbit-storage/dummy.0/1-1716558042.211576161.flb
+
+								-rw-------  1 username  groupname   1.4M May 24 15:40 1-1716558042.211576161.flb
+
+								$ cat fluentbit-storage/dummy.0/1-1716558042.211576161.flb
+
+								??wbig.data???fP??
+								?????message?true 200 success?big_data?'blah blah blah blah blah blah blah blah???fP??
+								?p???message?true 200 success?big_data?'blah blah blah blah blah blah blah blah???fP??
+								߲???message?true 200 success?big_data?'blah blah blah blah blah blah blah blah???fP??
+								?F???message?true 200 success?big_data?'blah blah blah blah blah blah blah blah???fP??
+								?d???message?true 200 success?big_data?'blah blah blah blah blah blah blah blah???fP??
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Data loss – Thoughts on filesystem solution</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						This solution is the way to deal with backpressure and other issues that might flood your
+						telemetry pipeline and causing it to crash. It's worth noting that using a filesystem to buffer
+						the events also introduces the limits of the filesystem being used.<br />
+						<br />
+						It's important to understand that just as memory can run out, so too can the filesystem storage
+						reach its limits. It's best to have a plan to address any possible filesystem challenges when
+						using this solution, but this is outside the scope of this workshop.
+					</div>
+				</section>
+
+				<section data-background="images/lab03-2.jpg">
+					<div style="height: 400px;">
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<h1 class="r-fit-text" style="color: white;">Data loss solution for pipelines completed!</h1>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed – Results</h2>
+					</div>
+					<div style="height: 200px; font-size: Xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ cat fluentbit-storage/dummy.0/1-1716558042.211576161.flb
+
+								??wbig.data???fP??
+								?????message?true 200 success?big_data?'blah blah blah blah blah blah blah blah???fP??
+								?p???message?true 200 success?big_data?'blah blah blah blah blah blah blah blah???fP??
+								߲???message?true 200 success?big_data?'blah blah blah blah blah blah blah blah???fP??
+								?F???message?true 200 success?big_data?'blah blah blah blah blah blah blah blah???fP??
+								?d???message?true 200 success?big_data?'blah blah blah blah blah blah blah blah???fP??
+								...
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; font-size: xx-large">
+						Next up, avoiding telemetry data loss...
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://github.com/fluent/fluent-bit/blob/master/README.md" target="_blank">Fluent Bit repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact – are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Technology Advocate Lead<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 200px;">
+						<h2 class="r-fit-text">Up next in the workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab07.html" target="_blank">Lab 7 - Pipeline integration with OpenTelemetry</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

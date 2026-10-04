@@ -1,0 +1,91 @@
+{
+  "opentelemetry": {
+    "runs": [],
+    "unresolved": [
+      "The unsuffixed lab path contains no Jaeger container run command; no flags were inferred from another workshop."
+    ],
+    "notes": []
+  },
+  "otel-developers": {
+    "runs": [
+      {
+        "name": "jaeger",
+        "engine": "docker",
+        "image": "jaegertracing/all-in-one:1.76.0",
+        "ports": [
+          "16686:16686",
+          "4317:4317",
+          "4318:4318"
+        ],
+        "env": {
+          "COLLECTOR_OTLP_ENABLED": "true"
+        },
+        "volumes": [],
+        "cmd": [],
+        "check": {
+          "url": "http://localhost:16686",
+          "expect": "Jaeger"
+        },
+        "source": {
+          "file": "lab03.html",
+          "path_type": "docker",
+          "engine": "podman",
+          "raw": "$ podman run --rm -it --name jaeger \\\n-p 16686:16686 \\\n-p 4317:4317 \\\n-p 4318:4318 \\\n-e COLLECTOR_OTLP_ENABLED=true \\\njaegertracing/all-in-one:1.76.0"
+        }
+      }
+    ],
+    "unresolved": [],
+    "notes": [
+      "The unsuffixed docker-path file invokes Podman; source.engine records the actual binary while engine follows the requested path label."
+    ]
+  },
+  "prometheus": {
+    "runs": [
+      {
+        "name": "prometheus",
+        "engine": "docker",
+        "image": "workshop-prometheus:v3.13",
+        "ports": [
+          "9090:9090"
+        ],
+        "env": {},
+        "volumes": [],
+        "cmd": [
+          "--config.file=/etc/prometheus/workshop-prometheus.yml"
+        ],
+        "check": {
+          "url": "http://localhost:9090/-/ready",
+          "expect": "Prometheus"
+        },
+        "source": {
+          "file": "lab05.html",
+          "path_type": "docker",
+          "engine": "podman",
+          "raw": "$ podman run -p 9090:9090 workshop-prometheus:v3.13 --config.file=/etc/prometheus/workshop-prometheus.yml"
+        }
+      }
+    ],
+    "unresolved": [],
+    "notes": [
+      "The unsuffixed docker-path file invokes Podman; source.engine records the actual binary while engine follows the requested path label.",
+      "The docs confirm Prometheus on port 9090 but do not mention /-/ready; the requested readiness URL is retained."
+    ]
+  },
+  "fluentbit": {
+    "runs": [],
+    "unresolved": [
+      "No unsuffixed Fluent Bit run command publishes host port 2020, and the mirrored docs do not establish that check; no port flag was invented."
+    ],
+    "notes": []
+  },
+  "perses": {
+    "runs": [],
+    "unresolved": [
+      "Perses is run only in a suffixed path, not an unsuffixed docker-path lab; the requested path filter excludes it."
+    ],
+    "notes": [
+      "The mirrored docs use Perses on port 8080, not the expected port 3000; the docs take precedence.",
+      "The mirrored docs place node-exporter on port 9100, but its run command is in lab05-podman.html and excluded by the requested path filter."
+    ]
+  }
+}

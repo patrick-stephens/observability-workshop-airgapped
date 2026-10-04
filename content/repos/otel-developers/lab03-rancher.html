@@ -1,0 +1,729 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="OpenTelemetry Workshop for Java Developers">
+		<meta name="author" content="Workshop Author">
+
+		<title>Lab 3 - Programmatic Instrumentation (Rancher k3s)</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/erics.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Rancher k3s prerequisites</h2>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						This path runs Jaeger on a local Rancher Desktop k3s cluster instead of under Podman. You still need
+						<a href="https://openjdk.org/projects/jdk/21/" target="_blank">Java 21</a> and
+						<a href="https://maven.apache.org/" target="_blank">Maven 3.8+</a> to build and run the application on
+						your host, plus <a href="https://rancherdesktop.io/" target="_blank">Rancher Desktop</a> with the
+						Kubernetes (k3s) engine enabled, and <code>kubectl</code> on your PATH.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Start Rancher Desktop</h2>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: xx-large;">
+						This lab assumes Rancher Desktop is installed but <b>not yet running</b>. Launch it now:
+					</div>
+					<div style="height: 60px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ rdctl start
+							</code>
+						</pre>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						<ul>
+							<li>In <b>Preferences &rarr; Kubernetes</b>, confirm "Enable Kubernetes" is checked (k3s)</li>
+							<li>In <b>Preferences &rarr; Container Engine</b>, confirm "containerd" is selected</li>
+							<li>Wait for the status indicator in the bottom left to turn green and show
+								"Kubernetes is running" - this can take a minute or two on first start</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Verifying the cluster</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Check that <code>kubectl</code> is pointed at Rancher Desktop and the node is ready:
+					</div>
+					<div style="height: 150px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl config current-context
+								rancher-desktop
+
+								$ kubectl get nodes
+								NAME                   STATUS   ROLES                  AGE   VERSION
+								lima-rancher-desktop   Ready    control-plane,master   2d    v1.36.2+k3s1
+							</code>
+						</pre>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: xx-large;">
+						Now that you have the tooling, let's get started...
+					</div>
+				</section>
+
+                <section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Why not just use the agent?</h2>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						While the Java Agent is convenient, programmatic instrumentation gives you:<br/>
+						<br/>
+						<ul>
+							<li>More control over what gets instrumented</li>
+							<li>Ability to create custom spans for business logic</li>
+							<li>Better IDE support and compile-time checking</li>
+							<li>Works in environments where agents can't be attached</li>
+							<li>Smaller overhead for targeted instrumentation</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Add Maven dependencies</h2>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: xx-large;">
+						Add the OpenTelemetry dependencies to your <code><b>pom.xml</b></code>. (Note that this
+						has been provided in the <code><b>OpenTelemetry Java Tracing Demo</b></code> project
+						<code><b>pom-programatic-instrumentation.xml</b></code> file):
+					</div>
+					<div style="height: 150px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								&lt;!-- OpenTelemetry API --&gt;
+								&lt;dependency&gt;
+								  &lt;groupId&gt;io.opentelemetry&lt;/groupId&gt;
+								  &lt;artifactId&gt;opentelemetry-api&lt;/artifactId&gt;
+								  &lt;version&gt;1.65.0&lt;/version&gt;
+								&lt;/dependency&gt;
+
+								&lt;!-- OpenTelemetry SDK --&gt;
+								&lt;dependency&gt;
+								  &lt;groupId&gt;io.opentelemetry&lt;/groupId&gt;
+								  &lt;artifactId&gt;opentelemetry-sdk&lt;/artifactId&gt;
+								  &lt;version&gt;1.65.0&lt;/version&gt;
+								&lt;/dependency&gt;
+
+								&lt;!-- Console Exporter for debugging --&gt;
+								&lt;dependency&gt;
+								  &lt;groupId&gt;io.opentelemetry&lt;/groupId&gt;
+								  &lt;artifactId&gt;opentelemetry-exporter-logging&lt;/artifactId&gt;
+								  &lt;version&gt;1.65.0&lt;/version&gt;
+								&lt;/dependency&gt;
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Configure SDK</h2>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						To create, manage and export spans with OpenTelemetry there are 3 components to configure:
+					</div>
+					<div style="height: 270px; font-size: xx-large;">
+						<ul>
+							<li><strong>Tracer Provider</strong> - factory that returns a <em>tracer</em> for creating and managing spans</li>
+							<li><strong>Span Processor</strong> - hooks into span lifecycle, options to send spans immediately or in batches</li>
+							<li><strong>Span Exporter</strong> - responsible for sending spans to the configured destination</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Initialize OpenTelemetry</h2>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						Add a method to initialize the OpenTelemetry SDK (available for uncommenting in
+						the <code><b>AppProgramaticInstrumentation.java</b></code> file):
+					</div>
+					<div style="height: 350px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								import io.opentelemetry.api.OpenTelemetry;
+								import io.opentelemetry.api.trace.Tracer;
+								import io.opentelemetry.sdk.OpenTelemetrySdk;
+								import io.opentelemetry.sdk.resources.Resource;
+								import io.opentelemetry.sdk.trace.SdkTracerProvider;
+								import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
+								import io.opentelemetry.exporter.logging.LoggingSpanExporter;
+								import io.opentelemetry.semconv.ServiceAttributes;
+
+								public class AppProgramaticInstrumentation {
+									private static OpenTelemetry initOpenTelemetry() {
+										Resource resource = Resource.getDefault()
+											.merge(Resource.create(Attributes.of(
+												ServiceAttributes.SERVICE_NAME, "java-demo")));
+
+										SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
+											.setResource(resource)
+											.addSpanProcessor(SimpleSpanProcessor.create(
+												LoggingSpanExporter.create()))
+											.build();
+
+										return OpenTelemetrySdk.builder()
+											.setTracerProvider(tracerProvider)
+											.buildAndRegisterGlobal();
+									}
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Get a Tracer</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Initialize OpenTelemetry in your main method and get a tracer (available for uncommenting in the
+						<code><b>AppProgramaticInstrumentation.java</b></code> file):
+					</div>
+					<div style="height: 280px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								public class AppProgramaticInstrumentation {
+									<mark>private static final OpenTelemetry openTelemetry = initOpenTelemetry();</mark>
+									<mark>private static final Tracer tracer = openTelemetry</mark>
+										<mark>.getTracer("io.chronosphere.AppProgramaticInstrumentation", "1.0.0");</mark>
+
+									public static void main(String[] args) {
+										Javalin app = Javalin.create();
+
+										app.get("/", AppProgramaticInstrumentation::handleIndex);
+										app.get("/rolldice", AppProgramaticInstrumentation::handleRollDice);
+										app.get("/doggo", AppProgramaticInstrumentation::handleDoggoGet);
+										app.post("/doggo", AppProgramaticInstrumentation::handleDoggoPost);
+
+										app.start(PORT);
+									}
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Instrument a handler</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Create a span to collect tracing data for the index page handler (available for uncommenting in the
+						<code><b>AppProgramaticInstrumentation.java</b></code> file):
+					</div>
+					<div style="height: 320px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								import io.opentelemetry.api.trace.Span;
+								import io.opentelemetry.api.trace.SpanKind;
+								import io.opentelemetry.context.Scope;
+								import io.javalin.http.Context;
+
+								private static void handleIndex(Context ctx) {
+									Span span = tracer.spanBuilder("handleIndex")
+										.setSpanKind(SpanKind.SERVER)
+										.startSpan();
+
+									try (Scope scope = span.makeCurrent()) {
+										int hits = HITS.incrementAndGet();
+										span.setAttribute("app.hits", hits);
+
+										ctx.contentType("text/plain");
+										ctx.result("This webpage has been viewed " + hits + " times");
+									} finally {
+										span.end();
+									}
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Verify tracing instrumentation</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Build and run the instrumented application using the new pom file:
+					</div>
+					<div style="height: 150px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ mvn clean install -f pom-programatic-instrumentation.xml
+
+								$ java -jar target/java-programatic-instrumentation-demo-1.0-SNAPSHOT-with-dependencies.jar
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Programmatic - Verify instrumentation</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Open a browser and make a request to the index page at
+						<a href="http://localhost:9999" target="_blank">http://localhost:9999</a> and confirm spans
+						are printed to the console as follows:
+					</div>
+					<div style="height: 280px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								Jan 08, 2026 2:51:08 PM io.opentelemetry.exporter.logging.LoggingSpanExporter export
+								INFO: 'handleIndex' : 178e16841449b2bef8a03f7c4351df33 c6afa64b08f623b2 SERVER
+								[tracer: io.chronosphere.AppProgramaticInstrumentation:1.0.0]
+								AttributesMap{
+									data={
+										app.hits=2
+									},
+									capacity=128,
+									totalAddedValues=1
+								}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Stop the application</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Press CTRL-C to stop the application. Let's add Jaeger for visualization!
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Adding Jaeger</h2>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						Scrolling through spans in the console is overwhelming. Let's add Jaeger for visualizations!
+						<br/><br/>
+						The <code><b>OtlpGrpcSpanExporter</b></code> is part of the OpenTelemetry Java SDK and sends
+						finished spans to any OTLP-compatible backend using the gRPC protocol.<br/>
+						<br/>
+						Key features:
+						<ul>
+							<li>Uses efficient gRPC binary protocol for low overhead</li>
+							<li>Supports configurable endpoint, headers, and timeouts</li>
+							<li>Works with Jaeger, which natively supports OTLP on port 4317</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Add OTLP exporter dependency</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Add the OTLP exporter to your <code><b>pom.xml</b></code>. (Note that this
+						has been provided in the <code><b>OpenTelemetry Java Tracing Demo</b></code> project
+						<code><b>pom-programatic-instrumentation.xml</b></code> file):
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								&lt;!-- OTLP gRPC Exporter --&gt;
+								&lt;dependency&gt;
+									&lt;groupId&gt;io.opentelemetry&lt;/groupId&gt;
+									&lt;artifactId&gt;opentelemetry-exporter-otlp&lt;/artifactId&gt;
+									&lt;version&gt;1.65.0&lt;/version&gt;
+								&lt;/dependency&gt;
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Configure OTLP exporter</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Update the initialization to use the OTLP exporter (available for uncommenting in the
+						<code><b>AppProgramaticInstrumentation.java</b></code> file):
+					</div>
+					<div style="height: 300px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
+
+								private static OpenTelemetry initOpenTelemetry() {
+									Resource resource = Resource.getDefault()
+										.merge(Resource.create(Attributes.of(
+											ServiceAttributes.SERVICE_NAME, "java-demo")));
+
+									<mark>OtlpGrpcSpanExporter otlpExporter = OtlpGrpcSpanExporter.builder()
+										.setEndpoint("http://localhost:4317")
+										.build();</mark>
+
+									SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
+										.setResource(resource)
+										.addSpanProcessor(SimpleSpanProcessor.create(<mark>otlpExporter</mark>))
+										.build();
+
+									return OpenTelemetrySdk.builder()
+										.setTracerProvider(tracerProvider)
+										.buildAndRegisterGlobal();
+								}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Note that you need to comment out the <code><b>initOpenTelemetry()</b></code> method in the
+						<code><b>AppProgramaticInstrumentation.java</b></code> file previously used for OpenTelemetry
+						SDK initialization or the build will fail.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Instrumenting handleDoggoGet</h2>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Add nested spans to trace the doggo handler (available for uncommenting in the
+						<code><b>AppProgramaticInstrumentation.java</b></code> file), but note you have to
+						comment out the existing try block as stated in the comments:
+					</div>
+					<div style="height: 380px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								Span parentSpan = tracer.spanBuilder("handleDoggoGet")
+									.setSpanKind(SpanKind.SERVER)
+									.startSpan();
+
+								try (Scope parentScope = parentSpan.makeCurrent()) {
+									String apiUrl = "https://dog.ceo/api/breeds/image/random";
+									parentSpan.setAttribute("http.url", apiUrl);
+
+									// Child span for API call
+									Span fetchSpan = tracer.spanBuilder("fetchJson")
+										.setSpanKind(SpanKind.CLIENT).startSpan();
+									try (Scope fetchScope = fetchSpan.makeCurrent()) {
+										json = fetchJson(apiUrl);
+									} finally { fetchSpan.end(); }
+
+									// Child span for breed extraction
+									Span extractSpan = tracer.spanBuilder("extractBreed")
+										.setSpanKind(SpanKind.INTERNAL).startSpan();
+									try (Scope extractScope = extractSpan.makeCurrent()) {
+										breed = extractBreedFromUrl(imageSrc);
+									} finally { extractSpan.end(); }
+									// ... render template span and response ...
+								} catch (Exception e) {
+									parentSpan.setStatus(StatusCode.ERROR, e.getMessage());
+									parentSpan.recordException(e);
+								} finally { parentSpan.end(); }
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Start Jaeger on k3s</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Jaeger comes from a public registry, so k3s pulls it for you - there is nothing to side-load here and
+						no <code>--image-pull-policy=Never</code>. OTLP is enabled by default in Jaeger v1.76, but we set it
+						explicitly so the intent is visible:
+					</div>
+					<div style="height: 180px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete pod jaeger --ignore-not-found
+
+								$ kubectl run jaeger --image=jaegertracing/all-in-one:1.76.0 \
+								  --port=16686 --env="COLLECTOR_OTLP_ENABLED=true"
+
+								pod/jaeger created
+
+								$ kubectl wait --for=condition=Ready pod/jaeger --timeout=180s
+								pod/jaeger condition met
+							</code>
+						</pre>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: x-large;">
+						The <code>kubectl wait</code> matters: without it the next step can fail with "unable to forward port
+						because pod is not running".
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Forward the Jaeger ports</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						The application runs on your host and exports over OTLP, so it needs to reach the pod. Forward both the collector port and the UI port to your laptop - <b>4317</b> so the application can export spans to <code>localhost:4317</code> exactly as on the Podman path, and <b>16686</b> so you can open the Jaeger UI in a browser:
+					</div>
+					<div style="height: 100px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl port-forward pod/jaeger 16686:16686 4317:4317
+								Forwarding from 127.0.0.1:16686 -&gt; 16686
+								Forwarding from 127.0.0.1:4317 -&gt; 4317
+							</code>
+						</pre>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: x-large;">
+						Leave this running in its own terminal for the rest of the lab.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Verify Jaeger UI</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Open browser to <a href="http://localhost:16686" target="_blank">http://localhost:16686</a>.
+						You should see the Jaeger UI with a Gopher detective:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab03-1.png" alt="jaeger" style="border: solid 1px black;">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Rebuilding and verifying traces</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Rebuild the project using the programmatic instrumentation pom file and run the application
+						to verify the OTLP exporter is sending traces to Jaeger as shown below:
+					</div>
+					<div style="height: 150px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ mvn clean install -f pom-programatic-instrumentation.xml
+
+								$ java -jar target/java-programatic-instrumentation-demo-1.0-SNAPSHOT-with-dependencies.jar
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Generating traces</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Open a browser and make several requests to the
+						<a href="http://localhost:9999/doggo" target="_blank">/doggo</a> endpoint to generate traces.
+					</div>
+					<div style="height: 350px; text-align: center;">
+						<img src="images/lab03-2.png" alt="java-demo traces" style="border: solid 1px black;">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Verifying traces in Jaeger</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						In the Jaeger UI, select <code><b>java-demo</b></code> from the service dropdown,
+						<code><b>all</b></code> from the operation dropdown, and click on
+						<code><b>Find Traces</b></code> button. Confirm that you see traces returned:
+					</div>
+					<div style="height: 450px;">
+						<img src="images/lab03-3.png" alt="java-demo traces" style="border: solid 1px black;">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Viewing a trace waterfall</h2>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						Select one of the traces by clicking the span name to see the trace waterfall:
+					</div>
+					<div style="height: 500px; text-align: center;">
+						<img src="images/lab03-4.png" alt="traces" style="border: solid 1px black;">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Intermezzo - Production Tip: Using BatchSpanProcessor</h2>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						In this lab we used <code><b>SimpleSpanProcessor</b></code> which exports spans immediately
+						for easier debugging. In production, replace it with <code><b>BatchSpanProcessor</b></code>
+						to reduce network overhead by batching spans before export:
+					</div>
+					<div style="height: 220px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
+
+								SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
+									.setResource(resource)
+									.addSpanProcessor(<mark>BatchSpanProcessor.builder(otlpExporter)
+										.setScheduleDelay(Duration.ofSeconds(5))
+										.setMaxQueueSize(2048)
+										.setMaxExportBatchSize(512)
+										.build()</mark>)
+									.build();
+							</code>
+						</pre>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Note: This is not demonstrated in this lab. For more details, see the
+						<a href="https://opentelemetry.io/docs/languages/java/sdk/#spanprocessor" target="_blank">
+							OpenTelemetry Java Span Processor documentation
+						</a>.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Intermezzo - Production Tip: Graceful Shutdown</h2>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						When using <code><b>BatchSpanProcessor</b></code>, spans are queued before export. If your
+						application shuts down abruptly, pending spans in the queue will be lost. Register a shutdown
+						hook to flush all pending spans before the application terminates:
+					</div>
+					<div style="height: 200px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								public static void main(String[] args) throws IOException {
+									OpenTelemetrySdk sdk = (OpenTelemetrySdk) initOpenTelemetry();
+
+									// Register shutdown hook to flush pending spans
+									Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+										sdk.getSdkTracerProvider().shutdown();
+									}));
+									// ... rest of main method
+								}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Note: This is not demonstrated in this lab. For more details, see the
+						<a href="https://opentelemetry.io/docs/languages/java/sdk/#sdktracerprovider" target="_blank">
+							OpenTelemetry Java SDK TracerProvider documentation.
+						</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Programmatic - Clean up</h2>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						The next two labs keep using Jaeger, so leave the pod running if you are carrying on. To tear it down
+						instead, stop the port-forward with CTRL-C and delete the pod:
+					</div>
+					<div style="height: 80px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete pod jaeger
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 80px; font-size: x-large;">
+						We installed and configured the OpenTelemetry SDK programmatically in the demo application and successfully
+					    sent and viewed traces in Jaeger.
+					</div>
+					<div style="height: 300px; text-align: center;">
+						<img src="images/lab03-4.png" alt="traces" style="border: solid 1px black;">
+					</div>
+					<div style="height: 70px; font-size: x-large;">
+						<br />
+						Next up is exploring trace data in detail!
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://opentelemetry.io/docs/languages/java/instrumentation/" target="_blank">OpenTelemetry Java Manual Instrumentation</a></li>
+							<li><a href="https://javadoc.io/doc/io.opentelemetry/opentelemetry-api/latest/index.html" target="_blank">OpenTelemetry Java API Javadoc</a></li>
+							<li><a href="https://github.com/open-telemetry/opentelemetry-java" target="_blank">OpenTelemetry Java SDK GitHub</a></li>
+							<li><a href="https://www.jaegertracing.io/" target="_blank">Jaeger Project Site</a></li>
+							<li><a href="https://rancherdesktop.io/" target="_blank">Rancher Desktop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+				  <span class="menu-title" style="display: none">Questions or feedback?</span>
+				  <div style="height: 150px">
+						  <h2 class="r-fit-text">Contact - are there any questions?</h2>
+				  </div>
+				  <div style="height: 200px; font-size: x-large; text-align: left">
+						  Eric D. Schabell<br/>
+						  Technology Advocate Lead<br/>
+						  Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						  {<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						  or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+				  </div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab04.html" target="_blank">Lab 04 - Exploring Traces with Jaeger</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

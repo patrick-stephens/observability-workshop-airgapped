@@ -12,8 +12,11 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
+        exclude: ^content/
       - id: end-of-file-fixer
+        exclude: ^content/
       - id: mixed-line-ending
+        exclude: ^content/
       - id: check-merge-conflict
       - id: check-yaml
       - id: check-json
@@ -21,14 +24,19 @@ repos:
       - id: detect-private-key
       - id: check-added-large-files
         args: ["--maxkb=1024"]
+        exclude: ^content/
       - id: check-shebang-scripts-are-executable
+        exclude: ^content/
       - id: check-executables-have-shebangs
+        exclude: ^content/
       - id: check-case-conflict
       - id: check-illegal-windows-names
+        exclude: ^content/
       - id: check-xml
       - id: pretty-format-json
-        exclude: ^slides/package-lock\.json$
+        exclude: ^(slides/package-lock\.json|content/)
       - id: requirements-txt-fixer
+        exclude: ^content/
   - repo: https://github.com/adrienverge/yamllint
     rev: v1.38.0
     hooks:

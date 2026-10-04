@@ -1,0 +1,1926 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Prometheus workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Lab 5 - Prometheus</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-PW25SPMWGG"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-PW25SPMWGG');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 5 - Using Advanced Queries</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>This lab takes you deeper into PromQL expanding your query toolbox with more advanced
+							queries for visualizing collected metrics data.</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - A quick review</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						Looking back briefly, you've got an understanding of how to build and execute basic PromQL
+						queries. You've done this using the default Prometheus console expression browser and graphs.
+						For this lab you'll be diving deeper into PromQL and broadening your knowledge of the tooling
+						available, using the query tree and <code><b>EXPLAIN</b></code> tab built into the Prometheus
+						console. These are the best assistants you can find to help you build and understand what
+						you are querying while seeing the results directly.<br />
+						<br />
+						There is nothing new to install for this lab, it all runs in the Prometheus instance you set
+						up earlier in this workshop.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Where the EXPLAIN tab came from</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: x-large;">
+						The query tree and EXPLAIN tab you are about to use have a history worth knowing. They started
+						life as a separate web-based PromQL query builder, analyzer, and visualizer called
+						<b>PromLens</b>, initially created as a commercial offering by PromLabs and later, in 2022,
+						donated to the open source Prometheus project by PromLabs and Chronosphere.<br />
+						<br />
+						Since then its functionality has been merged directly into the Prometheus console, which is
+						where you'll find it today under the <code><b>EXPLAIN</b></code> tab. The standalone PromLens
+						project was archived in July 2026 and is no longer maintained.<br />
+						<br />
+						The upshot for this workshop: there is nothing extra to install. Everything in this lab runs in
+						the Prometheus console you already have.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 70px;">
+						<h3 class="r-fit-text">Advanced PromQL - The standalone tool it grew from</h3>
+					</div>
+					<div style="height: 550px;">
+						<img src="images/lab05-1.png" alt="standalone promlens"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Advanced PromQL - Intermezzo</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						<b>Note:</b> This workshop uses the Prometheus enhanced query UI featuring the EXPLAIN tab
+						for query analysis. The rest of this lab shows examples using the query tree and explanation
+						views provided by the Prometheus console. We find this in the
+						query console under the <code><b>EXPLAIN</b></code> tab as shown below:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab05-5b.png" alt="explain"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Nested query expressions</h3>
+					</div>
+					<div style="height: 220px; text-align: left; font-size: xx-large;">
+						After clicking on the <code><b>ENABLE THE QUERY TREE VIEW</b></code> and putting the query
+						expression below into the console we see a tree view. PromQL expressions are not a single query,
+						but often a set of nested expressions, each one being evaluated and used as an argument or
+						operand to the expressions above it in the nested structure.
+					</div>
+					<div style="height: 100px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								rate(demo_api_request_duration_seconds_count{job="services"}[5m])
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results nested structure</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						This is the breakdown of the nested query expressions from our query. First, an embedded metric
+						query that delivers its results to the <code>rate</code> function, which generates the final
+						results. Note it breaks down the query expression automatically for you below the expression
+						window, in this case it's focused on the <code><b>rate</b></code> function:
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab05-6.png" alt="query tree"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Advanced PromQL - Testing nested queries</h3>
+					</div>
+					<div style="height: 90px; text-align: left; font-size: x-large;">
+						The query tree broke down the query into its nested parts, and you can click on the bottom metric line
+						under the <code>rate</code> function line to execute it to validate the results being returned
+						in the <code><b>TABLE</b></code> tab:
+					</div>
+					<div style="height: 450px;">
+						<img src="images/lab05-7.png" alt="query tree"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Advanced PromQL - Exploring label dimension results</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Also note that next to the query line you see links to each of the label dimensions that are
+						part of the results. To view them, hover on one (below an example of the two <code>method</code>
+						label results) and see how it opens a pop-up window below breaking down the results (GET and
+						POST):
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab05-8.png" alt="expression"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Advanced PromQL - Explaining nested query expressions</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: x-large;">
+						A really nice feature of this tooling is the EXPLAIN tab. Select the EXPLAIN tab, followed by
+						clicking on the lower metric query expression to see it explained for you:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab05-9.png" alt="explain">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Advanced PromQL - Explaining basic functions</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Also try clicking on the <code>rate</code> line for an explanation. At its most basic form of
+						just the function name, you see that you end up with the documentation explanation:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab05-10.png" alt="explain">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 70px;">
+						<h3 class="r-fit-text">Advanced PromQL - Exploring complexer expressions</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Let's try a more complex nested query such as below, that if you cut-and-paste into your
+						Prometheus console will let you explore a bit more:
+					</div>
+					<div style="height: 100px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								histogram_quantile(
+									0.9,
+									sum by(le, method, path) (
+										rate(
+											demo_api_request_duration_seconds_bucket{job="services"}[5m]
+										)
+									)
+								)
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Advanced PromQL - Run each nested function</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Try each nested function in the broken down query below, viewing labels, results, graphs
+						(where possible), and look at the explanations. Noting of course, that depending on how long
+						your instance as been running, results may be different from those shown here:
+					</div>
+					<div style="height: 450px;">
+						<img src="images/lab05-11.png" alt="nested">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Theory intermezzo - PromQL expression result types</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						There are two concepts of <b>expression type</b> when talking about querying Prometheus, and it's crucial you're
+						able to understand the differences:<br />
+						<br />
+						<ul>
+							<li><b>metric type</b> - as reported by a scraped target: counter, gauge, histogram, summary, or untyped.</li>
+							<li><b>results type</b> - data type of PromQL expression: <b>string, scalar, instant vector, or range vector.</b></li>
+						</ul><br />
+						<br />
+						PromQL has no concept of metric types. It's only concerned with <b>expression result types</b>.
+						Each PromQL expression has a type, and each function, operator, or other type of operation
+						requires its arguments to be of a certain expression type. String and scalar are straight
+						forward for most, so let's look at the <b>instant vector</b> and <b>range vector</b> types.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Theory intermezzo - Instant vector expression results</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Instant vectors are a list of labeled time series with one sample for each series, all measured
+						at the same timestamp. They can result from a direct selection query of a time series metric, or
+						from any function or other transformation that returns one. This is an example of an instant
+						vector results:
+					</div>
+					<div style="height: 100px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								demo_cpu_usage_seconds_total{instance="localhost:8080", job="services", mode="idle"}	8310.383198889807
+								demo_cpu_usage_seconds_total{instance="localhost:8080", job="services", mode="system"}	3327.929701170597
+								demo_cpu_usage_seconds_total{instance="localhost:8080", job="services", mode="user"}	4984.887099939602
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Theory intermezzo - Range vector expression results</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: x-large;">
+						Range vectors are a list of labeled time series with a range of samples over time for each
+						series. They can result from a literal range vector selection query, or from a subquery
+						expression. Useful when you want to aggregate over the behavior of a series over a specified
+						time window. For example, <b>rate(demo_cpu_usage_seconds_total[5m])</b>.<br />
+						<br />
+						This is an example of a range vector results:
+					</div>
+					<div style="height: 100px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								demo_cpu_usage_seconds_total{instance="localhost:8080", job="services", mode="idle"}	1.9860637950939426
+								demo_cpu_usage_seconds_total{instance="localhost:8080", job="services", mode="system"}	0.794675335030005
+								demo_cpu_usage_seconds_total{instance="localhost:8080", job="services", mode="user"}	1.1934846860666322
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Theory intermezzo - PromQL expression node types</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						There are 10 different <b>node types</b>, which are the types of queries or expressions you
+						can write:<br />
+						<br />
+						<ul style="font-size: smaller;">
+							<li><b>number literals</b> : <code>6.45</code> </li>
+							<li><b>string literals</b> : <code>"hello o11y"</code> -- occur infrequently, used as parameter values to functions</li>
+							<li><b>instant vector selectors</b> : <code>some_metric{job="services"}</code> -- explained previously</li>
+							<li><b>range vector selectors</b> : <code>some_metric{job="services"}[15m]</code> -- explained previously</li>
+							<li><b>aggregation</b> : <code>sum by(job) (some_metric)</code> -- allows aggregating over multiple series, always yields an instant vector</li>
+							<li><b>unary operators</b> : <code>-some_metric</code> -- negates any scalar or instant vector values, returns same type as it was applied on</li>
+							<li><b>binary operators</b> : <code>some_metric_1 + some_metric_2</code> -- returns scalar if both operands are scalar, otherwise vector</li>
+							<li><b>function calls</b> : <code>rate(some_metric[15m])</code> -- takes input parameters of varying types, returns varying types</li>
+							<li><b>sub-queries*</b> : <code>(expression)[1d:]</code> -- takes instant vector expression as input, returns a range vector</li>
+							<li><b>parentheses expressions</b> : <code>(42)</code> -- may return string, scalar, instant vector, or range vector, depending on usage</li>
+							<br />
+							<br />
+							* Sub-queries to be covered later in this lab.
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Theory intermezzo - Query evaluation times</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						If you've been paying attention so far, PromQL queries are using relative reference to time,
+						such as looking back five minutes [5m]. The question is how are you going to specify an absolute
+						graph time range or a timestamp to show query results in a table?<br />
+						<br />
+						Time parameters are sent separately to the
+						<a href="https://prometheus.io/docs/prometheus/latest/querying/api/" target="_blank">
+							Prometheus Query API
+						</a> and depend on which type of query you are using. Let's look at each of the two query
+						types and explore how they tackle evaluation times.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Theory intermezzo - Instant query evaluation time</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						The first type is called an
+						<a href="https://prometheus.io/docs/prometheus/latest/querying/api/#instant-queries" target="_blank">
+							instance query
+						</a>, used for table views showing results at a single point in time. It has the following
+						parameters:<br />
+						<br />
+						<ul>
+							<li><b>expression</b></li>
+							<li><b>evaluation timestamp</b></li>
+						</ul><br />
+						<br />
+						The expression is evaluated at the given timestamp. For example, <code><b>some_metric[15m]</b></code>
+						selects the last 15 minutes of data, but never into the future. [-15m] is not valid. To be
+						precise, the metric data is collected from the latest 15 minutes, meaning the data points need
+						to be "at most 15m old, and not stale" relative to the evaluation timestamp. Output timestamps
+						of all samples found in the last 15m will return them with their timestamps set to the
+						evaluation timestamp. If there is a 15m gap in samples for a query, then the query returns an
+						empty result.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Theory intermezzo - Range query evaluation times</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						The second type is called a
+						<a href="https://prometheus.io/docs/prometheus/latest/querying/api/#range-queries" target="_blank">
+							range query
+						</a>, used for graphs showing expressions over a given time range. It works just like a set of
+						independent instant queries that evaluate a resolution's steps over the given time range (though
+						highly optimized in action). It has the following parameters:<br />
+						<br />
+						<ul>
+							<li><b>expression</b></li>
+							<li><b>start time</b></li>
+							<li><b>end time</b></li>
+							<li><b>resolution step</b></li>
+						</ul><br />
+						<br />
+						The expression is evaluated at every resolution step between the start and end time, stitching
+						together into a single range vector the individually evaluated time slices. Note if there are
+						no samples in a given individual time frame, there will be gaps in the final series data used
+						to produce the range vector
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Exploring histogram metrics</h3>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						Onwards to our more advanced PromQL, starting with histograms, one of the more complex metrics
+						to understand. You'll be looking at how histograms are represented in Prometheus, learn about
+						observation buckets, and how to approximate quantiles from your histograms. The two things
+						we'll be covering:<br />
+						<br />
+						<ul>
+							<li><code><b>histogram metrics</b></code> - how to interpret</li>
+							<li><code><b>quantiles</b></code> - a generalized form of a percentile and how to calculate
+								them from histograms</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Histograms in Prometheus</h3>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: x-large;">
+						Prometheus client libraries support histogram metrics, allowing a service (app) to record the
+						distribution of a stream of data values into a set of ranged buckets. Histograms usually track
+						latency measurements or response sizes. Prometheus histograms sample data on the client-side,
+						meaning that they count observed values using a number of configurable buckets and expose
+						buckets as individual counter time series.<br />
+						<br />
+						Internally, Prometheus histograms are implemented as a group of counter time series that each
+						represent the current count for a given bucket. The per-bucket counters are cumulative in
+						Prometheus, meaning that buckets for larger ranges include the counts for all lower-ranged
+						buckets as well. Each histogram bucket time series has an <code><b>le label</b></code>
+						("less than or equal") and specifies the bucket's upper value boundary as a number encoded in a
+						string label value such as <code><b>le="0.05"</b></code> for an upper boundary of 0.05 seconds.
+						Note that this adds another cardinality dimension to any existing labels you are tracking.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Prometheus histogram representation</h3>
+					</div>
+					<div style="height: 90px; text-align: left; font-size: xx-large;">
+						This is what a histogram representation might look like in Prometheus metrics format:
+					</div>
+					<div style="height: 220px;">
+						<pre>
+							<code data-trim data-noescape>
+								http_request_duration_seconds_bucket{le="0.025"} 20
+								http_request_duration_seconds_bucket{le="0.05"} 60
+								http_request_duration_seconds_bucket{le="0.1"} 90
+								http_request_duration_seconds_bucket{le="0.25"} 100
+								http_request_duration_seconds_bucket{le="+Inf"} 105
+								http_request_duration_seconds_sum 21.322
+								http_request_duration_seconds_count 105
+							</code>
+						</pre>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						Note here that the first bucket is reporting 20, the second is reporting 60 (that's 40 + previous
+						20), the third bucket is reporting 90 (that's 10 + 60 + 20), and so on...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Example histogram query</h3>
+					</div>
+					<div style="height: 90px; text-align: left; font-size: xx-large;">
+						Let's look at a histogram for one combination of request dimensions, from one instance:
+					</div>
+					<div style="height: 70px;font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								demo_api_request_duration_seconds_bucket{instance="localhost:8080",method="POST",path="/api/bar",status="200",job="services"}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						You should see 26 series that each represent one observation bucket, identified by the
+						<code>le label</code>, as shown on the next slide.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 80px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results histogram query</h3>
+					</div>
+					<div style="height: 500px;">
+						<img src="images/lab05-12.png" alt="histogram">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Moving on to quantiles</h3>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						A histogram helps answer questions like "How many of my requests take longer than 300ms to
+						complete?" You answer this by configuring histogram buckets with 300ms boundaries, and you're
+						off and visualizing.<br />
+						<br />
+						More likely, you'd like answers to: "What is the latency under which 99% of my queries complete?"
+						This is a percentile or quantile answer we need. Note that in Prometheus percentile and quantile
+						are the same, except that percentiles are in a 0 - 100 range, quantiles are between 0 and 1. In
+						this case, the 99th percentile would be equivalent to a quantile of 0.99.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - The histogram_quantile function</h3>
+					</div>
+					<div style="height: 90px; text-align: left; font-size: xx-large;">
+						If your histogram buckets are fine-grained enough, calculate quantiles from it using the
+						following function:
+					</div>
+					<div style="height: 70px;">
+						<pre>
+							<code data-trim data-noescape>
+								histogram_quantile(quantile_value, histogram_metric)
+							</code>
+						</pre>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						This function takes a quantile value between 0 and 1 and a histogram metric as inputs and
+						outputs corresponding quantile values.
+						<a href="https://prometheus.io/docs/prometheus/latest/querying/functions/#histogram_quantile" target="_blank">
+							See documentation
+						</a> for more details on the inner workings of how it converts 90 percentile to 0.9 quantile in
+						the following slides.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Calculating 90% API latency (first try)</h3>
+					</div>
+					<div style="height: 90px; text-align: left; font-size: xx-large;">
+						Using our demo service, let's try and calculate at what latency 90% of our API requests finish.
+						The first attempt might look like this:
+					</div>
+					<div style="height: 70px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								histogram_quantile(0.9, demo_api_request_duration_seconds_bucket{job="services"})
+							</code>
+						</pre>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						The problem is that it's not very useful. The bucket counters reset when individual service
+						instances are restarted, and you usually want to see what the latency is measured over the last
+						five minutes rather than over the entire time of the metric. In the next slide you'll see how to
+						overcome this problem, or can you make a guess at the solution?
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Calculating 90% API latency (solution)</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Applying a rate() function so that it only takes into account the most recent increments to the
+						bucket counters within the last five minutes, while also dealing with counter resets correctly.
+						Calculate the 90th percentile API latency over the last 5 minutes like this:
+					</div>
+					<div style="height: 70px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								histogram_quantile(0.9, rate(demo_api_request_duration_seconds_bucket{job="services"}[5m]))
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 50px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results 90% API latency query</h3>
+					</div>
+					<div style="height: 580px;">
+						<img src="images/lab05-13.png" alt="quantiles">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 70px;">
+						<h3 class="r-fit-text">Advanced PromQL - Aggregating away dimensions</h3>
+					</div>
+					<div style="height: 330px; text-align: left; font-size: xx-large;">
+						Our query shows the 90th percentile for every sub-dimension (job, instance, path, method, and
+						status), which is a lot of data we don't really need in this case. Let's try to apply some
+						cost savings for our organization and aggregate some of these labels away. Fortunately, you can
+						use Prometheus' sum aggregation operator with your histogram_quantile() during query time to
+						compute aggregated quantiles! The following aggregates away status and method dimensions:
+					</div>
+					<div style="height: 70px; font-size: smaller;">
+						<pre>
+							<code data-trim data-noescape>
+								histogram_quantile(
+									0.9,
+									sum without(status, method) (
+										rate(demo_api_request_duration_seconds_bucket{job="services"}[5m])
+									)
+								)
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 50px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results aggregation latency query</h3>
+					</div>
+					<div style="height: 580px;">
+						<img src="images/lab05-14.png" alt="aggregation">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 70px;">
+						<h3 class="r-fit-text">Advanced PromQL - Filtering queries for thresholds</h3>
+					</div>
+					<div style="height: 330px; text-align: left; font-size: xx-large;">
+						We can filter our query results based on sample values by using binary filtering operators such
+						as >, <, <=, >=, ==, and !=. This is a common use case where you want to apply a threshold in
+						alerting rules. Should the value sampled exceed a given threshold, you want to be alerted. In
+						the following example, we want to see the CPU usage in the USER space that exceeds a threshold
+						of 1.19 measured over the last 15 minutes, so we add a > 1.19 filter operator to the rate
+						expression:
+					</div>
+					<div style="height: 70px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								rate(demo_cpu_usage_seconds_total{mode="user", job="services"}[15m]) > 1.10
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 50px;">
+						<h3 class="r-fit-text">Advanced PromQL - Setting user cpu threshold</h3>
+					</div>
+					<div style="height: 580px;">
+						<img src="images/lab05-15.png" alt="thresholds">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 70px;">
+						<h3 class="r-fit-text">Advanced PromQL - Adjusting the filter threshold</h3>
+					</div>
+					<div style="height: 280px; text-align: left; font-size: xx-large;">
+						As you might have noticed, the threshold was too low, all data was above it! Let's adjust our
+						threshold and see how that looks for the CPU usage in the USER space that exceeds a new threshold
+						of 1.194 measured over the last 15 minutes. This should result in only showing some of the
+						cpu usage that exceeds our new threshold (feel free to play with the threshold value on your
+						machine as the data will differ):
+					</div>
+					<div style="height: 70px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								rate(demo_cpu_usage_seconds_total{mode="user", job="services"}[15m]) > 1.19
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 50px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results real cpu threshold</h3>
+					</div>
+					<div style="height: 580px;">
+						<img src="images/lab05-16.png" alt="results thresholds">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 70px;">
+						<h3 class="r-fit-text">Advanced PromQL - Filtering with time series</h3>
+					</div>
+					<div style="height: 280px; text-align: left; font-size: x-large;">
+						Often binary operators are not common in graphs (note some rates disappear at evaluation time),
+						while they appear regularly in alerting conditions to indicate value thresholds. What about
+						filtering one time series results with another? Not a problem as the comparison operators
+						also apply between series with identical label sets on both the left and right side of the
+						comparison Note that on(), ignoring(), group_left(), and group_right() modifiers also work.<br />
+						<br />
+						Let's test this by selecting the status="500" error rates for all label combinations where that
+						error rate is more than 1/150th (2%) of the total request rate for the same label set:
+					</div>
+					<div style="height: 70px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								rate(demo_api_request_duration_seconds_count{status="500",job="services"}[5m]) * 50
+								> ignoring(status)
+									sum without(status) (rate(demo_api_request_duration_seconds_count{job="services"}[5m]))
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results filtering time series</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						You'll have to ignore the status label in the matching since it is always 500 on one side and
+						missing on the other. The resulting graph looks a little strange since the series appear and
+						disappear based on their current error rate ratio at each step in the graph:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab05-17.png" alt="filtering">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 70px;">
+						<h3 class="r-fit-text">Advanced PromQL - Using boolean for filtering</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						There is a way to determine the result of a comparison operator without actually removing any
+						output series from the results. It's done by adding a <code>bool</code> modifier to the operator
+						which results in keeping all series while setting the output sample value into a 1 (true) or
+						0 (false).<br />
+						<br />
+						To show which request rates out of a set are above or below 0.2 per second, we can query as
+						shown below. This results in a 0 or 1 for all label sets of the input series, allowing you to
+						turn numeric conditions into boolean output values:
+					</div>
+					<div style="height: 70px; font-size: smaller;">
+						<pre>
+							<code data-trim data-noescape>
+								rate(demo_api_request_duration_seconds_count{job="services"}[5m]) > bool 0.2
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 50px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results boolean filtering</h3>
+					</div>
+					<div style="height: 580px;">
+						<img src="images/lab05-18.png" alt="boolean">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - The 3 set operators</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						Prometheus provides 3 set binary operators that work between instant vectors:<br />
+						<br />
+						<ul>
+							<li><b>AND (set intersection)</b> — Alert on high error rates, but only if the corresponding
+								total rate is above some threshold.</li>
+							<li><b>OR (set union)</b> — Graph one set of series, but fill up missing values from another
+								series.</li>
+							<li><b>UNLESS</b> (set diff) — Alert on low disk space, unless it's a read-only filesystem.</li>
+						</ul>
+						<br /><br />
+						Set operators try to find matching series between the left and right side based on identical
+						label sets, unless you provide an on() or ignoring() modifier to specify how matches should be
+						found.<br />
+						<br />
+						Unlike mathematical operators, there is no group_left() or group_right() modifier for set
+						operators, as set operators always perform many-to-many matching. They always allow matching
+						series from either side to match multiple series on the other side.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Merging sets of time series</h3>
+					</div>
+					<div style="height: 220px; text-align: left; font-size: x-large;">
+						For the <code>AND</code> operator, if a match is found, the left-hand-side series becomes part
+						of the output. If no matching series exists on the right, the series is omitted from the output.
+						Let's explore this by selecting any HTTP endpoints that have a 90th percentile latency higher
+						than 50ms (0.05s), but only for the dimensional combinations that receive more than one request
+						per second. Let's use the histogram_quantile() function to calculate the 90th percentile latency
+						for each sub-dimension, then filter the resulting bad latencies out and retain only those that
+						receive more than one request per second:
+					</div>
+					<div style="height: 70px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								histogram_quantile(0.9, rate(demo_api_request_duration_seconds_bucket{job="services"}[5m])) > 0.05
+								and
+								rate(demo_api_request_duration_seconds_count{job="services"}[5m]) > 1
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 50px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results merging time series</h3>
+					</div>
+					<div style="height: 580px;">
+						<img src="images/lab05-19.png" alt="merging">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Using the union of sets</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Let's build a union of two sets of time series. Prometheus provides the <code>OR</code> set
+						operator, and it results in the series from the left-hand side of the operation, as well as any
+						series from the right-hand side which don't have matching label sets on the left. To see this at
+						work, let's list all request rates which are either below 10 or above 30 as follows:
+					</div>
+					<div style="height: 70px; font-size: smaller;">
+						<pre>
+							<code data-trim data-noescape>
+								rate(demo_api_request_duration_seconds_count{job="services"}[5m]) < 10
+								or
+								rate(demo_api_request_duration_seconds_count{job="services"}[5m]) > 30
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 50px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results union of time series</h3>
+					</div>
+					<div style="height: 580px;">
+						<img src="images/lab05-20.png" alt="union">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Thoughts on merging sets</h3>
+					</div>
+					<div style="height: 220px; text-align: left; font-size: xx-large;">
+						A final note about filtering, as stated before, using value filters and set operations in graphs
+						leads to time series appearing and disappearing depending on whether they match a filter or not
+						at any time step along the graph. Using this kind of filter logic is recommended only for
+						alerting rules.<br />
+						<br />
+						Exploring the <code>UNLESS</code> operator, which only keeps series from the left-hand side if
+						equivalent label sets do not exist on the right-hand side (the right side "cuts out" elements
+						from the left side). This is left for you to explore on your own. You're now able to build set
+						intersections, unions, and differences out of labeled time series.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Using metrics with timestamps</h3>
+					</div>
+					<div style="height: 380px; text-align: left; font-size: xx-large;">
+						Prometheus frequently exposes timestamps such as the last time that a batch job completed
+						successfully or when a machine was restarted. As we might expect, these times are represented
+						as Unix timestamps in seconds since January 1, 1970, UTC. Our demo services expose timestamps in
+						a few metrics, such as the last time when a simulated batch job succeeded. It's simulating
+						running once per minute and failing 25% of the time. When it fails, the metric keeps its last
+						value until another successful run occurs. The raw timestamp can be graphed like this:
+					</div>
+					<div style="height: 70px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								demo_batch_last_success_timestamp_seconds{job="services"}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 50px;">
+						<h3 class="r-fit-text">Advanced PromQL - Graph of raw timestamp query</h3>
+					</div>
+					<div style="height: 580px;">
+						<img src="images/lab05-21.png" alt="timestamps">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Getting value from timestamps</h3>
+					</div>
+					<div style="height: 220px; text-align: left; font-size: xx-large;">
+						Raw timestamps are not very useful, but if you want to know how old the timestamp is, you can
+						then spot batch jobs that are overdue. To calculate this, subtract the timestamp in the metric
+						from the current time using the <code>time()</code> function to get time in seconds since the
+						last successful run of the batch job:
+					</div>
+					<div style="height: 70px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								time() - demo_batch_last_success_timestamp_seconds{job="services"}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 50px;">
+						<h3 class="r-fit-text">Advanced PromQL - Graph using time()</h3>
+					</div>
+					<div style="height: 580px;">
+						<img src="images/lab05-22.png" alt="time">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Manipulating your timestamps</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						You might need to convert your output from seconds into hours. This is done by dividing the
+						results by 3600. An expression like this is useful for both graphing and alerting:
+					</div>
+					<div style="height: 70px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								(time() - demo_batch_last_success_timestamp_seconds{job="services"}) / 3600
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 50px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results converting to hours</h3>
+					</div>
+					<div style="height: 580px;">
+						<img src="images/lab05-23.png" alt="hours">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Finding slow batch jobs</h3>
+					</div>
+					<div style="height: 330px; text-align: left; font-size: xx-large;">
+						When visualizing the timestamp age like above, you receive a sawtooth graph, with linearly
+						increasing lines and regular resets to 0 when the batch job completes successfully. If a
+						sawtooth spike gets too large, this indicates a batch job that has not been completed in a
+						timely manner. You can set an alert on this by adding a > threshold filter to the expression and
+						alerting on the resulting time series. Let's try listing instances for which the batch job has
+						not completed in the last 30 seconds with the following query:
+					</div>
+					<div style="height: 70px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								time() - demo_batch_last_success_timestamp_seconds{job="services"} > 0.5 * 60
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 50px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results slow batch jobs</h3>
+					</div>
+					<div style="height: 580px;">
+						<img src="images/lab05-24.png" alt="slow">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Inspecting instance health</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						While scraping targets, Prometheus stores a synthetic (fake) sample with the metric name
+						<code>UP</code> and the <code>JOB</code> and <code>INSTANCE</code> labels of the scraped
+						instance. If the scrape was successful, the value of the sample is set to 1, or 0 if the scrape
+						fails. Thus, we can easily query which instances are currently "up" or "down" by querying for:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								up{job="services"}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab05-25.png" alt="one instance">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Second services instance setup</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: x-large;">
+						Not very exciting with only one services demo instance running. Let's set up a second services
+						demo instance to help clarify the instance health checks. If you open a new terminal window and
+						start a second services demo instance with the following command, you'll get a second instance
+						on <code><b>localhost:8088</b></code> (any unoccupied port will work if there is a conflict).
+						On Kubernetes you re-apply the <code><b>services-demo-2.yaml</b></code> file you wrote back in
+						lab 3, and the port number is a port-forward detail only, the cluster still scrapes it on 8080:
+					</div>
+					<div style="height: 300px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# source install.
+								$ ./installs/demo/services_demo --listen-address localhost:8088
+
+								# container install.
+								$ podman run -p 8088:8080 prometheus_services_demo:v1
+
+								# Kubernetes (k3s) install.
+								$ kubectl apply -f services-demo-2.yaml -n prometheus
+
+								$ kubectl port-forward -n prometheus svc/services-demo-2 8081:8080
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Verify second instance</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Verify that you have the metrics feed on localhost:8088/metrics (on Kubernetes that's
+						localhost:8081/metrics, whatever port you gave the port-forward above):
+					</div>
+					<div style="height: 100px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# HELP demo_api_http_requests_in_progress The current number of API HTTP requests in progress.
+								# TYPE demo_api_http_requests_in_progress gauge
+								demo_api_http_requests_in_progress 1
+								# HELP demo_api_request_duration_seconds A histogram of the API HTTP request durations in seconds.
+								# TYPE demo_api_request_duration_seconds histogram
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0001"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.00015000000000000001"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.00022500000000000002"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0003375"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.00050625"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.000759375"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0011390624999999999"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0017085937499999998"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0025628906249999996"} 0
+								demo_api_request_duration_seconds_bucket{method="GET",path="/api/bar",status="200",le="0.0038443359374999994"} 0
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Add target to Prometheus</h3>
+					</div>
+					<div style="height: 140px; text-align: left; font-size: x-large;">
+						Now we need to reconfigure Prometheus to scrape this new instance, while keeping it under the
+						same <code><b>JOB</b></code> title. To do this, update the same Prometheus configuration file that
+						you worked with (<code><b>workshop-prometheus.yml</b></code>) and add the new services target to
+						scrape. Note for containers, instead of localhost for the targets, you'll need to use the
+						variable shown to discover the IP address. (Kubernetes path, see the next slide instead):
+					</div>
+					<div style="height: 70px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# workshop config
+								global:
+									scrape_interval: 5s
+
+								scrape_configs:
+
+									# Scraping Prometheus.
+									- job_name: "prometheus"
+									static_configs:
+										- targets: ["localhost:9090"]
+
+									# Scraping services demo.
+									- job_name: "services"
+									static_configs:
+										- targets: ["host.containers.internal:8080"]
+										- targets: ["host.containers.internal:8088"]
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Add target on Kubernetes</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						On the Kubernetes path there is no <code><b>workshop-prometheus.yml</b></code> to edit. Open the
+						<code><b>workshop-values.yaml</b></code> file from lab 2 and add the second target to the
+						existing <code><b>services</b></code> job, exactly as you did in lab 3. In-cluster DNS resolves
+						the name, so the port stays 8080:
+					</div>
+					<div style="height: 250px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Scraping only Prometheus.
+								scrapeConfigs:
+								  ...                                        &lt;&lt;&lt;&lt; LEAVE WHAT IS ALREADY THERE
+
+								  # Scraping services demo.
+								  services:
+								    job_name: services
+								    static_configs:
+								      - targets:
+								        - services-demo:8080
+								        - services-demo-2:8080             &lt;&lt;&lt;&lt; ADD THIS LINE
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Restart Prometheus instance</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						You can either use the previously taught HUP command to restart your Prometheus instance if
+						running source installs or, with container installations, by rebuilding the container image
+						before restarting the Prometheus instance. On Kubernetes there is nothing to rebuild and no
+						signal to send, you re-run the same <code><b>helm upgrade --install</b></code> command and the
+						<code><b>configmap-reload</b></code> sidecar tells Prometheus to reload itself (be patient, this
+						is not instant):
+					</div>
+					<div style="height: 250px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# source install.
+								$ ./prometheus --config.file=support/workshop-prometheus.yml
+
+								# container install.
+								$ podman run -p 9090:9090 workshop-prometheus:v3.13 --config.file=/etc/prometheus/workshop-prometheus.yml
+
+								# Kubernetes (k3s) install.
+								$ helm upgrade --install workshop-prometheus prometheus-community/prometheus \
+								    --version 29.20.0 \
+								    --namespace prometheus --create-namespace \
+								    -f workshop-values.yaml
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Inspecting all instance health</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						You should see two services instances both actively scraping:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								up{job="services"}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab05-27.png" alt="2instances">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Stopping an instance</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Now stop the second instance and check again to see a failure (0). On the source path stop the
+						process, on the container path <code><b>podman stop</b></code> it, and on Kubernetes scale the
+						deployment to zero so the target stays configured and simply goes down:
+					</div>
+					<div style="height: 70px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Kubernetes (k3s) install.
+								$ kubectl scale deploy/services-demo-2 --replicas=0 -n prometheus
+
+								up{job="services"}
+							</code>
+						</pre>
+					</div>
+					<div style="height: 300px;">
+						<img src="images/lab05-28.png" alt="failing instance">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Searching for down instances</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Maybe you only want to see instances that are down:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								up{job="services"} == 0
+							</code>
+						</pre>
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab05-29.png" alt="only failing">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Count the down instances</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						Or maybe you are only interested in the number of down instances:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								count by(job) (up{job="services"} == 0)
+							</code>
+						</pre>
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab05-30.png" alt="only failing">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Detecting missing series</h3>
+					</div>
+					<div style="height: 380px; text-align: left; font-size: x-large;">
+						A problem with the previous method for detecting missing instances is that you are looking at
+						sample series data. What if no series are present at all, such as when Prometheus is not
+						scraping a target at all due to misconfiguration, problems with service discovery, or bugs in
+						the scraping subsystem?<br />
+						<br />
+						The <code>ABSENT</code> function can help, it takes an instant vector as its input and returns
+						an <b>empty result</b> when the input contains a series. It returns a single output series when
+						it does not (always having a sample value of 1) and if the input is a direct vector selector,
+						any equals matchers (=) contained in the selector get translated into labels in the output.<br />
+						<br />
+						With our second service on port 8088 still turned off, we know that the following will return
+						an empty output (there are still series from the service demo on port 8080):
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								absent(up{job="services"})
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Detecting absent series</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						You can help detect situations where you know that series should be present, but are not, by
+						testing for the existence of <code>UP</code> for a job that is not being scrapped (does not
+						even exist). You can do this by using a <code>JOB</code> that you know does not exist, such as this, which
+						returns a label "missing" and the value 1:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								absent(up{job="missing"})
+							</code>
+						</pre>
+					</div>
+					<div style="height: 300px;">
+						<img src="images/lab05-31.png" alt="absent">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Best practice usage of absent</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						For any job that you know should be present, it is a good practice to not only alert on
+						<code>UP</code> being 0, but also on <code>UP</code> being completely absent for that job.<br />
+						<br />
+						There is also a variant of <code>ABSENT</code> called <code>ABSENT_OVER_TIME</code> which takes
+						a range vector and tells you whether there were <b>no samples over the entire time range</b> of
+						that input vector. This helps detect situations where series should be present at regular
+						intervals, but not necessarily all the time.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Smoothing graphs with aggregation</h3>
+					</div>
+					<div style="height: 300px; text-align: left; font-size: x-large;">
+						Previously we looked at how to aggregate metrics over label dimensions with <code>SUM</code>,
+						<code>AVG</code>, and other operators. All of these aggregate over multiple series at a single
+						point in time. What about when you want to aggregate over time <b>within each series</b>, which
+						is often done to smooth out a spiky graph or to get a maximum value of a series over time.
+						PromQL provides a few functions that append <code>_OVER_TIME()</code> to their name to support
+						this. Note that not all aggregator operators have this variation, see
+						<a href="https://prometheus.io/docs/prometheus/latest/querying/functions/#aggregation_over_time" target="_blank">
+							the docs for details.</a> <br />
+						<br />
+						To see this in action you first need to query the raw number of goroutines used in the services
+						demo to get a spiky graph:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								go_goroutines{job="services"}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 50px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results spiky graph</h3>
+					</div>
+					<div style="height: 580px;">
+						<img src="images/lab05-32.png" alt="spiky">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Smoothing spiky graphs</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						To smooth out this spiky graph, try averaging the number of goroutines over 10 minutes at every
+						point in the graph:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								avg_over_time(go_goroutines{job="services"}[10m])
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 50px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results smoothed graph</h3>
+					</div>
+					<div style="height: 530px;">
+						<img src="images/lab05-33.png" alt="smooth">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Maximum services disk usage</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Just for fun, let's try the <code>MAX</code> aggregation over time to determine the maximum
+						disk usage over the last day by our services demo (there were two running at one time?). Note
+						in the output you will see both the services demo on port 8080 and 8088 listed, even when it's
+						not up and running at the moment. The metrics are calculated from previously scraped data when
+						it was running:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								max_over_time(demo_disk_usage_bytes{job="services"}[1d])
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results services disk usage</h3>
+					</div>
+					<div style="height: 450px;">
+						<img src="images/lab05-34.png" alt="maximum">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Using sub-queries</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						A problem arises when we want to determine something like the maximum request rate of our
+						services demo over the last day... do you know what that problem is?<br />
+						<br />
+						Up to now all of the <code>_OVER_TIME</code> functions required a range vector as input (like
+						some_metric[10m]) selecting directly from the TSDB. Why won't work for
+						<code>MAX_OVER_TIME</code> when we try to find the max request rate to our services demo over
+						the last day? The simple answer is that the request rate is not a raw data value we can select
+						over time... it's a derived value from:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								rate(demo_api_request_duration_seconds_count{job="services"}[5m])
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Naive max over time query</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						If we try in our first attempt to just pass the expressions directly into
+						<code>MAX_OVER_TIME</code> with a one-day duration appended... we get an error (try it!):
+					</div>
+					<div style="height: 170px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								max_over_time(
+									rate(
+										demo_api_request_duration_seconds_count{job="services"}[5m]
+									)[1d] # oops.
+								)
+							</code>
+						</pre>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						You should see some error message like this:<br />
+						<br />
+						<code>Error: invalid parameter "query": 4:3: parse error: ranges only allowed for vector selectors</code>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Sub-query for max requests</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						Using sub-queries for this use case allows you to first run the inner query over a range of time
+						at a specified resolution and then compute the outer query on the sub-query's results. The
+						notation for sub-queries have an additional resolution argument added after a colon: <br />
+						<br />
+						<b>[DURATION:RESOLUTION]</b><br />
+						<br />
+						You can now adjust our max request rate over a day by telling Prometheus to evaluate the inner
+						expression over a range of one day, at a resolution of 15 seconds:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								max_over_time(
+									rate(
+										demo_api_request_duration_seconds_count{job="services"}[5m]
+									)[1d:15s] # inner query over 1 day, with a 15-second resolution.
+								)
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 50px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results max request rates over 1 day</h3>
+					</div>
+					<div style="height: 550px;">
+						<img src="images/lab05-35.png" alt="subquery">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Sub-query thoughts</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						You can leave off the resolution after the colon which causes Prometheus to evaluate the inner
+						expression at the global default rule evaluation interval (global evaluation_interval setting).
+						<br />
+						<br />
+						Also be aware that computing sub-queries over longer periods of time can become expensive.
+						Consider using recording rules to pre-record the derived expression for selecting its results
+						rather than computing it every time in your outer query runs.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Sorting query output</h3>
+					</div>
+					<div style="height: 370px; text-align: left; font-size: xx-large;">
+						Up to now you've been querying metrics and not really concerned about how the output looks,
+						especially in the <code>TABLE</code> view. Note that <code>GRAPH</code> views automatically sort
+						samples by their timestamps and sample values along the X-axis and Y-axis.<br />
+						<br />
+						Let's take a look at how we can sort output from our queries, sort to display only the largest
+						or top results, and sort to display the smallest or bottom results. To start with here is an
+						unsorted query of the per-path request rates:
+					</div>
+					<div style="height: 50px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								sum by(path) (rate(demo_api_request_duration_seconds_count{job="services"}[5m]))
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 50px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results unsorted query</h3>
+					</div>
+					<div style="height: 500px;">
+						<img src="images/lab05-36.png" alt="unsorted">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - General sorting output</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						This output has only three results, but annoyingly they are displayed with the values in
+						an unorganized order. Let's tidy this up by adding <code>SORT_DESC</code> to sort the results
+						from largest to smallest:
+					</div>
+					<div style="height: 50px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								sort_desc(sum by(path) (rate(demo_api_request_duration_seconds_count{job="services"}[5m])))
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 50px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results sorted descending</h3>
+					</div>
+					<div style="height: 500px;">
+						<img src="images/lab05-37.png" alt="descending">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Topk sorting output</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Maybe you are only interested in the N number of biggest values in a results set. This can be
+						achieved by using the <code>TOPK</code> function, which provides a number to select from the
+						instant vector results. Let's try this on the previous query and only display the top two
+						results:
+					</div>
+					<div style="height: 50px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								topk(2, sum by(path) (rate(demo_api_request_duration_seconds_count{job="services"}[5m])))
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 50px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results sorted descending</h3>
+					</div>
+					<div style="height: 500px;">
+						<img src="images/lab05-38.png" alt="topk">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Bottomk sorting output</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						The opposite is also possible, where you are only interested in the N number of smallest values
+						in a results set. This can be achieved by using the <code>BOTTOMK</code> function, which
+						provides a number to select from the instant vector results. Let's try this on the same query
+						to display just the last two results:
+					</div>
+					<div style="height: 50px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								bottomk(2, sum by(path) (rate(demo_api_request_duration_seconds_count{job="services"}[5m])))
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 50px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results sorted descending</h3>
+					</div>
+					<div style="height: 500px;">
+						<img src="images/lab05-39.png" alt="bottomk">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Stabilizing topk and bottomk</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						Graphing the output of <code>TOPK</code> and <code>BOTTOMK</code> can yield surprising results
+						due to the way PromQL is evaluated. You might expect to see the K top or bottom series as
+						averaged over the entire graph time range — but instead, PromQL computes the K series
+						<b>separately for each resolution step along the graph range</b>, since a range query is
+						evaluated as many independent instant queries at subsequent resolution timestamps. Thus, the
+						identity of the top or bottom K series can actually vary over the range of the graph and your
+						graph may show more than K (partially present) series in total if the series doesn't maintain an
+						equal ordering over the whole graph range. The question is how to avoid this?<br />
+						<br />
+						To show only a stable K number of series that represent an overall top or bottom K for the graph,
+						there's a feature in PromQL for vector selectors supporting an <code>@ TIMESTAMP</code> modifier
+						that causes the selector to select data at a fixed absolute timestamp. Let's look at how this
+						modifier works and then use it to stabilize our own <code>TOPK</code> and <code>BOTTOMK</code>
+						results.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Using the @ modifier</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						Let's query to select the free bytes relative to and absolute Unix timestamp (in seconds):
+					</div>
+					<div style="height: 70px; font-size: smaller;">
+						<pre>
+							<code data-trim data-noescape>
+								demo_memory_usage_bytes{type="free"} @ 1643623922.444
+							</code>
+						</pre>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						Or you can anchor the selector either to the start or the end of the graph range:
+					</div>
+					<div style="height: 50px; font-size: smaller;">
+						<pre>
+							<code data-trim data-noescape>
+								demo_memory_usage_bytes{type="free"} @ start()
+
+								demo_memory_usage_bytes{type="free"} @ end()
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Stabilizing our graph output</h3>
+					</div>
+					<div style="height: 230px; text-align: left; font-size: x-large;">
+						With all this new knowledge, are you ready to try to stabilize your <code>TOPK</code> expression
+						from the previous exercises? Instead of directly selecting the top 2 request rates at every
+						resolution step, first select all rates in the usual fashion (without an @ modifier), but then
+						filter them using an and operator and a second selector that selects the overall highest 2 rates
+						as measured over the full graph range. This second selector needs to be anchored to the end of
+						the graph range and then look back over the entire graph range (1h in this example), to compute
+						the overall largest rates:
+					</div>
+					<div style="height: 50px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# first select all rates.
+								sum by(path) (rate(demo_api_request_duration_seconds_count{job="services"}[5m]))
+
+								and
+
+								# Select top 2 biggest rates for the 1-hour graph window.
+								topk(2,sum by(path) (rate(demo_api_request_duration_seconds_count{job="services"}[1h] @ end())))
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 50px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results stabilized graph</h3>
+					</div>
+					<div style="height: 500px;">
+						<img src="images/lab05-40.png" alt="stabilized">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 70px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results topk vs stabilized</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						When we put the graphs side-by-side for <code>TOPK</code> and <code>@ END</code> you might
+						notice that this doesn't change much for the output of our very stable service demo. Rest
+						assured, this has a big impact on more noisy and rapidly changing input metrics. Below you
+						see <code>TOPK</code> on the left and the stabilized <code>@ END</code> on the right:
+					</div>
+					<div style="height: 200px;">
+						<img src="images/lab05-41.png" alt="topk">
+						<img src="images/lab05-40.png" alt="stabilized">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Anomaly holiday detection</h3>
+					</div>
+					<div style="height: 280px; text-align: left; font-size: x-large;">
+						Anomaly detection is done by accessing past data in a time-shifted way to compare it to current
+						data. To see if something has changed, you compare today's request rate to that of one week ago.
+						To time-shift past data into the present, you can append an offset <code>DURATION</code>
+						modifier to any range or instant series selector.<br />
+						<br />
+						Let's use our services demo that exposes a counter <code>DEMO_ITEMS_SHIPPED_TOTAL</code> that
+						tracks shipment of items with a simulated "daily" traffic period of 5 minutes (so we don't have
+						to wait a full day to see the period). Take a look at its rate to see it's got a built-in dip
+						which represents a holiday. (If you left the second services demo instance running, these
+						queries return two series instead of the one shown here):
+					</div>
+					<div style="height: 50px; font-size: smaller;">
+						<pre>
+							<code data-trim data-noescape>
+								rate(demo_items_shipped_total{job="services"}[1m])
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 50px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results holiday graph</h3>
+					</div>
+					<div style="height: 550px;">
+						<img src="images/lab05-42.png" alt="holiday rate">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Tracking the holiday metric</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						The service demo happens to also exposes a 0 / 1 boolean metric that tells us whether it is
+						currently a holiday. When you run this the graph shows square (absolute) spikes when a holiday
+						is in effect, which was a dip on the previous rate function. This means comparing the holidays
+						to the shipped items rate you'll notice that it decreases on holidays:
+					</div>
+					<div style="height: 50px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								demo_is_holiday{job="services"}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 50px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results holiday graph</h3>
+					</div>
+					<div style="height: 550px;">
+						<img src="images/lab05-43.png" alt="holiday">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - First try anomaly detection</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						First you can try comparing the current shipment rate with the rate 7 "days" (7 * 5 minutes)
+						ago to see if anything is out of the ordinary. Normally, the ratio is around 1, but when either
+						the current day or the past day was a holiday, we get either a lower or a higher ratio than
+						normal:
+					</div>
+					<div style="height: 50px; font-size: smaller;">
+						<pre>
+							<code data-trim data-noescape>
+								rate(demo_items_shipped_total{job="services"}[1m])
+								/
+								rate(demo_items_shipped_total{job="services"}[1m] offset 35m)
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 50px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results first try</h3>
+					</div>
+					<div style="height: 550px;">
+						<img src="images/lab05-44.png" alt="first try">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Refining anomaly detection</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						What you want is to ignore these lower and higher ratio spikes if the cause was just a holiday.
+						You can filter away the ratio at times when either the past or the present was a holiday by
+						appending an <code>UNLESS</code> set operator:
+					</div>
+					<div style="height: 50px; font-size: smaller;">
+						<pre>
+							<code data-trim data-noescape>
+								(
+									rate(demo_items_shipped_total{job="services"}[1m])
+									/
+									rate(demo_items_shipped_total{job="services"}[1m] offset 35m)
+								)
+								unless
+								(
+									demo_is_holiday == 1             # Is a holiday?
+									or
+									demo_is_holiday offset 35m == 1  # Was a holiday 7 "days" ago?
+								)
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 50px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results refining detection</h3>
+					</div>
+					<div style="height: 550px;">
+						<img src="images/lab05-45.png" alt="first try">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced PromQL - Finishing anomaly detection</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						A final refinement is to compare whether the "holiday-ness" today is the same as a week ago,
+						giving you a cleaner graph, mostly filtering away the ratio at times when there is either a
+						holiday at the current time or there was one in the past:
+					</div>
+					<div style="height: 50px; font-size: smaller;">
+						<pre>
+							<code data-trim data-noescape>
+								(
+									rate(demo_items_shipped_total{job="services"}[1m])
+									/
+									rate(demo_items_shipped_total{job="services"}[1m] offset 35m)
+								)
+								unless
+								(
+									demo_is_holiday
+									!=
+									demo_is_holiday offset 35m
+								)
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 50px;">
+						<h3 class="r-fit-text">Advanced PromQL - Results finishing detection</h3>
+					</div>
+					<div style="height: 550px;">
+						<img src="images/lab05-46.png" alt="finished">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 400px; font-size: xx-large">
+						<img src="images/lab05-13.png" alt="completed">
+						<br />
+						Next up, relabeling metrics in Prometheus...
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://youtu.be/KJvUyP4c1NQ" target="_blank">Video introduction to workshop (Open Source Edinburgh meetup)</a></li>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-prometheus" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://prometheus.io" target="_blank">Prometheus project</a></li>
+							<li><a href="https://github.com/prometheus/promlens" target="_blank">PromLens project (archived, now the Prometheus EXPLAIN tab)</a></li>
+							<li><a href="https://github.com/perses/perses" target="_blank">Perses project</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-prometheus/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Director Evangelism<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop... </h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab06.html" target="_blank">Lab 6 - Relabeling Metrics in Prometheus</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMenu, RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+	</body>
+</html>

@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="OpenTelemetry Workshop for Java Developers">
+		<meta name="author" content="Workshop Author">
+
+		<title>Lab 1 - Observability Primer</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/erics.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 1 - Observability Primer</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>Define common observability and monitoring terms and gain an understanding the role
+							of OpenTelemetry and its components.</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Introduction - What is observability?</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						How <em>effectively</em> you can understand system behavior from the outside using the data it generates.
+						<div style="height: 350px; text-align: center;">
+							<img src="images/lab01-1.jpg" alt="">
+						</div>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Introduction - What is monitoring?</h2>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						The continuous process of watching and tracking system health based on pre-defined set of data.
+					</div>
+					<div style="height: 450px; text-align: center;">
+						<img src="images/lab01-2.png" alt="">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Introduction - What is telemetry?</h2>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						The process of recording and sending data from remote components to a backend.<br />
+						<br />
+						Data types include: metrics, logs, events and traces.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Introduction - What is instrumentation?</h2>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						The code that records and measure behavior of an application or infrastructure component.<br />
+						<br />
+						Manual instrumentation includes any code you add and automatic instrumentation is what is
+						provided for you "out of the box".
+					</div>
+				</section>
+
+                <section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Introduction - Hello, OpenTelemetry!</h2>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						A set of standardized <em>vendor-agnostic</em> SDKs, APIs, and tools for ingesting, transforming,
+						and sending telemetry to observability back-end(s).
+					</div>
+					<div style="height: 400px; text-align: center;">
+						<img src="images/lab01-3.png" alt="">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Introduction - Part of the CNCF</h2>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						OTel was the result of merging OpenCensus and OpenTracing and joined the Cloud Native Computing
+						Foundation (CNCF) in 2019. Benefits include a broad ecosystem, active community engagement,
+						support, continued growth and investment.
+					</div>
+					<div style="height: 250px; text-align: center;">
+						<img src="images/lab01-4.png" alt="">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2  class="r-fit-text">Introduction - What OpenTelemetry is not</h2>
+					</div>
+					<div style="height: 100px; text-align: center; font-size: xx-large;">
+						<ul>
+							<li><em>only</em> a tracing tool</li>
+							<li>telemetry backend and storage system</li>
+							<li>observability UI</li>
+						</ul>
+					</div>
+					<div style="height: 400px; text-align: center;">
+						<img src="images/lab01-5.png" alt="">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Introduction - OpenTelemetry API/SDK</h2>
+					</div>
+					<div style="font-size: xx-large; text-align:center; height: 100px;">
+						<ul>
+							<li><b>API</b> defines data types and how to generate telemetry data.</li>
+							<li><b>SDK</b> defines a language-specific implementation of the API, plus configuration, data processing and exporting.</li>
+						</ul>
+					</div>
+					<div style="height: 400px; text-align: center;">
+						<img src="images/lab01-6.png" alt="">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Introduction - OpenTelemetry language SDKs</h2>
+					</div>
+					<div style="overflow-x:auto;">
+						<style>
+							.demo {
+								width:80%;
+                height: 80%;
+								border:1px solid black;
+
+							}
+              .demo tr {
+								height:50px;
+              }
+							.demo td {
+								width:50px;
+								height:50px;
+                text-align: center;
+							}
+							img {
+								max-width: 80%;
+								height: 80%;
+							}
+						</style>
+						<table class="demo">
+							<tbody>
+							<tr style="height: 100px;">
+								<td>
+									<a href="https://opentelemetry.io/docs/instrumentation/cpp/" target="_blank" >
+									<img src="images/lab01-7.png" alt="C++ logo">
+									</a>
+								</td>
+								<td>
+									<a href="https://opentelemetry.io/docs/instrumentation/net/" target="_blank">
+										<img src="images/lab01-8.png" alt="C# logo">
+									</a>
+								</td>
+								<td>
+									<a href="https://opentelemetry.io/docs/instrumentation/erlang/" target="_blank">
+										<img src="images/lab01-9.jpg" alt="Elixir logo">
+									</a>
+								</td>
+								<td>
+									<a href="https://opentelemetry.io/docs/instrumentation/go/" target="_blank">
+										<img src="images/lab01-10.png" alt="Go logo">
+									</a>
+								</td>
+							</tr>
+							<tr style="height: 100px;">
+								<td style="border: 3px solid red;">
+									<a href="https://opentelemetry.io/docs/instrumentation/java/" target="_blank">
+										<img src="images/lab01-11.png" alt="Java logo">
+									</a>
+								</td>
+								<td>
+									<a href="https://opentelemetry.io/docs/instrumentation/javascript/" target="_blank">
+										<img src="images/lab01-12.png" alt="JavaScript logo">
+									</a>
+								</td>
+								<td>
+									<a href="https://opentelemetry.io/docs/instrumentation/php/" target="_blank">
+										<img src="images/lab01-13.png" alt="PHP logo">
+									</a>
+								</td>
+								<td>
+									<a href="https://opentelemetry.io/docs/instrumentation/python/" target="_blank">
+										<img src="images/lab01-14.jpg" alt="Python logo">
+									</a>
+								</td>
+							</tr>
+							<tr style="height: 100px;">
+								<td>
+									<a href="https://opentelemetry.io/docs/instrumentation/ruby/" target="_blank">
+										<img src="images/lab01-15.jpg" alt="Ruby logo">
+									</a>
+								</td>
+								<td>
+									<a href="https://opentelemetry.io/docs/instrumentation/rust/" target="_blank">
+										<img src="images/lab01-16.png" alt="Rust logo">
+									</a>
+								</td>
+								<td>
+									<a href="https://opentelemetry.io/docs/instrumentation/swift/" target="_blank">
+										<img src="images/lab01-17.png" alt="Swift logo">
+									</a>
+								</td>
+							</tr>
+							</tbody>
+						</table>
+					  </div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Introduction - OpenTelemetry Java Agent</h2>
+					</div>
+					<div style="font-size: x-large; text-align:left; height: 200px;">
+						The OpenTelemetry Java Agent provides automatic instrumentation for Java applications. It
+						attaches to your JVM and automatically captures telemetry from popular libraries and frameworks
+						like:<br /><br/>
+						<ul>
+							<li>HTTP clients (Apache HttpClient, OkHttp, java.net.HttpURLConnection)</li>
+							<li>Web frameworks (Spring, JAX-RS, Servlet)</li>
+							<li>Database clients (JDBC, Hibernate, MongoDB)</li>
+							<li>Messaging (Kafka, RabbitMQ, JMS)</li>
+						</ul>
+					</div>
+					<div style="height: 250px; text-align: right;">
+						<img src="images/lab01-18.png" alt="">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Introduction - Registry for libraries</h2>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: x-large;">
+						Check the
+						<a href="https://opentelemetry.io/ecosystem/registry/?component=instrumentation&language=java" target="_blank">Registry</a>
+						to see if your favorite Java library is already instrumented.
+					</div>
+					<div style="height: 500px; text-align: center;">
+						<img src="images/lab01-19.png" alt="">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Introduction - OpenTelemetry collector</h2>
+					</div>
+					<div style="font-size: xx-large; text-align:left; height: 70px;">
+						The Collector is a proxy that receives, processes and exports telemetry data in OTLP,
+						Prometheus, and many proprietary tools.
+					</div>
+					<div style="height: 400px; text-align: center;">
+						<img src="images/lab01-20.png" alt="">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Introduction - OpenTelemetry protocol</h2>
+					</div>
+					<div style="font-size: xx-large; text-align:left; height: 70px;">
+						<p>The OpenTelemetry Protocol (OTLP) specification describes the encoding, transport, and delivery mechanism of telemetry data between telemetry sources, intermediate nodes such as collectors and telemetry backends.
+							<br><br>Read more at <a href="https://opentelemetry.io/docs/specs/otel/protocol/" target="_blank">OpenTelemetry Protocol Specification</a>
+						</p>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Introduction - OpenTelemetry resource</h2>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						A Resource represents the entity producing telemetry as resource attributes.<br />
+						<br />
+						For example, a process producing telemetry that is running in a container on Kubernetes has a
+						process name, pod name, namespace, and possibly a deployment name. All four of these attributes
+						can be included in the Resource.<br />
+						<br />
+						You can use resource information to better investigate interesting behavior. If your telemetry
+						indicates latency in your system, you can narrow down to a specific container, pod, or
+						Kubernetes deployment.<br />
+						<br />
+						Read more at
+						<a href="https://opentelemetry.io/docs/specs/semconv/resource/#semantic-attributes-with-sdk-provided-default-value" target="_blank">
+							Resource Semantic Conventions
+						</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Introduction - Types of instrumentation</h2>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						<ul>
+							<li><b>Automatic</b> - the Java Agent runs alongside your application and adds instrumentation without you 
+								needing to make code changes
+							</li>
+							<li><b>Programmatic</b> - a mix of both, where you pull in pre-instrumented dependencies and manually add metadata (e.g. labels)</li>
+							<li><b>Manual</b> - you set up the OTel SDK and add instrumentation code in your application </li>
+						</ul>
+					</div>
+				</section>
+
+			<section>
+				<div style="height: 120px;">
+					<h2 class="r-fit-text">Introduction - Automatic instrumentation</h2>
+				</div>
+				<div style="height: 120px; text-align: left; font-size: xx-large;">
+					No code changes - just attach the Java Agent! The agent injects instrumentation at runtime 
+					(this is example only, not a real endpoint or application):
+				</div>
+				<div style="height: 100px; font-size: xxx-large;">
+					<pre>
+						<code data-trim data-noescape>
+							java -javaagent:opentelemetry-javaagent-2.30.0.jar \
+							     -Dotel.service.name=java-demo \
+							     -Dotel.traces.exporter=otlp \
+							     -Dotel.exporter.otlp.endpoint=http://localhost:4318 \
+							     -jar target/my-app.jar
+						</code>
+					</pre>
+				</div>
+			</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Introduction - Programmatic instrumentation</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Add OpenTelemetry Java SDK dependencies and configure the tracer programmatically in our application:
+					</div>
+					<div style="height: 380px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								import io.opentelemetry.api.OpenTelemetry;
+								import io.opentelemetry.api.trace.Tracer;
+								import io.opentelemetry.sdk.OpenTelemetrySdk;
+								import io.opentelemetry.sdk.trace.SdkTracerProvider;
+								import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
+								import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
+
+								public class App {
+									private static final OpenTelemetry openTelemetry = initOpenTelemetry();
+									private static final Tracer tracer = openTelemetry
+										.getTracer("io.chronosphere.App");
+
+									private static OpenTelemetry initOpenTelemetry() {
+										OtlpGrpcSpanExporter exporter = OtlpGrpcSpanExporter.builder()
+											.setEndpoint("http://localhost:4317").build();
+										SdkTracerProvider provider = SdkTracerProvider.builder()
+											.addSpanProcessor(SimpleSpanProcessor.create(exporter))
+											.build();
+										return OpenTelemetrySdk.builder()
+											.setTracerProvider(provider).build();
+									}
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Introduction - Manual instrumentation</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Create custom spans to trace specific operations in our application code:
+					</div>
+					<div style="height: 350px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								import io.opentelemetry.api.trace.Span;
+								import io.opentelemetry.api.trace.StatusCode;
+								import io.opentelemetry.context.Scope;
+
+								public void handleRequest() {
+									Span span = tracer.spanBuilder("handleRequest")
+										.setSpanKind(SpanKind.SERVER)
+										.startSpan();
+
+									try (Scope scope = span.makeCurrent()) {
+										// Your business logic here
+										span.setAttribute("request.id", requestId);
+										span.addEvent("Processing started");
+										processRequest();
+									} catch (Exception e) {
+										span.setStatus(StatusCode.ERROR);
+										span.recordException(e);
+									} finally {
+										span.end();
+									}
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						We defined common terminology and gained a basic understanding of the OpenTelemetry project
+						and its components.<br />
+						<br />
+						Next up, using the Java Agent for automatic instrumentation...
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<br />
+						<ul>
+							<li><a href="https://opentelemetry.io/" target="_blank">OpenTelemetry Official Site</a></li>
+							<li><a href="https://opentelemetry.io/docs/languages/java/" target="_blank">OpenTelemetry Java Documentation</a></li>
+							<li><a href="https://opentelemetry.io/ecosystem/registry/?language=java" target="_blank">OpenTelemetry Registry (Java)</a></li>
+							<li><a href="https://opentelemetry.io/docs/concepts/glossary/" target="_blank">OpenTelemetry Glossary</a></li>
+							<li><a href="https://github.com/open-telemetry/opentelemetry-java-instrumentation" target="_blank">OpenTelemetry Java Instrumentation</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact – are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Technology Advocate Lead<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab02.html" target="_blank">Lab 2 - Automatic Instrumentation</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script> 
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="https://o11y-workshops.gitlab.io/workshop-otel-developers/node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>
+

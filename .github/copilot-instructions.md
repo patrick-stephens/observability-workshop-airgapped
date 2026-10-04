@@ -18,3 +18,12 @@
 13. Before any learner-vm change, read `feedback/airgap-run-*.md` newest first and inspect the `SCRIPT_VERSION` comments in the scripts.
 14. On every edit to a learner-vm script, bump its `SCRIPT_VERSION` and add a one-line comment describing the change.
 15. Every learner-vm script must source `scripts/lib.sh`, be idempotent, support `--dry-run`, and emit the `REPORT BEGIN`/`END` block per the transcription protocol.
+
+## Workshop Content Artifacts
+
+16. Learner-vm provisioning scripts are artifacts. There is no AI on the airgapped network, so the agent never executes them against the VM; the human operator does. Execution evidence arrives only via hand transcriptions in `feedback/airgap-run-*.md`. Never claim a provisioning script “works on the VM”; say it “validates and self-diagnoses”.
+17. `scripts/dev/*` are the exception: they run on this online machine, and their outputs are committed artifacts consumed by the airgap VM.
+18. Every learner-vm provisioning script sets `SCRIPT_NAME` and `SCRIPT_VERSION` before sourcing `scripts/lib.sh`, is idempotent, and ends with a `REPORT BEGIN`/`END` block of no more than 60 lines, with no ANSI colour. Report failures as `F<n>` with a fix hint and automatically run diagnostics; report successful steps as a count, skipped steps with reasons, and a `NEXT` line naming the next action.
+19. `step_fail` always runs its attached diagnostic commands and includes capped output of no more than 15 lines per command in the report.
+20. On every edit to a learner-vm script, bump `SCRIPT_VERSION` and add a one-line comment above it describing the change.
+21. Before touching learner-vm code, read `feedback/airgap-run-*.md` newest first and inspect the current `SCRIPT_VERSION` comments.

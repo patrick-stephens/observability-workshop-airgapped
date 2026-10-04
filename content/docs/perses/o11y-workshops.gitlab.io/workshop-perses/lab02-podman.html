@@ -1,0 +1,560 @@
+<!doctype html>
+<!--suppress HtmlDeprecatedAttribute -->
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Perses workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Visualization Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-BGV1XYZ1ND"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-BGV1XYZ1ND');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section id="local-install">
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Container - Installing Podman tooling</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Installing Perses using a container image is going to be demonstrated here using the open source
+						project <a href="https://podman.io/" target="_blank">Podman</a>. It's assumed you have already
+						installed the Podman commandline tooling previously.<br />
+						<br />
+						If you want to use other container tooling, such as Docker, most of the commands are the same
+						with just a substitution of the tooling name (<code><b>docker</b></code> instead of
+						<code><b>podman</b></code>).
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Container - Starting Podman machine</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						You need to make sure that the Podman virtual machine has been started, so, assuming you have
+						initialized a podman machine already:
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman machine start
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Container - Running container image</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						It's pretty straight forward to running Perses in a container, just start the Perses container
+						image as follows:
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run --name perses --rm -p 127.0.0.1:8080:8080 persesdev/perses:v0.54.0
+							</code>
+						</pre>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						The details in this command are that we give the container a referencable name
+						(<code><b>--name perses</b></code>), remove the container from registry when stopped
+						(<code><b>--rm</b></code>), map the local machine port 8080 to the container port 8080
+						(<code><b>-p 127.0.0.1:8080:8080</b></code>), and use the image version supported in this
+						workshop (<code><b>persesdev/perses:v0.54.0</b></code>). Note: you can use any local port
+						you have available, but you need to map to the container port 8080.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - What to do with any failures?</h3>
+					</div>
+					<div style="height: 220px; text-align: left; font-size: xx-large;">
+						At anytime in the workshop should you encounter failures, during installation, testing, data
+						population, or build results. Don't worry, this can be rerun anytime after you fix any problems
+						reported. The entry in the container registry for perses is removed when you stop it, so just
+						stop with <code><b>CTRL+C</b></code> and restart it:
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run --name perses --rm -p 127.0.0.1:8080:8080 persesdev/perses:v0.54.0
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Container - Connect a browser (default)</h3>
+					</div>
+					<div style="height: 50px; text-align: center; font-size: xx-large;">
+						<code><a href="http://localhost:8080" target="_blank">http://localhost:8080</a></code>
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab02-1.png" alt="default">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Container - Connect a browser (dark mode)</h3>
+					</div>
+					<div style="height: 50px; font-size: xx-large;">
+						Click on icon top right to switch themes for dark mode:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab02-2.png" alt="dark mode">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - But this version is empty?</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						The first thing you might notice is that you now have a blank canvas. There are no example
+						projects, no dashboards, and noting configured to get started with. Maybe you are OK with that,
+						but wouldn't it be nice to start this workshop with an example to explore?<br />
+						<br />
+						To achieve that you can make use of the
+						<a href="https://gitlab.com/o11y-workshops/perses-install-demo" target="_blank">
+							Perses Easy Install project.
+						</a> This contains a simple automated installation process to provide you with a
+						running and pre-populated Perses instance in a container. This instance will have an example
+						project ready for you to explore. On the next slide you will download and install Perses in a
+						container using the Perses Easy Install project.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Resetting your container environment</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Before we start installing a new container version of Perses, let reset our container
+						environment by stopping the running container with <code><b>CTRL+C</b></code> and shutting down
+						our Podman machine as follows:
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman machine stop
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h3 class="r-fit-text">Container - Using the easy install project</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						The Perses Easy Install project takes just 3 steps to a running server:<br />
+						<br />
+						<ol>
+							<li>Download and unzip project.</li>
+							<li>Run the <code>init.sh</code> file in a console.</li>
+							<li>Connect in a browser window.</li>
+						</ol><br />
+						<br />
+						Let's walk through these steps one by one in the next slides...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Container - Downloading and unzip project</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						The first step is to
+						<a href="https://gitlab.com/o11y-workshops/perses-install-demo/-/archive/v1.10/perses-install-demo-v1.10.zip">
+							download the project.
+						</a>
+						Unzipping (use your file manager or console) should look something like this:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ unzip perses-install-demo-[VERSION].zip
+
+								Archive:  perses-install-demo-[VERSION].zip
+								creating: perses-install-demo-[VERSION]/
+								extracting: perses-install-demo-[VERSION]/.gitignore
+								inflating: perses-install-demo-[VERSION]/README.md
+								creating: perses-install-demo-[VERSION]/docs/
+								creating: perses-install-demo-[VERSION]/docs/demo-images/
+								inflating: perses-install-demo-[VERSION]/init.bat
+								inflating: perses-install-demo-[VERSION]/init.sh
+								creating: perses-install-demo-[VERSION]/installs/
+								inflating: perses-install-demo-[VERSION]/installs/README
+								inflating: perses-install-demo-[VERSION]/installs/perses-[VERSION].zip
+								creating: perses-install-demo-[VERSION]/support/
+								extracting: perses-install-demo-[VERSION]/support/README
+								creating: perses-install-demo-[VERSION]/support/bin/
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Container - Getting started with install</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						In our example here we will run the console-based installation script (note the VERSION text
+						below is to be replaced with the version of the project you have downloaded):
+					</div>
+					<div style="height: 200px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								$ cd perses-install-demo-{VERSION}
+
+								$ ./init.sh
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Container - Enjoy the welcome ascii art!</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: xx-large;">
+						First, you are presented with welcome art and details about this project:
+					</div>
+					<div align="center">
+						<div style="width: 560px; height: 200px; text-align: left; font-size: x-large;">
+							<pre>
+								<code data-trim data-noescape>
+									[INFO]    #############################################################
+									[INFO]    ##                                                         ##
+									[INFO]    ##  Setting up the Perses Easy Install demo                ##
+									[INFO]    ##                                                         ##
+									[INFO]    ##           ####  ##### ####   #### #####  ####           ##
+									[INFO]    ##           #   # #     #   # #     #     #               ##
+									[INFO]    ##           ####  ###   ####   ###  ###    ###            ##
+									[INFO]    ##           #     #     #  #      # #         #           ##
+									[INFO]    ##           #     ##### #   # ####  ##### ####            ##
+									[INFO]    ##                                                         ##
+									[INFO]    ##                #####  ###   #### #   #                  ##
+									[INFO]    ##                #     #   # #      # #                   ##
+									[INFO]    ##                ###   #####  ###    #                    ##
+									[INFO]    ##                #     #   #     #   #                    ##
+									[INFO]    ##                ##### #   # ####    #                    ##
+									[INFO]    ##                                                         ##
+									[INFO]    ##        ##### #   #  #### #####  ###  #     #            ##
+									[INFO]    ##          #   ##  # #       #   #   # #     #            ##
+									[INFO]    ##          #   # # #  ###    #   ##### #     #            ##
+									[INFO]    ##          #   #  ##     #   #   #   # #     #            ##
+									[INFO]    ##        ##### #   # ####    #   #   # ##### #####        ##
+									[INFO]    ##                                                         ##
+									[INFO]    ##  brought to you by Eric D. Schabell                     ##
+									[INFO]    ##                                                         ##
+									[INFO]    ##  git@gitlab.com:o11y-workshops/perses-install-demo.git  ##
+									[INFO]    ##                                                         ##
+									[INFO]    #############################################################
+									...
+								</code>
+							</pre>
+						</div>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Whoops... that's not right?</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Note that there are many fail-safe checks in this script, and you found the first one! Read the
+						help messages in the console output and fix it by running it with the right argument:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[INFO]    Checking the build mode arguments...
+
+								[WARN]    ========================================================================
+								[WARN]    =                                                                      =
+								[WARN]    =  To use this installation script you have to provide one argument    =
+								[WARN]    =  indicating how you want to install the Perses server. You have the  =
+								[WARN]    =  option to install a container image or build it from source:        =
+								[WARN]    =                                                                      =
+								[WARN]    =    $ ./init.sh {podman|source}                                       =
+								[WARN]    =                                                                      =
+								[WARN]    =  Both methods are validated by the install scripts.                  =
+								[WARN]    =                                                                      =
+								[WARN]    ========================================================================
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Not again! What went wrong?</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						As you scroll down the output you'll see the container image being installed, but after a few
+						tries, it fails? Here, remember, we stopped the podman VM. Restart it to continue:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[INFO]    Checking the build mode arguments...
+								[INFO]    Installing Perses container using image...
+								[INFO]    Checking if Podman is installed...
+								[INFO]    Starting the perses container image...
+								[WARN]    Cleaning up any perses image that might still be running...
+								[INFO]    Starting fresh perses container image...
+
+
+								[ERROR]    ==========================================================================
+								[ERROR]    =                                                                        =
+								[ERROR]    =  Error occurred during 'podman run' starting perses container... make  =
+								[ERROR]    =  sure you have started the Podman machine as follows and rerun this    =
+								[ERROR]    =  installation script again:                                            =
+								[ERROR]    =                                                                        =
+								[ERROR]    =     $ podman machine start                                             =
+								[ERROR]    =                                                                        =
+								[ERROR]    ==========================================================================
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Container - Starting VM and restart install</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						From the previous help message we saw that the Podman virtual machine must be started, so,
+						assuming you have initialized a podman machine already:
+					</div>
+					<div style="height: 200px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman machine start
+
+								$ ./init.sh podman
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Container - Running Perses container image</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Now we see the container image starting properly, followed by starting to apply the demo
+						examples by first logging in to the server:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[INFO]    Checking the build mode arguments...
+								[INFO]    Installing container image...
+								[INFO]    Installing Perses container using image...
+								[INFO]    Checking if Podman is installed...
+								[INFO]    Starting the perses container image...
+								[INFO]    Waiting for container to start...
+								[INFO]    Setting up the Perses examples...
+								[INFO]    Logging in to Perses instance: http://localhost:8080
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Container - Loading example workshop project</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						The next steps are loading in our <code><b>WorkShopProject</b></code> which contains an example
+						dashboard and data sources that we will use to query when building our first dashboard later in
+						this workshop:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[INFO]    Applying the demo projects setup...
+								[INFO]    Applying the dashboard setup...
+								[INFO]    Applying the demo datasources...
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Container - Sharing the end report</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						After a successful install, a final report is presented with instructions on how to
+						open the Perses dashboard and how to manage the container when done with this workshop:
+					</div>
+					<div align="right">
+						<div style="width: 500px; text-align: left; font-size: x-large;">
+							<pre>
+								<code data-trim data-noescape>
+									...
+									[INFO]    ======================================================
+									[INFO]    =                                                    =
+									[INFO]    =  Install complete, get ready to rock Perses!       =
+									[INFO]    =                                                    =
+									[INFO]    =  The Perses dashboard can be opened at:            =
+									[INFO]    =                                                    =
+									[INFO]    =           http://localhost:8080                    =
+									[INFO]    =                                                    =
+									[INFO]    =  Getting started workshop available online:        =
+									[INFO]    =                                                    =
+									[INFO]    =  https://o11y-workshops.gitlab.io/workshop-perses  =
+									[INFO]    =                                                    =
+									[INFO]    =  Note: When finished using the Perses container,   =
+									[INFO]    =  you can shut it down and come back later to       =
+									[INFO]    =  restart it:                                       =
+									[INFO]    =                                                    =
+									[INFO]    =      $ podman container stop perses                =
+									[INFO]    =                                                    =
+									[INFO]    =  Also, remember to shut down the virtual machine:  =
+									[INFO]    =                                                    =
+									[INFO]    =      $ podman machine stop                         =
+									[INFO]    =                                                    =
+									[INFO]    ======================================================
+									...
+								</code>
+							</pre>
+						</div>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Container - Connecting in a browser</h3>
+					</div>
+					<div style="height: 50px; text-align: center; font-size: xx-large;">
+						<code><b><a href="http://localhost:8080" target="_blank">http://localhost:8080</a></b></code>
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab02-5.png" alt="example">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Container - Connecting in a browser (dark mode)</h3>
+					</div>
+					<div style="height: 50px; text-align: center; font-size: xx-large;">
+						Flip the switch in the top right corner for dark mode:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab02-6.png" alt="example-dark">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 450px; font-size: xx-large">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab02-5.png" alt="completed">
+						<br />
+						Next up, exploring dashboard tooling...
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://github.com/perses/perses" target="_blank">Perses project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-perses" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-perses/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Director Evangelism<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab03.html" target="_blank">Lab 3 - Exploring dashboard tooling</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

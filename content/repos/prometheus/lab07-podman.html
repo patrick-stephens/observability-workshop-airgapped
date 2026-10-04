@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Prometheus workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Lab 7 - Services container</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-PW25SPMWGG"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-PW25SPMWGG');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Exercise infrastructure</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						You'll be setting up the following architecture to support your service discovery exercises
+						using the services demo to ensure your local infrastructure contains the following:<br />
+						<br />
+						<ol>
+							<li><b>Production 1</b> running at <code><b>http://localhost:11111</b></code></li>
+							<li><b>Production 2</b> running at <code><b>http://localhost:22222</b></code></li>
+							<li><b>Development</b> running at <code><b>http://localhost:44444</b></code></li>
+						</ol><br />
+						<br />
+						Note that if you have any port conflicts on your machine, you can map any free port numbers you
+						like, just adjust the rest of this workshop lab as you work through.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Podman setup assumptions</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						For the path of installing your exercise infrastructure using open source containers, we'll
+						assume you've setup Podman on your machine and that it's running, as you did in a previous
+						lab.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Downloading the project</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						To install the services demo in a container we'll need the source project to build our
+						container. We're providing a self-contained project you can download, unzip,
+						and configure to build a container:<br />
+						<br />
+						<a href="https://gitlab.com/o11y-workshops/prometheus-service-demo-installer/-/archive/v1.0/prometheus-service-demo-installer-v1.0.zip" target="_blank">
+							Click here to download the Prometheus Services Demo Installer.</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Unzipping the project</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: x-large;">
+						Once you have downloaded the project using the link provided previously, just unzip into its
+						own directory as shown (Note: examples shown are on Mac OSX system):
+					</div>
+					<div style="height: 170px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ unzip prometheus-service-demo-installer-v1.0.zip
+
+								creating: prometheus-service-demo-installer-v1.0/
+								inflating: prometheus-service-demo-installer-v1.0/.gitignore
+								inflating: prometheus-service-demo-installer-v1.0/README.md
+								creating: prometheus-service-demo-installer-v1.0/docs/
+								creating: prometheus-service-demo-installer-v1.0/docs/demo-images/
+								inflating: prometheus-service-demo-installer-v1.0/docs/demo-images/workshop.png
+								inflating: prometheus-service-demo-installer-v1.0/init.sh
+								creating: prometheus-service-demo-installer-v1.0/installs/
+								inflating: prometheus-service-demo-installer-v1.0/installs/README
+								creating: prometheus-service-demo-installer-v1.0/installs/demo/
+								inflating: prometheus-service-demo-installer-v1.0/installs/demo/Buildfile
+								inflating: prometheus-service-demo-installer-v1.0/installs/demo/Dockerfile
+								inflating: prometheus-service-demo-installer-v1.0/installs/demo/LICENSE
+								inflating: prometheus-service-demo-installer-v1.0/installs/demo/README.md
+								...
+								creating: prometheus-service-demo-installer-v1.0/support/
+								extracting: prometheus-service-demo-installer-v1.0/support/README
+								inflating: prometheus-service-demo-installer-v1.0/support/unzip.vbs
+								inflating: prometheus-service-demo-installer-v1.0/support/workshop-prometheus.yml
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h3 class="r-fit-text">Services demo - Building a container image</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Now you can build your own container image with the provided build file (output has been
+						abbreviated to save space):
+					</div>
+					<div style="height: 300px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t prometheus_services_demo:v1 -f installs/demo/Buildfile
+
+								[1/2] STEP 1/5: FROM golang:1.17-alpine AS builder
+								[1/2] STEP 2/5: WORKDIR /source
+								[1/2] STEP 3/5: COPY . /source
+								[1/2] STEP 4/5: RUN go mod download
+								[1/2] STEP 5/5: RUN go build -v -o prometheus_demo_service .
+								[2/2] STEP 1/4: FROM alpine:3
+								[2/2] STEP 2/4: COPY --from=builder /source/prometheus_demo_service  /bin/prometheus_demo_service
+								[2/2] STEP 3/4: EXPOSE     8080
+								[2/2] STEP 4/4: ENTRYPOINT [ "/bin/prometheus_demo_service" ]
+								[2/2] COMMIT prometheus_services_demo:v1
+								Successfully tagged localhost/prometheus_services_demo:v1
+								f0f7afad800b643a40938e04c1dd2d6c394fb6c0197929e3db40df2e425a8127
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Verifying built image</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Looking up our built images to verify everything went well, and we should see something like this:
+					</div>
+					<div style="height: 250px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman images
+
+								REPOSITORY                          TAG          IMAGE ID      CREATED        SIZE
+								localhost/prometheus_services_demo  v1           231a2e5431b4  4 seconds ago  20.3 MB
+								docker.io/library/alpine            3            f6648c04cd6c  2 days ago     7.95 MB
+								docker.io/library/golang            1.17-alpine  0ebb35c98346  12 months ago  321 MB
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Starting production 1</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Now it's time to start the first production services demo environment, but not on the default
+						port, we want this to be on port 11111. To do that execute the services demo in a container
+						mapping our port 11111 to the containers exposed port 8080:
+					</div>
+					<div style="height: 30px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run -p 11111:8080 prometheus_services_demo:v1
+
+								07a253944161d5f5c472adb71a162a99cc0be5fe526c20e647b7213ffa0f66ee
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Testing production 1</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						After starting the services container, it should have metrics scraping end points available so that
+						you can query them with PromQL. Test at <code><b>http://localhost:11111/metrics</b></code>:
+					</div>
+					<div style="height: 370px;">
+						<img src="images/lab07-1.png" alt="production1"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Starting production 2</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Now we can create our second production services demo environment, but we want this to be on
+						port 22222. To do that execute the services demo in a  container mapping our port 22222 to the
+						containers exposed port 8080:
+					</div>
+					<div style="height: 30px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run -p 22222:8080 prometheus_services_demo:v1
+
+								4ab834f72cf17a7e03fd5198b09d38c6a3e1ad9764d2231d22ed6129e6c16e8b
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Testing production 2</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						After starting the services container, it should have metrics scraping end points available so that
+						you can query them with PromQL. Test this at <code><b>http://localhost:22222/metrics</b></code>:
+					</div>
+					<div style="height: 370px;">
+						<img src="images/lab07-2.png" alt="production2"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Starting development</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Now we can create our final development services demo environment, but we want this to be on
+						port 44444. To do that execute the services demo in a container mapping our port 44444 to the
+						containers exposed port 8080:
+					</div>
+					<div style="height: 30px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run -p 44444:8080 prometheus_services_demo:v1
+
+								810d83f0e7cc49bf0047e043d0e80aab8b049ab19f1ac75723adefe9c51e49a1
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Testing development</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						After starting the services binary, it should have metrics scraping end points available so that
+						you can query them with PromQL. Test this at <code><b>http://localhost:44444/metrics</b></code>:
+					</div>
+					<div style="height: 370px;">
+						<img src="images/lab07-3.png" alt="development"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Discovering container IP addresses</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						When using containers, Prometheus needs their container IP address as it can not resolve
+						localhost to different containers. To do this we can use the following variable provided
+						by Podman to update our Prometheus configuration <code><b>target</b></code> lines to
+						automatically use the assigned IP address:
+					</div>
+					<div style="height: 70px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								- target ["<mark>host.containers.internal</mark>:PORT_NUMBER"]
+							</code>
+						</pre>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: x-large;">
+						Note: if you are using Docker tooling, then your configuration should use the following variable
+						to automatically use the assigned IP address:
+					</div>
+					<div style="height: 70px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								- target ["<mark>host.docker.internal</mark>:PORT_NUMBER"]
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Prometheus setup assumptions</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						The rest of this exercise will focus on configuration of your Prometheus instance. For this path
+						of the service discover infrastructure setup, it is assumed you chose in the previous lab to
+						<a href="lab02-podman.html" target="_blank">install Prometheus in a container</a>, and have
+						done that.<br />
+						<br />
+						Make sure you have a running instance and we'll pick up at editing the
+						<code><b>workshop-prometheus.yml</b></code> file and if you have not created one, you can create
+						a new one from scratch in the rest of this lab.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - This completes setup using containers</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Next up, we'll start using the file-based service discovery mechanism to feed a changing list
+						of custom targets to Prometheus during runtime and verify that it's dynamically discovering the
+						changes:
+					</div>
+					<div style="height: 50px; text-align: center;">
+						<a href="lab07b.html" target="_blank">Click here to continue this lab...</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMenu, RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+	</body>
+</html>

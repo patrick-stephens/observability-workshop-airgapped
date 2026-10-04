@@ -1,0 +1,635 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Fluent Bit workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Telemetry Pipelines Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax-highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-799E08H5WD"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-799E08H5WD');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 5 – Understanding backpressure</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>
+							This lab explores backpressure in telemetry pipelines and how to address it with Fluent Bit.
+						</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo – Jumping to the solution</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						If you happen to be exploring Fluent Bit as an architect and want to jump to the solution in
+						action, we've included the configuration files in the easy install project from the source
+						install support directory. Please see the previous installing from source lab. Instead of creating all
+						the configurations as shown in this lab, you'll find them ready to use as shown below from the
+						<code><b>fluentbit-install-demo</b></code> root directory:
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<pre>
+							<code data-trim data-noescape>
+								$ ls -l support/configs-lab-5/
+
+								-rw-r--r--@ 1 erics  staff  1588 Jul 21 13:12 Buildfile
+								-rw-r--r--  1 erics  staff  1437 May  5 14:02 workshop-fb.yaml
+								-rw-r--r--@ 1 erics  staff  787B Jul 23 14:10 workshop-fb-helm.yaml
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure – The basic problem</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: x-large;">
+						The purpose of our telemetry pipelines is to collect events, parse, optionally filter, optionally
+						buffer, route, and deliver them to predefined destinations. Fluent Bit is set up by default to
+						put events into memory, but what happens if that memory is not able to hold the flow of events
+						coming into the pipeline?<br />
+						<br />
+						This problem is known as <code><b>backpressure</b></code> and leads to high memory consumption
+						in the Fluent Bit service. Other causes can be network failures, latency, or unresponsive
+						third-party services, resulting in delays or failure to process data fast enough while we
+						continue to receive new incoming data to process. In high-load environments with backpressure,
+						there's a risk of increased memory usage, which leads to the termination of the Fluent Bit
+						process by the hosting operating system. This is known as an
+						<code><b>Out of Memory (OOM)</b></code> error.<br />
+						<br />
+						Let’s configure an example pipeline and make it run in a constrained environment, causing
+						backpressure and ending with the container failing with an OOM error...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h3 class="r-fit-text">Backpressure – Choose your path</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						We can trigger this backpressure OOM failure using either a container runtime or a
+						Kubernetes cluster. Pick the path that matches your environment and continue:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<ul>
+							<li>Container (Podman) – continue to the next slide</li>
+							<li><a href="lab05-rancher.html" target="_blank">Kubernetes (k3s) using Rancher Desktop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure - Configuration OOM inputs</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: x-large;">
+						As we are going to <b>cause catastrophic failure</b> to our Fluent Bit pipelines in this lab,
+						<b>all examples are going to be shown using containers (Podman)</b>. It is assumed you are familiar with
+						container tooling such as Podman or Docker.<br />
+						<br />
+						We begin configuration of our telemetry pipeline in the <code><b>INPUT</b></code> phase with a
+						simple dummy plugin generating a large number of entries to flood our pipeline. Add this to a
+						new <code><b>workshop-fb.yaml</b></code> configuration file as follows:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# This file is our workshop Fluent Bit configuration.
+								#
+								service:
+								  flush: 1
+								  log_level: info
+
+								pipeline:
+								  inputs:
+								    # This entry generates a large amount of success messages for the workshop.
+								    - name: dummy
+								      tag: big.data
+								      copies: 15000
+								      dummy: '{"message":"true 200 success", "big_data": "blah blah blah blah blah blah blah blah"}'
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure – Configuring OOM outputs</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						Now ensure the output section of our configuration file <code><b>workshop-fb.yaml</b></code>
+						following the inputs section is as follows:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								outputs:
+								  # This entry directs all tags (it matches any we encounter) to
+								  # print to our console.
+								  - name: stdout
+								    match: '*'
+								    format: json_lines
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure – Testing this pipeline (container)</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Let's now try testing our configuration by running it using a container image. First thing that
+						is needed is to ensure a file called <code><b>Buildfile</b></code> is created. This is going to
+						be used to build a new container image and insert our configuration file. Note this file needs
+						to be in the same directory as our configuration file, otherwise adjust the file path names:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								FROM ghcr.io/fluent/fluent-bit:5.1.1
+
+								COPY ./workshop-fb.yaml /fluent-bit/etc/workshop-fb.yaml
+
+								CMD [ "fluent-bit", "-c", "/fluent-bit/etc/workshop-fb.yaml"]
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure – Building this pipeline (container)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Now we'll build a new container image, naming it with a version tag, as follows using the
+						<code><b>Buildfile</b></code> and assuming you are in the same directory:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-fb:v8 -f Buildfile
+
+								STEP 1/3: FROM ghcr.io/fluent/fluent-bit:5.1.1
+								STEP 2/3: COPY ./workshop-fb.yaml /fluent-bit/etc/workshop-fb.yaml
+								--> 3592e314b0b7
+								STEP 3/3: CMD [ "fluent-bit", "-c", "/fluent-bit/etc/workshop-fb.yaml"]
+								COMMIT workshop-fb:v8
+								--> ecacdf798204
+								Successfully tagged localhost/workshop-fb:v8
+								ecacdf79820429d0fb10696138cd03803224c9acfe8946cf4aa317f1f179646a
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure – Running this pipeline (container)</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: xx-large;">
+						Now we'll run our new container image, this time without the <code><b>--rm</b></code> flag,
+						meaning after we kill our running container, we first need to remove the <code><b>fb-oom</b></code>
+						container before running it again:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run --name fb-oom workshop-fb:v8
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure – Console output this pipeline (container)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						The console output should look something like this, noting that we've cut out the ASCII logo
+						at startup. This runs until exiting with CTRL_C, but before we do that, we need to get some
+						information about the memory settings so we can create an OOM experience. Leave this running
+						and go to next slide to explore the container stats:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.0] initializing
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.0] storage_strategy='memory' (memory only)
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.1] initializing
+								[2025/07/10 14:14:57] [ info] [input:dummy:dummy.1] storage_strategy='memory' (memory only)
+								[2025/07/10 14:14:57] [ info] [output:stdout:stdout.0] worker #0 started
+								[2025/07/10 14:14:57] [ info] [sp] stream processor started
+								[2025/07/10 14:14:57] [ info] [engine] Shutdown Grace Period=5, Shutdown Input Grace Period=2
+								[0] big.data: [[1713262473.231406588, {}], {"message"=>"true 200 success", "big_data"=>"blah blah blah blah blah blah blah blah"}]
+								[1] big.data: [[1713262473.232578175, {}], {"message"=>"true 200 success", "big_data"=>"blah blah blah blah blah blah blah blah"}]
+								[2] big.data: [[1713262473.232581509, {}], {"message"=>"true 200 success", "big_data"=>"blah blah blah blah blah blah blah blah"}]
+								[3] big.data: [[1713262473.232583009, {}], {"message"=>"true 200 success", "big_data"=>"blah blah blah blah blah blah blah blah"}]
+								[4] big.data: [[1713262473.232584217, {}], {"message"=>"true 200 success", "big_data"=>"blah blah blah blah blah blah blah blah"}]
+								[5] big.data: [[1713262473.232585425, {}], {"message"=>"true 200 success", "big_data"=>"blah blah blah blah blah blah blah blah"}]
+								[6] big.data: [[1713262473.232586550, {}], {"message"=>"true 200 success", "big_data"=>"blah blah blah blah blah blah blah blah"}]
+								[7] big.data: [[1713262473.232587967, {}], {"message"=>"true 200 success", "big_data"=>"blah blah blah blah blah blah blah blah"}]
+								[8] big.data: [[1713262473.232589134, {}], {"message"=>"true 200 success", "big_data"=>"blah blah blah blah blah blah blah blah"}]
+								[9] big.data: [[1713262473.232590425, {}], {"message"=>"true 200 success", "big_data"=>"blah blah blah blah blah blah blah blah"}]
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure – Container stats inspection</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						We need to find the memory usage of this pipeline, so while it's running, we need to check the
+						container stats for our current memory numbers (<code><b>MEM USAGE</b></code> and
+						<code><b>LIMIT</b></code>):
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Use the container name you assigned in previous slide.
+								$ podman stats fb-oom
+
+								ID              MEM USAGE /  LIMIT
+								a9a25abc042a    10.06MB   /  4.082GB
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure – Simulating backpressure</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						If we run our pipeline in a container configured with constricted memory, in our case we need
+						to give it around 10.2MB limit (adjust on your machine until you see it run a bit of logging before
+						failing), then we'll see the pipeline run for a bit and then fail due to overloading (OOM):
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Remember to remove the container named 'fb-oom' first before starting a new one.
+								$ podman container rm fb-oom
+
+								$ podman run --name fb-oom --memory 10.2MB workshop-fb:v8
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure – Console output this pipeline (container)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						The console output shows that the pipeline ran for a bit before it hit the OOM limits of our
+						container environment (10.2MB). We can validate this by inspecting the container image on the
+						next slide:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								{"date":1722510052.224602,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah blah blah blah blah blah"}
+								{"date":1722510052.224602,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah blah blah blah blah blah"}
+								{"date":1722510052.224606,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah blah blah blah blah blah"}
+								{"date":1722510052.224607,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah blah blah blah blah blah"}
+								{"date":1722510052.224607,"message":"true 200 success",
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure – Validating backpressure OOM</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Below we need to find the container id of our last container that failed and then inspect
+						it for an OOM failure to validate our backpressure worked. The following commands show that our
+						container kernel failed and killed it due to an OOM error:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Use the container name you assigned.
+								$ podman inspect fb-oom | grep OOM
+
+								<mark>"OOMKilled": true,</mark>
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure – Catastrophic failure prevention</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						What we've seen is that when a channel floods with too many events to process, our pipeline
+						instance fails. From that point onwards we are now unable to collect, process, or deliver any
+						more events.<br />
+						<br />
+						Our first try at fixing this problem is to ensure that our input plugin is not flooded with
+						more events than it can handle. We can prevent this backpressure scenario from happening by
+						setting memory limits on the input plugin. This means setting a configuration property
+						<code><b>mem_buf_limit</b></code> that will limit the events allowed. Let's try this...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure – Memory buffer limit</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						The configuration of our telemetry pipeline in the <code><b>INPUT</b></code> phase needs a
+						slight adjustment by adding <code><b>mem_buf_limit</b></code> as shown, set to
+						<code><b>2MB</b></code> to ensure we hit that limit on ingesting events:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								pipeline:
+								  inputs:
+								    # This entry generates a large amount of success messages for the workshop.
+								    - name: dummy
+								      tag: big.data
+								      copies: 15000
+								      dummy: '{"message":"true 200 success", "big_data": "blah blah blah blah blah blah blah"}'
+								      mem_buf_limit: 2MB
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure – Building limited container</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Now we'll build a new container image, naming it with a version tag, as follows using the
+						<code><b>Buildfile</b></code> and assuming you are in the same directory:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-fb:v9 -f Buildfile
+
+								STEP 1/3: FROM ghcr.io/fluent/fluent-bit:5.1.1
+								STEP 2/3: COPY ./workshop-fb.yaml /fluent-bit/etc/workshop-fb.yaml
+								--> 1d8e9412e4dd
+								STEP 3/3: CMD [ "fluent-bit", "-c", "/fluent-bit/etc/workshop-fb.yaml"]
+								COMMIT workshop-fb:v9
+								--> 885ea0f09e49
+								Successfully tagged localhost/workshop-fb:v9
+								885ea0f09e493e9323671c6b9ffe962ed2857dcffb45225791b8bb736a424e45
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure – Running limited container</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						Now we'll run our new container image and search for the level of memory needed to trigger the
+						pausing of processing without breaking the container, in our case here it was around 18MB (so
+						try increasing the memory on your machine until you get the results shown on the next slide):
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run --rm --name fb-limit -it --memory=18MB workshop-fb:v9
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure - Console output limited container</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						The console output should look something like this, running until exiting with CTRL_C, but before
+						we do that we see that after a certain amount of time the output shows the input plugin pauses,
+						and then resumes. This is highlighted below:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								{"date":1722510400.223572,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah blah blah blah blah blah"}
+								{"date":1722510400.223572,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah blah blah blah blah blah"}
+								{"date":1722510400.223572,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah blah blah blah blah blah"}
+								[2024/08/01 11:06:41] [ info] [input] resume dummy.0
+								[2024/08/01 11:06:41] [ info] [input] dummy.0 resume (mem buf overlimit)
+								[2024/08/01 11:06:42] [ warn] [input] dummy.0 paused (mem buf overlimit)
+								[2024/08/01 11:06:42] [ info] [input] pausing dummy.0
+								{"date":1722510401.216399,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah blah blah blah blah blah"}
+								{"date":1722510401.216414,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah blah blah blah blah blah"}
+								{"date":1722510401.216416,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah blah blah blah blah blah"}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo – How it works part 1</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: x-large;">
+						The <code><b>mem_buf_limit</b></code> only applies with memory only buffering. Behind the
+						scenes, our previous example behaves as follows (using fictional data amounts):
+					</div>
+					<div style="height: 220px; text-align: left; font-size: x-large;">
+						<ul>
+							<li><code><b>mem_buf_limit</b></code> set to 2MB</li>
+							<li>input plugin tries to append 1.25MB</li>
+							<li>engine routes 1.25MB data to output plugin</li>
+							<li>output plugin backend is blocking delivery for some reason</li>
+							<li>engine scheduler will retry delivery after 10 seconds</li>
+							<li>input plugin tries to append the next 1MB</li>
+						</ul>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: x-large;">
+						Here the engine allows appending of the last 1MB into memory, now buffering 2.25MB of data and
+						exceeding the limit we set. This is a <code><b>permissive limit</b></code>, meaning a single
+						write to the memory is allowed past the limit, but triggers the following:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						<ul>
+							<li>blocks input plugin from appending more data</li>
+							<li>notify the input plugin invoking the pause notification</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo – How it works part 2</h3>
+					</div>
+					<div style="height: 140px; text-align: left; font-size: x-large;">
+						While the input plugin is paused, the engine will not append more data from that plugin. The
+						input plugin manages the state and decides what to do when paused. When the engine can finally
+						deliver the initial 1.25MB of data (or given up retrying), that amount of memory is released
+						causing the following:
+					</div>
+					<div style="height: 220px; text-align: left; font-size: x-large;">
+						<ul>
+							<li>when 1.25MB data was delivered, the internal memory counter is updated</li>
+							<li>the internal memory counter now shows tell the remaining 1 MB in memory</li>
+							<li>with 1MB < 2MB, the engine will check the input plugin state</li>
+							<li>if the plugin is paused, it sends a résumé notification</li>
+							<li>input plugin resumes and can start appending more data</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Backpressure - Memory-limiting failures</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						The results of this memory buffer limiting as you can imagine is not quite the solution to solve
+						the backpressure issues we are dealing with. While it does prevent the pipeline container from
+						failing completely due to high memory usage as it pauses ingesting new records, but it is also
+						potentially losing data during those pauses as the input plugin clears its buffers. Once the
+						buffers are cleared, the ingestion of new records resumes.<br />
+						<br />
+						In the next lab, we'll see how to achieve both data safety and memory safety by configuring a
+						better buffering solution with Fluent Bit.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed – Results</h2>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								...
+								{"date":1722510400.223572,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah blah blah blah blah blah"}
+								{"date":1722510400.223572,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah blah blah blah blah blah"}
+								{"date":1722510400.223572,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah blah blah blah blah blah"}
+								[2024/08/01 11:06:41] [ info] [input] resume dummy.0
+								[2024/08/01 11:06:41] [ info] [input] dummy.0 resume (mem buf overlimit)
+								[2024/08/01 11:06:42] [ warn] [input] dummy.0 paused (mem buf overlimit)
+								[2024/08/01 11:06:42] [ info] [input] pausing dummy.0
+								{"date":1722510401.216399,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah blah blah blah blah blah"}
+								{"date":1722510401.216414,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah blah blah blah blah blah"}
+								{"date":1722510401.216416,"message":"true 200 success","big_data":"blah blah blah blah blah blah blah blah blah blah blah blah"}
+								...
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; font-size: xx-large">
+						Next up, avoiding telemetry data loss...
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://github.com/fluent/fluent-bit/blob/master/README.md" target="_blank">Fluent Bit repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact – are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Technology Advocate Lead<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in the workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab06.html" target="_blank">Lab 6 - Avoiding telemetry data loss</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

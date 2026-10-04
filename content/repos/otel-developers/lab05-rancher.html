@@ -1,0 +1,747 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="OpenTelemetry Workshop for Java Developers">
+		<meta name="author" content="Workshop Author">
+
+		<title>Lab 5 - Manual Instrumentation (Rancher k3s)</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/erics.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Rancher k3s prerequisites</h2>
+					</div>
+					<div style="height: 240px; text-align: left; font-size: xx-large;">
+						On this path the application and Jaeger run together in a single pod on a local Rancher Desktop k3s
+						cluster. You need <a href="https://podman.io/" target="_blank">Podman v5+</a> to build the image,
+						<a href="https://openjdk.org/projects/jdk/21/" target="_blank">Java 21</a> with
+						<a href="https://maven.apache.org/" target="_blank">Maven 3.8+</a> to build the JAR, plus
+						<a href="https://rancherdesktop.io/" target="_blank">Rancher Desktop</a> with the Kubernetes (k3s)
+						engine enabled and <code>kubectl</code> on your PATH.
+					</div>
+					<div style="height: 130px; text-align: left; font-size: large;">
+						Note: This lab binds host ports <b>9999</b> and <b>16686</b>. If you still have the standalone
+						<code>jaeger</code> pod running from lab 3, delete it now with
+						<code><b>kubectl delete pod jaeger</b></code> - two pods cannot claim the same host port on a single
+						node.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Start Rancher Desktop</h2>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						If Rancher Desktop is not already running from a previous lab, launch it now:
+					</div>
+					<div style="height: 60px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ rdctl start
+							</code>
+						</pre>
+					</div>
+					<div style="height: 230px; text-align: left; font-size: xx-large;">
+						<ul>
+							<li>In <b>Preferences &rarr; Kubernetes</b>, confirm "Enable Kubernetes" is checked (k3s)</li>
+							<li>In <b>Preferences &rarr; Container Engine</b>, confirm "containerd" is selected</li>
+							<li>Wait for the status indicator to turn green and show "Kubernetes is running"</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Verifying the cluster</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Check that <code>kubectl</code> is pointed at Rancher Desktop and the node is ready:
+					</div>
+					<div style="height: 150px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl config current-context
+								rancher-desktop
+
+								$ kubectl get nodes
+								NAME                   STATUS   ROLES                  AGE   VERSION
+								lima-rancher-desktop   Ready    control-plane,master   2d    v1.36.2+k3s1
+							</code>
+						</pre>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: xx-large;">
+						Now let's look at how the application and Jaeger are deployed together...
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Review the pod definition</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Open <code><b>k8s/manual-pod.yaml</b></code>. The application and Jaeger are two containers in one
+						pod, so they share a network namespace. That is the whole trick: the Java Agent defaults to sending
+						OTLP to <code><b>http://localhost:4318</b></code>, which lands directly on Jaeger's OTLP receiver -
+						no endpoint configuration anywhere:
+					</div>
+					<div style="height: 280px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								apiVersion: v1
+								kind: Pod
+								metadata:
+								  name: java-demo-manual
+								spec:
+								  containers:
+								    - name: java-demo
+								      image: localhost/java-demo:manual
+								      imagePullPolicy: Never
+								      ports:
+								        - containerPort: 9999
+
+								    - name: jaeger-all-in-one
+								      image: jaegertracing/all-in-one:1.76.0
+								      ports:
+								        - containerPort: 16686
+								        <mark>- containerPort: 4318</mark>
+								      env:
+								        - name: COLLECTOR_OTLP_ENABLED
+								          value: "true"
+							</code>
+						</pre>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: large;">
+						The agent, the service name and <code>OTEL_TRACES_EXPORTER=otlp</code> are all baked into
+						<code><b>Buildfile-manual</b></code>, so the pod spec stays this small.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Instrumentation by hand</h2>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Automatic and programmatic instrumentation gets you <em>most</em> of the way to tracing
+						system interactions, but being able to manually instrument and add metadata specific to your
+						application or business will allow you to derive better insights faster.<br />
+						<br />
+						In this lab, we'll walk you through manually instrumenting a simple Java application
+						using the OpenTelemetry Java API. Note that all existing
+						<a href="lab03.html" target="_blank">programmatic instrumentation from Lab 3</a> should be
+						completed before continuing with this manual instrumentation lab. Let's get started!
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Adding Span Attributes</h2>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						Attributes are key-value pairs that contain metadata to annotate a span with information
+						about the operation it is tracking. They help you filter, search, and analyze traces in
+						your observability backend:<br />
+						<br />
+						<ul>
+							<li><strong>span.setAttribute("key", value)</strong>:</li>
+							<ul>
+								<li>adds custom metadata to the current span</li>
+								<li>enables filtering traces by business-specific values</li>
+							</ul>
+							<li><strong>Supported value types</strong>:</li>
+							<ul>
+								<li>String, long, double, boolean</li>
+								<li>Arrays of these types</li>
+							</ul>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Adding a Span Attribute</h2>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						In the <code><b>handleIndex</b></code> method, add an attribute tracking the count of homepage loads
+						(available for uncommenting in the <code><b>AppProgramaticInstrumentation.java</b></code> file, and
+						don't forget to uncomment the imports for this lab found at the top of the file):
+					</div>
+					<div style="height: 280px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								import io.opentelemetry.api.trace.Span;
+								import io.javalin.http.Context;
+
+								private static void handleIndex(Context ctx) {
+
+									int hits = HITS.incrementAndGet();
+
+									<mark>// Get the current span created by the agent</mark>
+									<mark>Span span = Span.current();</mark>
+
+									<mark>// Add custom attributes to the span</mark>
+									<mark>span.setAttribute("app.hits", hits);</mark>
+									<mark>span.setAttribute("app.endpoint", "/");</mark>
+
+									ctx.contentType("text/plain");
+									ctx.result("This webpage has been viewed " + hits + " times");
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Build and deploy on k3s</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Rebuild the application, wrap it in an image, load it into the cluster and deploy it alongside Jaeger:
+					</div>
+					<div style="height: 300px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ mvn clean install -f pom-programatic-instrumentation.xml
+
+								$ podman build -t java-demo:manual -f Buildfile-manual
+
+								$ podman save localhost/java-demo:manual -o java-demo-manual.tar
+
+								$ nerdctl --namespace k8s.io load -i java-demo-manual.tar
+
+								$ kubectl delete -f k8s/manual-pod.yaml --ignore-not-found
+
+								$ kubectl apply -f k8s/manual-pod.yaml
+
+								$ kubectl wait --for=condition=Ready pod/java-demo-manual --timeout=180s
+
+								$ kubectl port-forward pod/java-demo-manual 9999:9999 16686:16686
+							</code>
+						</pre>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: large;">
+						<b>You repeat this same cycle after every code change in this lab.</b> The
+						<code>kubectl wait</code> matters - without it <code>port-forward</code> fails with "unable to
+						forward port because pod is not running". Leave the forward running in its own terminal. Load
+						the index page <a href="http://localhost:9999" target="_blank">http://localhost:9999</a> a few
+						times, then open the Jaeger UI at
+						<a href="http://localhost:16686" target="_blank">http://localhost:16686</a> and search for traces
+						for the service <code><b>java-demo</b></code>.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Verifying Spans</h2>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: xx-large;">
+						After searching for traces for the service <code><b>java-demo</b></code> you should see the
+						trace for the homepage load as shown below:
+					</div>
+					<div style="height: 400px;">
+						<img src="images/lab05-1.png" alt="span attr" style="border: solid 1px black;">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Verifying Span Attribute</h2>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: xx-large;">
+						Click on a trace and confirm the <code><b>app.hits</b></code> attribute is in span details:
+					</div>
+					<div style="height: 450px;">
+						<img src="images/lab05-2.png" alt="span attr" style="border: solid 1px black;">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Manual - Creating nested spans</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						In the <code><b>AppProgramaticInstrumentation.java</b></code> class, the <code>/doggo</code> endpoint
+						calls the Dog API and extracts the breed from the URL using the <code>extractBreedFromUrl()</code> method.
+						Let's create a nested span to trace this method:<br/>
+						<br/>
+						<ul>
+							<li><code><b>tracer.spanBuilder("name").startSpan()</b></code> - creates a new span within the
+								current trace context</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Get the tracer</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						First, get a reference to the tracer. As we are using the <code><b>Java Agent</b></code>,
+						we need to base our tracer on <code><b>GlobalOpenTelemetry</b></code> (available for
+						uncommenting in the AppProgramaticInstrumentation.java file):
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								import io.opentelemetry.api.GlobalOpenTelemetry;
+								import io.opentelemetry.api.trace.Tracer;
+
+								public class AppProgramaticInstrumentation {
+									private static final Tracer tracer = GlobalOpenTelemetry
+										.getTracer("io.chronosphere.AppProgramaticInstrumentation", "1.0.0");
+									// ...
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Instrument nested span</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Add a nested span to the <code>extractBreedFromUrl()</code> method (available for
+						uncommenting in the AppProgramaticInstrumentation.java file):
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								private String extractBreedFromUrl(String imageUrl) {
+									<mark>Span span = tracer.spanBuilder("extractBreedFromUrl").startSpan();</mark>
+									<mark>try (Scope scope = span.makeCurrent()) {</mark>
+										Matcher matcher = BREED_PATTERN.matcher(imageUrl);
+										String breed = matcher.find() ? matcher.group(1) : "unknown";
+										<mark>span.setAttribute("breed", breed);</mark>
+										return breed;
+									<mark>} finally {</mark>
+										<mark>span.end();</mark>
+									<mark>}</mark>
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Rebuild and redeploy</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Run the same build-and-deploy cycle again to pick up the nested span:
+					</div>
+					<div style="height: 300px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ mvn clean install -f pom-programatic-instrumentation.xml
+
+								$ podman build -t java-demo:manual -f Buildfile-manual
+
+								$ podman save localhost/java-demo:manual -o java-demo-manual.tar
+
+								$ nerdctl --namespace k8s.io load -i java-demo-manual.tar
+
+								$ kubectl delete -f k8s/manual-pod.yaml --ignore-not-found
+
+								$ kubectl apply -f k8s/manual-pod.yaml
+
+								$ kubectl wait --for=condition=Ready pod/java-demo-manual --timeout=180s
+
+								$ kubectl port-forward pod/java-demo-manual 9999:9999 16686:16686
+							</code>
+						</pre>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: large;">
+						Load the index page <a href="http://localhost:9999" target="_blank">http://localhost:9999</a> a few times, then open the Jaeger UI at <a href="http://localhost:16686" target="_blank">http://localhost:16686</a> and search for traces for the service <code><b>java-demo</b></code>.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Verify nested span</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Open the Jaeger UI and search for traces and search to list the collected traces. You should
+						see the <code>extractBreedFromUrl</code> span nested under the parent request span if you
+						select one of the tracers and the <code><b>breed</b></code> attribute as shown below:
+					</div>
+					<div style="height: 450px;">
+						<img src="images/lab05-3.png" alt="nested span" style="border: solid 1px black;">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Visualizing a trace graph</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Click on the menu in the upper right corner and select Trace Graph to see the relationship
+						between spans:
+					</div>
+					<div style="height: 450px; text-align: center;">
+						<img src="images/lab05-4.png" alt="trace graph" style="border: solid 1px black;">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Adding span events</h2>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						An event contains a structured log with a name, 1+ attributes, and a timestamp:<br />
+						<br />
+						<ul>
+							<li><code><b>span.addEvent("name")</b></code> - adds an event with just a name</li>
+							<li><code><b>span.addEvent("name", Attributes.of(...))</b></code> - adds an event with attributes</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Add span event</h2>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Add a span event to the <code><b>handleRollDice</b></code> method to record the
+						results of the dice roll (available for uncommenting in the
+						<code><b>AppProgramaticInstrumentation.java</b></code>) file:
+					</div>
+					<div style="height: 280px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								import io.opentelemetry.api.common.Attributes;
+								import io.javalin.http.Context;
+
+								private static void handleRollDice(Context ctx) {
+									int roll = RANDOM.nextInt(6) + 1;
+
+									<mark>Span span = Span.current();</mark>
+
+									<mark>span.addEvent("dice_rolled", Attributes.builder()</mark>
+										<mark>.put("result", (long) roll)</mark>
+										<mark>.build());</mark>
+
+									ctx.contentType("text/plain");
+									ctx.result(String.valueOf(roll));
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Rebuild and redeploy</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Same cycle once more, this time to pick up the span event:
+					</div>
+					<div style="height: 300px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ mvn clean install -f pom-programatic-instrumentation.xml
+
+								$ podman build -t java-demo:manual -f Buildfile-manual
+
+								$ podman save localhost/java-demo:manual -o java-demo-manual.tar
+
+								$ nerdctl --namespace k8s.io load -i java-demo-manual.tar
+
+								$ kubectl delete -f k8s/manual-pod.yaml --ignore-not-found
+
+								$ kubectl apply -f k8s/manual-pod.yaml
+
+								$ kubectl wait --for=condition=Ready pod/java-demo-manual --timeout=180s
+
+								$ kubectl port-forward pod/java-demo-manual 9999:9999 16686:16686
+							</code>
+						</pre>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: large;">
+						Load the index page <a href="http://localhost:9999" target="_blank">http://localhost:9999</a> a few times, then open the Jaeger UI at <a href="http://localhost:16686" target="_blank">http://localhost:16686</a> and search for traces for the service <code><b>java-demo</b></code>.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Verify span event</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Open the Jaeger UI and search for traces and search to list the collected traces. You should
+						see the event <code><b>dice_rolled</b></code> under the parent request span in the logs as shown
+						below:
+					</div>
+					<div style="height: 450px; text-align: center;">
+						<img src="images/lab05-5.png" alt="span event">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Setting Span Status</h2>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						A span status is used to identify spans that have not completed successfully. Spans can have
+						a status of: UNSET, OK, or ERROR.<br />
+						<br />
+						<ul>
+							<li><code><b>span.setStatus(StatusCode.OK)</b></code></li>
+							<li><code><b>span.setStatus(StatusCode.ERROR, "description")</b></code></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Recording exceptions</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						When an exception occurs during tracing, we can record it on the span for debugging
+						using the code as follows:
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								import io.opentelemetry.api.trace.StatusCode;
+
+								try {
+									// Your code that might throw
+									processRequest();
+								} catch (Exception e) {
+									<mark>span.setStatus(StatusCode.ERROR, "Processing failed");</mark>
+									<mark>span.recordException(e);</mark>
+									throw e;
+								}
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Validate breed with error handling</h2>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Let's add validation for the breed search with proper error handling in the method
+						<code><b>handleDoggoPost</b></code> as follows (available for
+						uncommenting in the <code><b>AppProgramaticInstrumentation.java</b></code>) file:
+					</div>
+					<div style="height: 320px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								private static void handleDoggoPost(Context ctx) {
+									try {
+											String breed = ctx.formParam("breed-search");
+											String imageSrc;
+											String error = null;
+
+											if (breed == null || breed.isEmpty()) {
+													error = "No breed specified.";
+													imageSrc = null;
+											} else if (!Breeds.isValidBreed(breed)) {
+													<mark>Span span = tracer.spanBuilder("validateBreed").startSpan();</mark>
+													<mark>try (Scope scope = span.makeCurrent()) {</mark>
+															<mark>span.setAttribute("breed", breed);</mark>
+															<mark>span.setStatus(StatusCode.ERROR, "Breed validation failed");</mark>
+															<mark>span.recordException(new IllegalArgumentException("Invalid breed: " + breed));</mark>
+													} finally {
+													<mark>span.end();</mark>
+													}
+													error = "No breed found.";
+													imageSrc = null;
+											} else {
+													String apiUrl = "https://dog.ceo/api/breed/" + breed + "/images/random";
+													JsonObject json = fetchJson(apiUrl);
+													imageSrc = json.get("message").getAsString();
+											}
+											...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Rebuild and validate error handling</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Same cycle a final time, to pick up the status and exception handling:
+					</div>
+					<div style="height: 300px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ mvn clean install -f pom-programatic-instrumentation.xml
+
+								$ podman build -t java-demo:manual -f Buildfile-manual
+
+								$ podman save localhost/java-demo:manual -o java-demo-manual.tar
+
+								$ nerdctl --namespace k8s.io load -i java-demo-manual.tar
+
+								$ kubectl delete -f k8s/manual-pod.yaml --ignore-not-found
+
+								$ kubectl apply -f k8s/manual-pod.yaml
+
+								$ kubectl wait --for=condition=Ready pod/java-demo-manual --timeout=180s
+
+								$ kubectl port-forward pod/java-demo-manual 9999:9999 16686:16686
+							</code>
+						</pre>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: large;">
+						Load <a href="http://localhost:9999/doggo" target="_blank">http://localhost:9999/doggo</a> and
+						search for a valid breed like "doberman" or "Akita", then an invalid one like "woof" or "cat",
+						before opening the Jaeger UI at
+						<a href="http://localhost:16686" target="_blank">http://localhost:16686</a>.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Manual - Verify error status</h2>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						In Jaeger, find a trace with an error. The span will be marked with an error icon and contain
+						the exception details as shown below in the tags and logs:
+					</div>
+					<div style="height: 450px;">
+						<img src="images/lab05-6.png" alt="error span" style="border: solid 1px black;">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Intermezzo - Semantic Conventions</h2>
+					</div>
+					<div style="height: 190px; text-align: left; font-size: xx-large;">
+						OpenTelemetry provides
+						<a href="https://opentelemetry.io/docs/specs/semconv/" target="_blank">semantic conventions</a>
+						for attribute naming. Since semantic conventions v1.32 these constants live in per-domain
+						classes - <code><b>HttpAttributes</b></code>, <code><b>UrlAttributes</b></code> and friends -
+						rather than in the single <code><b>SemanticAttributes</b></code> class used previously:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								import io.opentelemetry.semconv.HttpAttributes;
+								import io.opentelemetry.semconv.UrlAttributes;
+
+								span.setAttribute(HttpAttributes.HTTP_REQUEST_METHOD, "GET");
+								span.setAttribute(HttpAttributes.HTTP_RESPONSE_STATUS_CODE, 200);
+								span.setAttribute(UrlAttributes.URL_PATH, "/doggo");
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Manual - Clean up</h2>
+					</div>
+					<div style="height: 140px; text-align: left; font-size: xx-large;">
+						The next lab runs its own pod on host ports <b>9999</b> and <b>9090</b>, so tear this one down before
+						moving on. Stop the port-forward with CTRL-C and then:
+					</div>
+					<div style="height: 170px; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl delete -f k8s/manual-pod.yaml
+
+								$ kubectl get pods
+								No resources found in default namespace.
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 150px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 120px; font-size: x-large;">
+						We combined programmatic and manual instrumentation to enhance the visibility provided by traces - creating
+						nested spans, adding attributes, recording events and handling errors - with the application and
+						Jaeger running together as a single pod on a local Rancher k3s cluster.
+					</div>
+					<div style="height: 320px; padding-bottom: 30px;">
+						<img src="images/lab05-6.png" alt="error span" style="border: solid 1px black;">
+					</div>
+					<div style="height: 50px; font-size: x-large;">
+						Next up, linking distributed traces to application metrics!
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://opentelemetry.io/docs/languages/java/instrumentation/" target="_blank">OpenTelemetry Java Manual Instrumentation</a></li>
+							<li><a href="https://opentelemetry.io/docs/specs/semconv/" target="_blank">Semantic Conventions</a></li>
+							<li><a href="https://javadoc.io/doc/io.opentelemetry/opentelemetry-api/latest/index.html" target="_blank">OpenTelemetry Java API Javadoc</a></li>
+							<li><a href="https://rancherdesktop.io/" target="_blank">Rancher Desktop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+					  <h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+					  Eric D. Schabell<br/>
+					  Technology Advocate Lead<br/>
+					  Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+					  {<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+					  or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab06.html" target="_blank">Lab 6 - Traces & Metrics</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

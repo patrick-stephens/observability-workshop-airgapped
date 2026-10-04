@@ -1,0 +1,2233 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Fluent Bit workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Telemetry Pipelines Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-799E08H5WD"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-799E08H5WD');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 10 - Advanced telemetry routing</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>
+							To explore routing patterns in Fluent Bit telemetry pipelines. We'll cover tag-based
+							routing with wildcards and regular expressions, explore the new conditional routing
+							capabilities introduced in Fluent Bit 4.2, and understand how label-based matching
+							enables stable routing across configuration changes.
+						</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Intermezzo - Jumping to the solution</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						If you happen to be exploring Fluent Bit as an architect and want to jump to the solution in
+						action, we've included the configuration files in the easy install project from the source
+						install support directory. Please see the previous installing from source lab. Instead of creating all
+						the configurations as shown in this lab, you'll find them
+						ready to use as shown below from the <code><b>fluentbit-install-demo</b></code> root directory:
+					</div>
+					<div style="height: 100px; text-align: left; font-size: xx-large">
+						<pre>
+							<code data-trim data-noescape>
+								$ ls -l support/configs-lab-10/
+
+								-rw-r--r--@ 1 erics  staff   166 Dec 20 13:12 Buildfile
+								-rw-r--r--  1 erics  staff  2437 Dec 20 14:02 routing-fb.yaml
+								-rw-r--r--@ 1 erics  staff   173B Jul 24 09:00 Buildfile
+								-rw-r--r--@ 1 erics  staff   1.7K Jul 29 16:57 combined-routing-helm.yaml
+								-rw-r--r--@ 1 erics  staff   1.3K Jan 15  2026 combined-routing.yaml
+								-rw-r--r--@ 1 erics  staff   1.9K Jul 29 16:43 conditional-routing-helm.yaml
+								-rw-r--r--@ 1 erics  staff   1.8K Jan 15  2026 conditional-routing.yaml
+								-rw-r--r--@ 1 erics  staff   987B Jul 29 13:07 routing-fb-helm.yaml
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Routing - Understanding routing in telemetry pipelines</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						Routing is a core feature that lets you route your data through filters and then to one or
+						multiple destinations. In production environments, you rarely send all your telemetry data
+						to a single destination. Different types of logs need different handling:<br />
+						<br />
+						<ul>
+							<li><b>Error logs</b> - might go to an alerting system</li>
+							<li><b>Audit logs</b> - to long-term storage</li>
+							<li><b>Debug logs</b> - might be dropped entirely to save costs</li>
+						</ul><br />
+						<br />
+						Fluent Bit provides multiple routing mechanisms to handle these scenarios, and understanding
+						these routing patterns is essential for developers who want to build sophisticated telemetry
+						pipelines that efficiently direct data where it needs to go.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Routing - Three routing mechanisms</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: x-large;">
+						Fluent Bit provides three primary routing mechanisms:<br />
+						<br />
+						<ul>
+							<li><b>Tag-based routing</b> - The traditional approach that uses tags and matching rules
+								to determine where data flows. This method routes entire chunks of data based on their
+								assigned tags.</li>
+							<li><b>Conditional routing</b> - A newer approach (Fluent Bit 4.2+) that uses conditions
+								to evaluate individual records and route them to different outputs based on their
+								content. This provides fine-grained, per-record routing decisions.</li>
+							<li><b>Label-based matching</b> - A mechanism used with direct routing that stores labels
+								and plugin names in chunk metadata to enable stable routing even when output
+								configuration changes.</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 70px;">
+						<h3 class="r-fit-text">Routing - Where routing happens in a pipeline</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Routing happens throughout the pipeline but is most evident in the final output phase, where
+						we decide which processed events go to which destinations:
+					</div>
+					<div style="height: 300px; text-align: right;">
+						<img src="images/lab01-8.png" alt="router">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Tag-based routing - The traditional approach</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: x-large;">
+						Tag-based routing is the traditional routing mechanism in Fluent Bit. It relies on two key
+						concepts:<br />
+						<br />
+						<ul>
+							<li><b>Tag</b> - A human-readable identifier assigned to data at the input stage</li>
+							<li><b>Match</b> - A pattern rule configured on outputs to select which tagged data
+								to receive</li>
+						</ul><br />
+						<br />
+						When data is generated by an input plugin, it comes with a <code><b>Tag</b></code>. The tag
+						is usually configured manually in the input configuration. To define where to route data,
+						specify a <code><b>Match</b></code> rule in the output configuration.<br />
+						<br />
+						If data has a <code><b>Tag</b></code> that doesn't match any output at routing time, the
+						data is deleted!
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Tag-based routing - Basic tag matching</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Let's start with a basic tag matching example. Create a new directory
+						<code><b>workshop-routing</b></code> and a configuration file
+						<code><b>routing-fb.yaml</b></code> with the following configuration:
+					</div>
+					<div style="height: 280px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Basic tag-based routing configuration.
+								#
+								service:
+								  flush: 1
+								  log_level: info
+								  http_server: on
+								  http_listen: 0.0.0.0
+								  http_port: 2020
+								  hot_reload: on
+
+								pipeline:
+								  inputs:
+								    - name: dummy
+								      tag: app.frontend
+								      dummy: '{"service":"frontend","message":"User request received"}'
+
+								    - name: dummy
+								      tag: app.backend
+								      dummy: '{"service":"backend","message":"Processing database query"}'
+
+								  outputs:
+								    # Only matches frontend events.
+								    - name: stdout
+								      match: app.frontend
+								      format: json_lines
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Tag-based routing - Running basic matching (source)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						To see if our configuration works we can test run it with our Fluent Bit installation. Depending
+						on the chosen install method, we show the source installation first, followed by the container and
+						the Kubernetes (k3s) versions. Notice that only frontend events appear in the output, because the
+						match rule <code><b>app.frontend</b></code> only matches that specific tag:
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# source install.
+								#
+								$ [PATH_TO]/fluent-bit --config routing-fb.yaml
+
+								...
+								{"date":1734700528.441367,"service":"frontend","message":"User request received"}
+								{"date":1734700529.441389,"service":"frontend","message":"User request received"}
+								{"date":1734700530.441384,"service":"frontend","message":"User request received"}
+								...
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						<i>Note: Backend events with tag <code><b>app.backend</b></code> are silently dropped because
+						no output matches that tag!</i>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Tag-based routing - Testing this pipeline (container)</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Let's now try testing our configuration by running it using a container image. First thing that
+						is needed is to open in our favorite editor, a new file called <code><b>Buildfile</b></code>.
+						This is going to be used to build a new container image and insert our configuration. Note this
+						file needs to be in the same directory as our configuration file, otherwise adjust the file path
+						names:
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xxx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								FROM ghcr.io/fluent/fluent-bit:5.1.1
+
+								COPY ./routing-fb.yaml /fluent-bit/etc/routing-fb.yaml
+
+								CMD [ "fluent-bit", "-c", "/fluent-bit/etc/routing-fb.yaml"]
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Tag-based routing - Building this pipeline (container)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Now we'll build a new container image, naming it with a version tag that continues on from our
+						earlier labs, as follows using the <code><b>Buildfile</b></code> and assuming you are in the same
+						directory:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-fb:v15 -f Buildfile
+
+								STEP 1/3: FROM ghcr.io/fluent/fluent-bit:5.1.1
+								STEP 2/3: COPY ./routing-fb.yaml /fluent-bit/etc/routing-fb.yaml
+								--> b4ed3356a842
+								STEP 3/3: CMD [ "fluent-bit", "-c", "/fluent-bit/etc/routing-fb.yaml"]
+								COMMIT workshop-fb:v15
+								--> bcd69f8a85a0
+								Successfully tagged localhost/workshop-fb:v15
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Tag-based routing - Running basic matching (container)</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Now we'll run our new container image, seeing the very same frontend only output as the source
+						installation gave us:
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman run --rm --name fb workshop-fb:v15
+
+								...
+								{"date":1734700528.441367,"service":"frontend","message":"User request received"}
+								{"date":1734700529.441389,"service":"frontend","message":"User request received"}
+								{"date":1734700530.441384,"service":"frontend","message":"User request received"}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Tag-based routing - Basic tag matching (k3s)</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						If you deployed onto Kubernetes (k3s) with Rancher Desktop in previous labs, Fluent Bit is already
+						running in the <code><b>logging</b></code> namespace. Rather than a source or container run, we
+						create a new Helm values file <code><b>routing-fb-helm.yaml</b></code> for this lab's routing
+						pipeline, named to match the <code><b>routing-fb.yaml</b></code> the source and container paths
+						use. Keep the <code><b>http_server</b></code> lines, as the liveness probe on port
+						<code><b>2020</b></code> depends on them:
+					</div>
+					<div style="height: 380px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								args:
+								  - --workdir=/fluent-bit/etc
+								  - --config=/fluent-bit/etc/conf/fluent-bit.yaml
+
+								config:
+								  extraFiles:
+								    fluent-bit.yaml: |
+								      service:
+								        flush: 1
+								        log_level: info
+								        http_server: on
+								        http_listen: 0.0.0.0
+								        http_port: 2020
+
+								      pipeline:
+								        inputs:
+								          - name: dummy
+								            tag: app.frontend
+								            dummy: '{"service":"frontend","message":"User request received"}'
+
+								          - name: dummy
+								            tag: app.backend
+								            dummy: '{"service":"backend","message":"Processing database query"}'
+
+								        outputs:
+								          # Only matches frontend events.
+								          - name: stdout
+								            match: app.frontend
+								            format: json_lines
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Tag-based routing - Rolling out basic matching (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Apply the updated configuration by running a <code><b>helm upgrade</b></code> from the
+						<code><b>fluentbit-install-demo</b></code> root directory. This rolls out a new Fluent Bit pod
+						picking up our basic tag matching pipeline:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+								       --set image.tag=5.1.1 \
+								       --namespace logging --create-namespace \
+								       --values routing-fb-helm.yaml
+
+								Release "fluent-bit" has been upgraded. Happy Helming!
+								NAME: fluent-bit
+								NAMESPACE: logging
+								STATUS: deployed
+								REVISION: 13
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Tag-based routing - Console output basic matching (k3s)</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						Follow the pod logs in the <code><b>logging</b></code> namespace. Just as with the source and
+						container runs, only the frontend events appear, as the backend events match no output and are
+						dropped (exit with CTRL-C):
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+
+								...
+								{"date":1734700528.441367,"service":"frontend","message":"User request received"}
+								{"date":1734700529.441389,"service":"frontend","message":"User request received"}
+								{"date":1734700530.441384,"service":"frontend","message":"User request received"}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Tag-based routing - Using wildcards</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Wildcards let you match multiple tags with a single pattern. Update your configuration to
+						route both frontend and backend events:
+					</div>
+					<div style="height: 280px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								outputs:
+								  # Match all events starting with 'app.'
+								  - name: stdout
+								    match: 'app.*'
+								    format: json_lines
+
+								  # Route frontend to a dedicated file.
+								  - name: file
+								    match: 'app.frontend'
+								    file: /tmp/frontend.log
+
+								  # Route backend to a different file.
+								  - name: file
+								    match: 'app.backend'
+								    file: /tmp/backend.log
+							</code>
+						</pre>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						<i>The pattern <code><b>app.*</b></code> matches any tag starting with <code><b>app.</b></code>
+						followed by any characters at one level.</i>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Tag-based routing - Running wildcard matching (source)</h3>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: x-large;">
+						Run the updated configuration and verify that events are now routed to multiple destinations
+						simultaneously:
+					</div>
+					<div style="height: 280px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# source install.
+								#
+								$ [PATH_TO]/fluent-bit --config routing-fb.yaml
+
+								...
+								{"date":1766400419.244448,"service":"frontend","message":"User request received"}
+								{"date":1766400419.244504,"service":"backend","message":"Processing database query"}
+								{"date":1766400420.24492,"service":"frontend","message":"User request received"}
+								{"date":1766400420.245004,"service":"backend","message":"Processing database query"}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Tag-based routing - Verifying file outputs (source)</h3>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: x-large;">
+						Alongside the console, the two <code><b>file</b></code> outputs have each collected only their own
+						tagged events:
+					</div>
+					<div style="height: 300px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ cat /tmp/frontend.log
+
+								app.frontend: [1766400419.244447811, {"service":"frontend","message":"User request received"}]
+								app.frontend: [1766400420.244919778, {"service":"frontend","message":"User request received"}]
+								...
+
+								$ cat /tmp/backend.log
+
+								app.backend: [1766400419.244504103, {"service":"backend","message":"Processing database query"}]
+								app.backend: [1766400420.245003820, {"service":"backend","message":"Processing database query"}]
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Tag-based routing - Running wildcard matching (container)</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Rebuild the image with the updated configuration, then run it. Note the volume mount
+						<code><b>-v ./:/tmp</b></code>, which maps the container's <code><b>/tmp</b></code> directory onto
+						our current directory so we can read the file outputs afterward:
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-fb:v16 -f Buildfile
+
+								$ podman run --rm --name fb -v ./:/tmp workshop-fb:v16
+
+								...
+								{"date":1766400419.244448,"service":"frontend","message":"User request received"}
+								{"date":1766400419.244504,"service":"backend","message":"Processing database query"}
+								{"date":1766400420.24492,"service":"frontend","message":"User request received"}
+								{"date":1766400420.245004,"service":"backend","message":"Processing database query"}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Tag-based routing - Verifying file outputs (container)</h3>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: x-large;">
+						Thanks to the volume mount, the log files written inside the container show up in our current
+						directory:
+					</div>
+					<div style="height: 300px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ cat ./frontend.log
+
+								app.frontend: [1766400419.244447811, {"service":"frontend","message":"User request received"}]
+								app.frontend: [1766400420.244919778, {"service":"frontend","message":"User request received"}]
+								...
+
+								$ cat ./backend.log
+
+								app.backend: [1766400419.244504103, {"service":"backend","message":"Processing database query"}]
+								app.backend: [1766400420.245003820, {"service":"backend","message":"Processing database query"}]
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Tag-based routing - Adding wildcard routing (k3s)</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						On Kubernetes we apply the same wildcard routing to the running pipeline. Open our Helm values file
+						<code><b>routing-fb-helm.yaml</b></code> and replace the <code><b>outputs</b></code> section,
+						keeping the indentation inside the <code><b>fluent-bit.yaml</b></code> block under
+						<code><b>extraFiles</b></code>:
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								      pipeline:
+								        inputs:
+								          ...
+
+								        outputs:
+								          # Match all events starting with 'app.'
+								          - name: stdout
+								            <mark>match: 'app.*'</mark>
+								            format: json_lines
+
+								          # Route frontend to a dedicated file.
+								          - name: file
+								            match: 'app.frontend'
+								            file: /tmp/frontend.log
+
+								          # Route backend to a different file.
+								          - name: file
+								            match: 'app.backend'
+								            file: /tmp/backend.log
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Tag-based routing - Rolling out wildcard routing (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Apply the updated configuration with another <code><b>helm upgrade</b></code> from the
+						<code><b>fluentbit-install-demo</b></code> root directory, rolling out a new Fluent Bit pod that
+						picks up our wildcard routing:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+								       --set image.tag=5.1.1 \
+								       --namespace logging --create-namespace \
+								       --values routing-fb-helm.yaml
+
+								Release "fluent-bit" has been upgraded. Happy Helming!
+								NAME: fluent-bit
+								NAMESPACE: logging
+								STATUS: deployed
+								REVISION: 14
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Tag-based routing - Verifying wildcard routing (k3s)</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Both event types now reach the pod's console, matched by the <code><b>app.*</b></code> wildcard.
+						The two <code><b>file</b></code> outputs are written inside the pod, which we'll read back on the
+						next slide:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+
+								...
+								{"date":1766400419.244448,"service":"frontend","message":"User request received"}
+								{"date":1766400419.244504,"service":"backend","message":"Processing database query"}
+								{"date":1766400420.24492,"service":"frontend","message":"User request received"}
+								{"date":1766400420.245004,"service":"backend","message":"Processing database query"}
+								...
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						<i>Note: writing to files inside a pod is fine for this exercise, but in production you would
+						mount a volume or route to a backend instead, as pod storage is ephemeral.</i>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Tag-based routing - Reading the routed files (k3s)</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: x-large;">
+						There's a catch on Kubernetes. The Fluent Bit container image is distroless, it ships the
+						<code><b>fluent-bit</b></code> binary and nothing else, so there is no
+						<code><b>cat</b></code>, no shell, and no <code><b>tar</b></code> inside it for us to inspect the
+						routed file destinations. That means both <code><b>kubectl exec ... -- cat</b></code> and
+						<code><b>kubectl cp</b></code> fail. Instead, we attach a temporary <code><b>busybox</b></code>
+						container to the running pod with <code><b>kubectl debug</b></code>. This lets us reach its filesystem
+						through <code><b>/proc/1/root</b></code>:
+					</div>
+					<div style="height: 300px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging get pods
+
+								NAME               READY   STATUS    RESTARTS   AGE
+								fluent-bit-vlzcf   1/1     Running   0          67s
+
+								# One peek reads both routed destinations.
+								$ kubectl --context rancher-desktop -n logging debug -i fluent-bit-vlzcf \
+								          --image=busybox --target=fluent-bit \
+								          -- head -2 /proc/1/root/tmp/frontend.log /proc/1/root/tmp/backend.log
+
+								Targeting container "fluent-bit". If you don't see processes from this container it may be because the container
+								runtime doesn't support this feature. Defaulting debug container name to debugger-jhsz4.
+
+								==&gt; /proc/1/root/tmp/frontend.log &lt;==
+								app.frontend: [1785323264.298851862, {"service":"frontend","message":"User request received"}]
+								app.frontend: [1785323265.299102945, {"service":"frontend","message":"User request received"}]
+
+								==&gt; /proc/1/root/tmp/backend.log &lt;==
+								app.backend: [1785323264.298882028, {"service":"backend","message":"Processing database query"}]
+								app.backend: [1785323265.299115737, {"service":"backend","message":"Processing database query"}]
+							</code>
+						</pre>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: large;">
+						Note: we use <code><b>head</b></code> rather than <code><b>cat</b></code> because the pipeline
+						keeps running and the files keep growing. Ephemeral containers can't be removed from a running pod,
+						but the next <code><b>helm upgrade</b></code> replaces the pod and clears them.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Tag-based routing - Understanding wildcard levels</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: x-large;">
+						It's important to understand how wildcards work with tag hierarchies:<br />
+						<br />
+						<ul>
+							<li><b>Single asterisk (*)</b> - Matches any characters at one level only
+								<ul>
+									<li><code><b>app.*</b></code> matches <code><b>app.frontend</b></code> and
+										<code><b>app.backend</b></code></li>
+									<li><code><b>app.*</b></code> does NOT match <code><b>app.frontend.logs</b></code></li>
+								</ul>
+							</li>
+							<li><b>Double asterisk (**)</b> - Matches multiple levels of the hierarchy
+								<ul>
+									<li><code><b>app.**</b></code> matches <code><b>app.frontend</b></code>,
+										<code><b>app.backend</b></code>, AND <code><b>app.frontend.logs</b></code></li>
+								</ul>
+							</li>
+						</ul><br />
+						<br />
+						Tags typically follow a hierarchical naming convention like <code><b>app.frontend.logs</b></code>
+						or <code><b>system.metrics.cpu</b></code>. This structure makes it easy to create wildcard
+						patterns for flexible matching.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Tag-based routing - Using regular expressions</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						For more complex matching, use <code><b>match_regex</b></code> with regular expressions.
+						Update the configuration to demonstrate regex matching:
+					</div>
+					<div style="height: 280px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								pipeline:
+								  inputs:
+								    - name: dummy
+								      tag: sensor_A.temperature
+								      dummy: '{"sensor":"A","type":"temperature","value":22.5}'
+
+								    - name: dummy
+								      tag: sensor_B.humidity
+								      dummy: '{"sensor":"B","type":"humidity","value":65}'
+
+								  outputs:
+								    # Regex: Match any tag containing 'sensor_' followed by A or B.
+								    - name: stdout
+								      match_regex: 'sensor_[AB]\..*'
+								      format: json_lines
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						<i>The regex <code><b>sensor_[AB]\..*</b></code> matches any tag starting with
+						<code><b>sensor_A.</b></code> or <code><b>sensor_B.</b></code> followed by anything.</i>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Tag-based routing - Running matching with regex (source)</h3>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: x-large;">
+						Run Fluent Bit from source with this configuration:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# source install.
+								#
+								$ [PATH_TO]/fluent-bit --config routing-fb.yaml
+
+								...
+								{"date":1766400865.66167,"sensor":"A","type":"temperature","value":22.5}
+								{"date":1766400865.661756,"sensor":"B","type":"humidity","value":65}
+								{"date":1766400866.661684,"sensor":"A","type":"temperature","value":22.5}
+								{"date":1766400866.661776,"sensor":"B","type":"humidity","value":65}
+								...
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						<i>The regex <code><b>sensor_[AB]\..*</b></code> matches any tag starting with
+						<code><b>sensor_A.</b></code> or <code><b>sensor_B.</b></code> followed by anything.</i>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Tag-based routing - Running matching with regex (container)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Rebuild the container image with the updated configuration and run it to see the same two sensor
+						streams matched by a single regular expression:
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-fb:v17 -f Buildfile
+
+								$ podman run --rm --name fb workshop-fb:v17
+
+								...
+								{"date":1766400865.66167,"sensor":"A","type":"temperature","value":22.5}
+								{"date":1766400865.661756,"sensor":"B","type":"humidity","value":65}
+								{"date":1766400866.661684,"sensor":"A","type":"temperature","value":22.5}
+								{"date":1766400866.661776,"sensor":"B","type":"humidity","value":65}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Tag-based routing - Adding regex matching (k3s)</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						On Kubernetes we swap the same inputs and output into the running pipeline. Open our Helm values
+						file <code><b>routing-fb-helm.yaml</b></code> and replace the pipeline, keeping the indentation
+						inside the <code><b>fluent-bit.yaml</b></code> block under <code><b>extraFiles</b></code>:
+					</div>
+					<div style="height: 320px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								      pipeline:
+								        inputs:
+								          - name: dummy
+								            tag: sensor_A.temperature
+								            dummy: '{"sensor":"A","type":"temperature","value":22.5}'
+
+								          - name: dummy
+								            tag: sensor_B.humidity
+								            dummy: '{"sensor":"B","type":"humidity","value":65}'
+
+								        outputs:
+								          # Regex: match any tag containing 'sensor_' followed by A or B.
+								          - name: stdout
+								            match_regex: 'sensor_[AB]\..*'
+								            format: json_lines
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Tag-based routing - Rolling out regex matching (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Apply the updated configuration with another <code><b>helm upgrade</b></code> from the
+						<code><b>fluentbit-install-demo</b></code> root directory, rolling out a new Fluent Bit pod that
+						picks up our regex matching:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+								       --set image.tag=5.1.1 \
+								       --namespace logging --create-namespace \
+								       --values routing-fb-helm.yaml
+
+								Release "fluent-bit" has been upgraded. Happy Helming!
+								NAME: fluent-bit
+								NAMESPACE: logging
+								STATUS: deployed
+								REVISION: 15
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Tag-based routing - Console output regex matching (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Follow the pod logs in the <code><b>logging</b></code> namespace to see both sensor streams matched
+						by the single regular expression (exit with CTRL-C):
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+
+								...
+								{"date":1766400865.66167,"sensor":"A","type":"temperature","value":22.5}
+								{"date":1766400865.661756,"sensor":"B","type":"humidity","value":65}
+								{"date":1766400866.661684,"sensor":"A","type":"temperature","value":22.5}
+								{"date":1766400866.661776,"sensor":"B","type":"humidity","value":65}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section data-background="images/lab03-2.jpg">
+					<div style="height: 400px;">
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<h1 class="r-fit-text" style="color: white;">Tag-based routing examples completed!</h1>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Conditional routing - Per-record routing decisions</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: x-large;">
+						Conditional routing is a powerful feature introduced in Fluent Bit 4.2 that lets you route
+						individual records to different outputs based on their content. Unlike tag-based routing
+						which operates on entire data chunks, conditional routing evaluates conditions against each
+						record.<br />
+						<br />
+						Key advantages of conditional routing:<br />
+						<br />
+						<ul>
+							<li><b>Per-record decisions</b> - Route based on individual record content</li>
+							<li><b>No tag modification needed</b> - Route without filters changing tags</li>
+							<li><b>Explicit configuration</b> - Routing logic is clear and maintainable</li>
+							<li><b>Early evaluation</b> - Decisions made at input stage before filtering</li>
+						</ul><br />
+						<br />
+						<i>Note: Conditional routing requires YAML configuration files.</i>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Conditional routing - Configuration syntax</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Conditional routing uses a <code><b>routes</b></code> block within input configurations.
+						Here's the basic structure:
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								pipeline:
+								  inputs:
+								    - name: input_plugin_name
+								      tag: input_tag
+								      routes:
+								        logs:
+								          - name: route_name
+								            condition:
+								              op: {and|or}
+								              rules:
+								                - field: {field_name}
+								                  op: {comparison_operator}
+								                  value: {comparison_value}
+								            to:
+								              outputs:
+								                - output_alias_or_name
+
+								  outputs:
+								    - name: output_plugin_name
+								      alias: output_alias
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Conditional routing - Comparison operators</h3>
+					</div>
+					<div style="height: 450px; text-align: left; font-size: x-large;">
+						The following comparison operators are available for condition rules:<br />
+						<br />
+						<table style="font-size: large;">
+							<tr><th>Operator</th><th>Description</th></tr>
+							<tr><td><code><b>eq</b></code></td><td>Equal to</td></tr>
+							<tr><td><code><b>neq</b></code></td><td>Not equal to</td></tr>
+							<tr><td><code><b>gt</b></code></td><td>Greater than</td></tr>
+							<tr><td><code><b>lt</b></code></td><td>Less than</td></tr>
+							<tr><td><code><b>gte</b></code></td><td>Greater than or equal to</td></tr>
+							<tr><td><code><b>lte</b></code></td><td>Less than or equal to</td></tr>
+							<tr><td><code><b>regex</b></code></td><td>Matches a regular expression</td></tr>
+							<tr><td><code><b>not_regex</b></code></td><td>Doesn't match a regular expression</td></tr>
+							<tr><td><code><b>in</b></code></td><td>Is included in the specified array</td></tr>
+							<tr><td><code><b>not_in</b></code></td><td>Isn't included in the specified array</td></tr>
+						</table>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Conditional routing - Route by severity level</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Let's create a practical example that routes logs by severity level. Create a new
+						configuration file <code><b>conditional-routing.yaml</b></code> and adding a route for error logs:
+					</div>
+					<div style="height: 380px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								service:
+								  flush: 1
+								  log_level: info
+
+								pipeline:
+								  inputs:
+								    - name: dummy
+								      tag: app.logs
+								      dummy: '{"level":"error","message":"Database connection failed"}'
+								      routes:
+								        logs:
+								          - name: error_logs
+								            condition:
+								              op: or
+								              rules:
+								                - field: "$level"
+								                  op: eq
+								                  value: "error"
+								                - field: "$level"
+								                  op: eq
+								                  value: "fatal"
+								            to:
+								              outputs:
+								                - error_output
+								                - all_logs_output
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Conditional routing - Adding more routes</h3>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: x-large;">
+						Continue the configuration by adding routes for info logs and a default catch-all route:
+					</div>
+					<div style="height: 380px; text-align: left; font-size: large;">
+						<pre>
+							<code data-trim data-noescape>
+								          # Continuing from previous routes block...
+								          - name: info_logs
+								            condition:
+								              op: and
+								              rules:
+								                - field: "$level"
+								                  op: eq
+								                  value: "info"
+								            to:
+								              outputs:
+								                - info_output
+								                - all_logs_output
+
+								          - name: default_logs
+								            condition:
+								              default: true
+								            to:
+								              outputs:
+								                - all_logs_output
+
+								    # Add a second input to generate info messages.
+								    - name: dummy
+								      tag: app.logs
+								      dummy: '{"level":"info","message":"Application started successfully"}'
+								      routes:
+								        logs:
+								          - name: info_route
+								            condition:
+								              default: true
+								            to:
+								              outputs:
+								                - info_output
+								                - all_logs_output
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Conditional routing - Configuring outputs with aliases</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Now add the output configurations with aliases that match the routes. Note that outputs
+						use <code><b>alias</b></code> to be referenced by conditional routes:
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								  outputs:
+								    # Error logs go to dedicated file.
+								    - name: file
+								      alias: error_output
+								      match: '*'
+								      file: /tmp/errors.log
+
+								    # Info logs go to a separate file.
+								    - name: file
+								      alias: info_output
+								      match: '*'
+								      file: /tmp/info.log
+
+								    # All logs also go to stdout for visibility.
+								    - name: stdout
+								      alias: all_logs_output
+								      match: '*'
+								      format: json_lines
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Conditional routing - Running and verifying (source)</h3>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: x-large;">
+						Run the conditional routing configuration from a source installation and watch the records being
+						split by their <code><b>level</b></code> field:
+					</div>
+					<div style="height: 280px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# source install.
+								#
+								$ [PATH_TO]/fluent-bit --config conditional-routing.yaml
+
+								...
+								{"date":1766401546.194431,"level":"error","message":"Database connection failed"}
+								{"date":1766401546.195043,"level":"info","message":"Application started successfully"}
+								{"date":1766401547.193846,"level":"error","message":"Database connection failed"}
+								{"date":1766401547.194003,"level":"info","message":"Application started successfully"}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Conditional routing - Verifying file outputs (source)</h3>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: x-large;">
+						The two file outputs prove the per-record decisions, with each file holding only the severity that
+						was routed to it:
+					</div>
+					<div style="height: 300px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ cat /tmp/errors.log
+
+								error_logs: [1766401546.194431000, {"level":"error","message":"Database connection failed"}]
+								error_logs: [1766401547.193846000, {"level":"error","message":"Database connection failed"}]
+								...
+
+								$ cat /tmp/info.log
+
+								info_route: [1766401546.195043000, {"level":"info","message":"Application started successfully"}]
+								info_route: [1766401547.194003000, {"level":"info","message":"Application started successfully"}]
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Conditional routing - Running and verifying (container)</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						For the container path, point the <code><b>Buildfile</b></code> at the new configuration file
+						(<code><b>COPY ./conditional-routing.yaml /fluent-bit/etc/conditional-routing.yaml</b></code> and
+						the matching <code><b>CMD</b></code>), then rebuild and run with the volume mount so the file
+						outputs land in our current directory:
+					</div>
+					<div style="height: 280px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-fb:v18 -f Buildfile
+
+								$ podman run --rm --name fb -v ./:/tmp workshop-fb:v18
+
+								...
+								{"date":1766401546.194431,"level":"error","message":"Database connection failed"}
+								{"date":1766401546.195043,"level":"info","message":"Application started successfully"}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Conditional routing - Verifying file outputs (container)</h3>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: x-large;">
+						The volume mount puts the routed files in our current directory:
+					</div>
+					<div style="height: 300px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ cat ./errors.log
+
+								error_logs: [1766401546.194431000, {"level":"error","message":"Database connection failed"}]
+								error_logs: [1766401547.193846000, {"level":"error","message":"Database connection failed"}]
+								...
+
+								$ cat ./info.log
+
+								info_route: [1766401546.195043000, {"level":"info","message":"Application started successfully"}]
+								info_route: [1766401547.194003000, {"level":"info","message":"Application started successfully"}]
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Conditional routing - Adding conditional routes (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						On Kubernetes we move the same routes into the running pipeline. Create a Helm values file
+						<code><b>conditional-routing-helm.yaml</b></code>, starting with the service section and the first
+						input carrying its error route. Everything sits inside the <code><b>fluent-bit.yaml</b></code>
+						block under <code><b>extraFiles</b></code>:
+					</div>
+					<div style="height: 400px; text-align: left; font-size: large;">
+						<pre>
+							<code data-trim data-noescape>
+								args:
+								  - --workdir=/fluent-bit/etc
+								  - --config=/fluent-bit/etc/conf/fluent-bit.yaml
+
+								config:
+								  extraFiles:
+								    fluent-bit.yaml: |
+								      service:
+								        flush: 1
+								        log_level: info
+								        http_server: on
+								        http_listen: 0.0.0.0
+								        http_port: 2020
+
+								      pipeline:
+								        inputs:
+								          - name: dummy
+								            tag: app.logs
+								            dummy: '{"level":"error","message":"Database connection failed"}'
+								            routes:
+								              logs:
+								                - name: error_logs
+								                  condition:
+								                    op: or
+								                    rules:
+								                      - field: "$level"
+								                        op: eq
+								                        value: "error"
+								                      - field: "$level"
+								                        op: eq
+								                        value: "fatal"
+								                  to:
+								                    outputs:
+								                      - error_output
+								                      - all_logs_output
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Conditional routing - Adding more routes (k3s)</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Continuing in the same file, finish the first input's <code><b>routes</b></code> block with the info
+						and default routes, then add the second input that generates the info messages:
+					</div>
+					<div style="height: 300px; text-align: left; font-size: large;">
+						<pre>
+							<code data-trim data-noescape>
+								              # Continuing the first input's routes block...
+								                - name: info_logs
+								                  condition:
+								                    op: and
+								                    rules:
+								                      - field: "$level"
+								                        op: eq
+								                        value: "info"
+								                  to:
+								                    outputs:
+								                      - info_output
+								                      - all_logs_output
+
+								                - name: default_logs
+								                  condition:
+								                    default: true
+								                  to:
+								                    outputs:
+								                      - all_logs_output
+
+								          # A second input to generate info messages.
+								          - name: dummy
+								            tag: app.logs
+								            dummy: '{"level":"info","message":"Application started successfully"}'
+								            routes:
+								              logs:
+								                - name: info_route
+								                  condition:
+								                    default: true
+								                  to:
+								                    outputs:
+								                      - info_output
+								                      - all_logs_output
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Conditional routing - Adding the outputs (k3s)</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Finish the file with the three outputs the routes above refer to by <code><b>alias</b></code>. All
+						three must be present, as a route pointing at a missing alias means those records go nowhere:
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								        outputs:
+								          # Error logs go to a dedicated file.
+								          - name: file
+								            alias: error_output
+								            match: '*'
+								            file: /tmp/errors.log
+
+								          # Info logs go to a separate file.
+								          - name: file
+								            alias: info_output
+								            match: '*'
+								            file: /tmp/info.log
+
+								          # All logs also go to the pod console for visibility.
+								          - name: stdout
+								            alias: all_logs_output
+								            match: '*'
+								            format: json_lines
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Conditional routing - Rolling out conditional routing (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Apply the updated configuration with another <code><b>helm upgrade</b></code> , rolling out
+						a new Fluent Bit pod that picks up our conditional routes:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+								       --set image.tag=5.1.1 \
+								       --namespace logging --create-namespace \
+								       --values conditional-routing-helm.yaml
+
+								Release "fluent-bit" has been upgraded. Happy Helming!
+								NAME: fluent-bit
+								NAMESPACE: logging
+								STATUS: deployed
+								REVISION: 16
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Conditional routing - Verifying conditional routing (k3s)</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Follow the pod logs for the <code><b>all_logs_output</b></code> stream, then read the routed error
+						file back out of the pod with the <code><b>kubectl debug</b></code> trick we used for the
+						wildcard routing:
+					</div>
+					<div style="height: 330px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+
+								...
+								{"date":1766401546.194431,"level":"error","message":"Database connection failed"}
+								{"date":1766401546.195043,"level":"info","message":"Application started successfully"}
+								...
+
+								$ kubectl --context rancher-desktop -n logging get pods
+								NAME               READY   STATUS    RESTARTS   AGE
+								<mark>fluent-bit-kcmwj</mark>   1/1     Running   0          90s
+
+								$ kubectl --context rancher-desktop -n logging debug -i <mark>fluent-bit-kcmwj</mark> \
+								          --image=busybox --target=fluent-bit \
+								          -- head -2 /proc/1/root/tmp/errors.log /proc/1/root/tmp/info.log
+
+								...
+								==&gt; /proc/1/root/tmp/errors.log &lt;==
+								error_logs: [1766401546.194431000, {"level":"error","message":"Database connection failed"}]
+								error_logs: [1766401547.193846000, {"level":"error","message":"Database connection failed"}]
+
+								==&gt; /proc/1/root/tmp/info.log &lt;==
+								info_route: [1766401546.195043000, {"level":"info","message":"Application started successfully"}]
+								info_route: [1766401547.194003000, {"level":"info","message":"Application started successfully"}]
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Conditional routing - Using the 'in' operator</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						The <code><b>in</b></code> operator is useful for matching against multiple values. Here's
+						an example routing critical services to a dedicated output, passing the message only if it 
+						has a <code><b>serivce</b></code> key with the <code><b>value</b></code> matching any in the 
+						list of <code><b>payment, authentication, database</b></code>:
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								pipeline:
+								  inputs:
+								    - name: dummy
+								      tag: services.logs
+								      dummy: '{"service":"payment","message":"Transaction processed"}'
+								      routes:
+								        logs:
+								          - name: critical_services
+								            condition:
+								              op: and
+								              rules:
+								                <mark>- field: "$service"</mark>
+								                  <mark>op: in</mark>
+								                  <mark>value: ["payment", "authentication", "database"]</mark>
+								            to:
+								              outputs:
+								                - critical_output
+
+								          - name: standard_services
+								            condition:
+								              default: true
+								            to:
+								              outputs:
+								                - standard_output
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Conditional routing - Multiple conditions with 'and'</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Combine multiple conditions for precise routing. This example routes high-priority
+						production errors to multiple destinations if all the highlighted rules are met:
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								routes:
+								  logs:
+								    - name: high_priority_errors
+								      condition:
+								        op: and
+								        <mark>rules:</mark>
+								          <mark>- field: "$level"</mark>
+								            <mark>op: eq</mark>
+								            <mark>value: "error"</mark>
+								          <mark>- field: "$environment"</mark>
+								            <mark>op: eq</mark>
+								            <mark>value: "production"</mark>
+								          <mark>- field: "$response_time"</mark>
+								            <mark>op: gt</mark>
+								            <mark>value: 5000</mark>
+								      to:
+								        outputs:
+								          - alerting_output
+								          - archive_output
+
+								    - name: all_logs
+								      condition:
+								        default: true
+								      to:
+								        outputs:
+								          - archive_output
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Conditional routing - Using regex matching</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Use regular expressions for flexible content matching. This example routes security-related
+						events based on message content, highlighting the regex matching rules:
+					</div>
+					<div style="height: 310px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								routes:
+								  logs:
+								    - name: security_events
+								      condition:
+								        op: or
+								        <mark>rules:</mark>
+								          <mark>- field: "$message"</mark>
+								            <mark>op: regex</mark>
+								            <mark>value: "(?i)(unauthorized|forbidden|authentication failed)"</mark>
+								          <mark>- field: "$event_type"</mark>
+								            <mark>op: regex</mark>
+								            <mark>value: "^security\\."</mark>
+								      to:
+								        outputs:
+								          - security_output
+
+								    - name: other_logs
+								      condition:
+								        default: true
+								      to:
+								        outputs:
+								          - general_output
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						<i>The <code><b>(?i)</b></code> flag makes the regex case-insensitive.</i>
+					</div>
+				</section>
+
+				<section data-background="images/lab03-2.jpg">
+					<div style="height: 400px;">
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<h1 class="r-fit-text" style="color: white;">Conditional routing examples completed!</h1>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Label-based matching - Stable routing across changes</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: x-large;">
+						Label-based matching is a feature that enhances direct routing by storing labels and plugin
+						names in chunk metadata. This enables stable routing that survives configuration changes,
+						restarts, and output reordering.<br />
+						<br />
+						When chunks are created with direct routes, Fluent Bit stores routing information in chunk
+						metadata including:<br />
+						<br />
+						<ul>
+							<li><b>Labels</b> - User-provided aliases or automatically generated names like
+								<code><b>stdout.0</b></code>, <code><b>file.1</b></code></li>
+							<li><b>Plugin names</b> - The plugin type to enable type-safe matching</li>
+						</ul><br />
+						<br />
+						<i>Label-based matching is automatically used when direct routing is enabled and is
+						available in Fluent Bit 4.2 and greater.</i>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Label-based matching - Benefits</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: x-large;">
+						Label-based matching provides several advantages:<br />
+						<br />
+						<ul>
+							<li><b>Configuration resilience</b> - Chunks continue routing to the correct outputs
+								even when output IDs change due to configuration reordering</li>
+							<li><b>Stable routing after restarts</b> - When Fluent Bit restarts and loads chunks
+								from storage, it can restore routes using labels instead of relying solely on
+								numeric IDs</li>
+							<li><b>Type safety</b> - Plugin name matching prevents routing to outputs of different
+								plugin types</li>
+							<li><b>Backward compatibility</b> - Chunks without labels fall back to numeric ID
+								matching</li>
+						</ul><br />
+						<br />
+						To leverage label-based matching effectively, assign meaningful aliases to your outputs!
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Label-based matching - Best practices</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Here's an example showing how to use aliases effectively for stable routing with an
+						example collecting logs from a Kubernetes pod:
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								pipeline:
+								  inputs:
+								    - name: tail
+								      path: /var/log/app/*.log
+								      tag: app.logs
+								      routes:
+								        logs:
+								          - name: production_logs
+								            condition:
+								              op: and
+								              rules:
+								                - field: "$environment"
+								                  op: eq
+								                  value: "production"
+								            to:
+								              outputs:
+								                - prod_logs_output    # Reference by alias
+
+								  outputs:
+								    - name: elasticsearch
+								      <mark>alias: prod_logs_output</mark>     # Stable identifier
+								      host: prod-logs.example.com
+								      index: production-logs
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Label-based matching - Recommendations</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: x-large;">
+						To get the most benefit from label-based matching, follow these best practices:<br />
+						<br />
+						<ul>
+							<li><b>Use aliases</b> - Assign meaningful aliases to your outputs to make routing
+								more stable and easier to understand</li>
+							<li><b>Keep aliases unique</b> - Ensure that aliases are unique within your
+								configuration to avoid ambiguity</li>
+							<li><b>Use descriptive names</b> - Choose aliases that clearly indicate the purpose
+								of each output:
+								<ul>
+									<li><code><b>error_logs_output</b></code></li>
+									<li><code><b>audit_logs_destination</b></code></li>
+									<li><code><b>debug_logs_archive</b></code></li>
+								</ul>
+							</li>
+							<li><b>Combine with direct routing</b> - Label-based matching works best when used
+								with direct routing (conditional routing or direct input-output connections)</li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced routing - Choosing a routing approach</h3>
+					</div>
+					<div style="height: 450px; text-align: left; font-size: x-large;">
+						Use these guidelines to choose between routing approaches:<br />
+						<br />
+						<table style="font-size: large;">
+							<tr><th>Use Case</th><th>Recommended Approach</th></tr>
+							<tr><td>Route all data from an input to specific outputs</td><td>Tag-based routing</td></tr>
+							<tr><td>Route data based on source or input type</td><td>Tag-based routing</td></tr>
+							<tr><td>Route individual records based on content</td><td>Conditional routing</td></tr>
+							<tr><td>Split logs by severity or other field values</td><td>Conditional routing</td></tr>
+							<tr><td>Apply different processing to subsets of data</td><td>Conditional routing</td></tr>
+							<tr><td>Routing without content inspection</td><td>Tag-based routing</td></tr>
+							<tr><td>Stable routing that survives config changes</td><td>Label-based matching</td></tr>
+							<tr><td>Routing after restarts with storage backlog</td><td>Label-based matching</td></tr>
+						</table><br />
+						<br />
+						You can combine multiple approaches in a single configuration for maximum flexibility!
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced routing - Combining approaches</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Time for an example of combining tag-based and conditional routing. In this first part, 
+						we define the first input for frontend services with conditional routing for errors and a
+						default catch-all route for all logs. Create a new configuration file <code><b>combined-routing.yaml</b></code> 
+						and add the following configuration:
+					</div>
+					<div style="height: 380px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								pipeline:
+								  inputs:
+								    # Frontend service with conditional routing for errors.
+								    - name: dummy
+								      tag: app.frontend
+								      dummy: '{"level":"error","service":"frontend","message":"API timeout"}'
+								      routes:
+								        logs:
+								          - name: frontend_errors
+								            condition:
+								              op: and
+								              rules:
+								                - field: "$level"
+								                  op: in
+								                  value: ["error", "fatal"]
+								            to:
+								              outputs:
+								                - error_file
+								          - name: frontend_all
+								            condition:
+								              default: true
+								            to:
+								              outputs:
+								                - all_logs
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced routing - Adding backend input</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Expand the configuration with backend input definition to route backend logs to backend-specific
+						file using tag-based routing. Also add the three outputs to complete this configuration:
+					</div>
+					<div style="height: 380px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								    # Backend service using tag-based routing only.
+								    - name: dummy
+								      tag: app.backend
+								      dummy: '{"level":"info","service":"backend","message":"Query completed"}'
+
+								  outputs:
+								    # Conditional route target for errors.
+								    - name: file
+								      alias: error_file
+								      match: '*'
+								      file: /tmp/errors.log
+
+								    # Tag-based: catch all app.* events.
+								    - name: stdout
+								      alias: all_logs
+								      match: 'app.*'
+								      format: json_lines
+
+								    # Tag-based: backend-specific processing.
+								    - name: file
+								      match: 'app.backend'
+								      file: /tmp/backend.log
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced routing - Verifying solution (source)</h3>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: x-large;">
+						Run the complete example from a source installation:
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# source install.
+								#
+								$ [PATH_TO]/fluent-bit --config combined-routing.yaml
+
+								...
+								{"date":1766483001.735075,"level":"info","service":"backend","message":"Query completed"}
+								{"date":1766483002.734066,"level":"info","service":"backend","message":"Query completed"}
+								{"date":1766483003.736654,"level":"info","service":"backend","message":"Query completed"}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced routing - Verifying file outputs (source)</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Note how <code><b>errors.log</b></code> receives both the conditionally routed frontend errors and
+						the tag-based backend events, while <code><b>backend.log</b></code> only sees the tag-based ones:
+					</div>
+					<div style="height: 320px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ cat /tmp/errors.log
+
+								frontend_errors: [1766483196.740031069, {"level":"error","service":"frontend","message":"API timeout"}]
+								app.backend: [1766483196.740073444, {"level":"info","service":"backend","message":"Query completed"}]
+								frontend_errors: [1766483197.740002689, {"level":"error","service":"frontend","message":"API timeout"}]
+								...
+
+								$ cat /tmp/backend.log
+
+								app.backend: [1766483196.740073444, {"level":"info","service":"backend","message":"Query completed"}]
+								app.backend: [1766483197.740115189, {"level":"info","service":"backend","message":"Query completed"}]
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced routing - Verifying solution (container)</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						For the container path, point the <code><b>Buildfile</b></code> at
+						<code><b>combined-routing.yaml</b></code>, then rebuild and run with the volume mount so the file
+						outputs land in our current directory:
+					</div>
+					<div style="height: 300px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ podman build -t workshop-fb:v19 -f Buildfile
+
+								$ podman run --rm --name fb -v ./:/tmp workshop-fb:v19
+
+								...
+								{"date":1766483001.735075,"level":"info","service":"backend","message":"Query completed"}
+								{"date":1766483002.734066,"level":"info","service":"backend","message":"Query completed"}
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced routing - Verifying file outputs (container)</h3>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: x-large;">
+						The same two files show up in our current directory thanks to the volume mount:
+					</div>
+					<div style="height: 320px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ cat ./errors.log
+
+								frontend_errors: [1766483196.740031069, {"level":"error","service":"frontend","message":"API timeout"}]
+								app.backend: [1766483196.740073444, {"level":"info","service":"backend","message":"Query completed"}]
+								...
+
+								$ cat ./backend.log
+
+								app.backend: [1766483196.740073444, {"level":"info","service":"backend","message":"Query completed"}]
+								app.backend: [1766483197.740115189, {"level":"info","service":"backend","message":"Query completed"}]
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced routing - Combining approaches (k3s)</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						On Kubernetes we combine both mechanisms in one pipeline. Create a Helm values file
+						<code><b>combined-routing-helm.yaml</b></code>, starting with the service section and the frontend
+						input that uses conditional routing for its errors:
+					</div>
+					<div style="height: 400px; text-align: left; font-size: large;">
+						<pre>
+							<code data-trim data-noescape>
+								args:
+								  - --workdir=/fluent-bit/etc
+								  - --config=/fluent-bit/etc/conf/fluent-bit.yaml
+
+								config:
+								  extraFiles:
+								    fluent-bit.yaml: |
+								      service:
+								        flush: 1
+								        log_level: info
+								        http_server: on
+								        http_listen: 0.0.0.0
+								        http_port: 2020
+
+								      pipeline:
+								        inputs:
+								          # Frontend service with conditional routing for errors.
+								          - name: dummy
+								            tag: app.frontend
+								            dummy: '{"level":"error","service":"frontend","message":"API timeout"}'
+								            routes:
+								              logs:
+								                - name: frontend_errors
+								                  condition:
+								                    op: and
+								                    rules:
+								                      - field: "$level"
+								                        op: in
+								                        value: ["error", "fatal"]
+								                  to:
+								                    outputs:
+								                      - error_file
+
+								                - name: frontend_all
+								                  condition:
+								                    default: true
+								                  to:
+								                    outputs:
+								                      - all_logs
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced routing - Adding backend input (k3s)</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Finish the same file with the backend input, which uses tag-based routing only, followed by the
+						three outputs. Note <code><b>all_logs</b></code> matches <code><b>app.*</b></code> so both services
+						reach the pod console:
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								          # Backend service using tag-based routing only.
+								          - name: dummy
+								            tag: app.backend
+								            dummy: '{"level":"info","service":"backend","message":"Query completed"}'
+
+								        outputs:
+								          # Conditional route target for errors.
+								          - name: file
+								            alias: error_file
+								            match: '*'
+								            file: /tmp/errors.log
+
+								          # Tag-based: catch all app.* events.
+								          - name: stdout
+								            alias: all_logs
+								            match: 'app.*'
+								            format: json_lines
+
+								          # Tag-based: backend-specific processing.
+								          - name: file
+								            match: 'app.backend'
+								            file: /tmp/backend.log
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced routing - Rolling out combined routing (k3s)</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: xx-large;">
+						Apply the updated configuration with a final <code><b>helm upgrade</b></code> from the
+						<code><b>fluentbit-install-demo</b></code> root directory, rolling out a Fluent Bit pod that picks
+						up our combined routing:
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+								       --set image.tag=5.1.1 \
+								       --namespace logging --create-namespace \
+								       --values combined-routing-helm.yaml
+
+								Release "fluent-bit" has been upgraded. Happy Helming!
+								NAME: fluent-bit
+								NAMESPACE: logging
+								STATUS: deployed
+								REVISION: 17
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced routing - Verifying combined routing (k3s)</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Follow the pod logs for the <code><b>all_logs</b></code> stream, then read the routed files back
+						out of the pod with the <code><b>kubectl debug</b></code> trick:
+					</div>
+					<div style="height: 340px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+
+								...
+								{"date":1766483001.735075,"level":"info","service":"backend","message":"Query completed"}
+								{"date":1766483002.734066,"level":"info","service":"backend","message":"Query completed"}
+								...
+
+								$ kubectl --context rancher-desktop -n logging get pods
+								NAME               READY   STATUS    RESTARTS   AGE
+								<mark>fluent-bit-wh7p9</mark>   1/1     Running   0          26s
+
+								$ kubectl --context rancher-desktop -n logging debug -i <mark>fluent-bit-wh7p9</mark> \
+								          --image=busybox --target=fluent-bit \
+								          -- head -2 /proc/1/root/tmp/errors.log /proc/1/root/tmp/backend.log
+
+								...
+								==&gt; /proc/1/root/tmp/errors.log &lt;==
+								frontend_errors: [1766483196.740031069, {"level":"error","service":"frontend","message":"API timeout"}]
+								app.backend: [1766483196.740073444, {"level":"info","service":"backend","message":"Query completed"}]
+
+								==&gt; /proc/1/root/tmp/backend.log &lt;==
+								app.backend: [1766483196.740073444, {"level":"info","service":"backend","message":"Query completed"}]
+								app.backend: [1766483197.740115189, {"level":"info","service":"backend","message":"Query completed"}]
+								...
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced routing - Why is an info event in errors.log?</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Look closely at <code><b>errors.log</b></code> above, and you'll spot an
+						<code><b>info</b></code> level backend event sitting in a file we meant for errors. That is not a
+						mistake, it's the two routing mechanisms both feeding the same output. The prefix on each line
+						tells you which one delivered it:
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						<ul>
+							<li><code><b>frontend_errors:</b></code> is a <b>route name</b>, so that record arrived by
+								conditional routing from the frontend input</li>
+							<li><code><b>app.backend:</b></code> is a <b>tag</b>, so that record arrived by tag-based
+								matching</li>
+						</ul>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: x-large;">
+						Our <code><b>error_file</b></code> output is declared with <code><b>match: '*'</b></code>, which
+						matches every tag we generate. The backend input has no <code><b>routes</b></code> block, so it
+						falls back to tag-based routing, and <code><b>'*'</b></code> happily catches it. Meanwhile, the
+						frontend input <i>does</i> have routes, so its records skip tag matching entirely, which is why
+						they never appear in the <code><b>all_logs</b></code> console stream despite it matching
+						<code><b>'app.*'</b></code>.<br />
+						<br />
+						Narrow the match to fix it, for example <code><b>match: 'app.frontend'</b></code>, and
+						<code><b>errors.log</b></code> then holds only the conditionally routed errors. This is the
+						trade-off worth remembering when combining approaches, as an alias does not make an output
+						private to a route.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Advanced routing - Cleaning up</h3>
+					</div>
+					<div style="height: 130px; text-align: left; font-size: x-large;">
+						This is the last lab, so let's clean up whichever path you followed. The source installation just
+						needs a CTRL-C, while the container and Kubernetes paths leave something behind. On Kubernetes we
+						remove the whole <code><b>logging</b></code> namespace rather than a single release, as the
+						workshop has installed many components there along the way:
+					</div>
+					<div style="height: 280px; text-align: left; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Container path, stop the running container (it removes itself).
+								$ podman stop fb
+
+								# Or stop the Podman machine, which stops all containers.
+								$ podman machine stop
+
+								# Remove the namespace, taking every workshop resource with it.
+								$ kubectl --context rancher-desktop delete namespace logging
+
+								namespace "logging" deleted
+
+								# Spin down the Rancher Desktop k3s.
+								$ rdctl shutdown
+								Shutting down.
+							</code>
+						</pre>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: x-large;">
+						<i>Note: deleting the namespace also removes the Helm release metadata stored in it, so there are
+						no orphaned releases left behind and no need to run <code><b>helm uninstall</b></code> first.</i>
+					</div>
+				</section>
+
+				<section data-background="images/lab03-2.jpg">
+					<div style="height: 400px;">
+					</div>
+					<div style="height: 100px; text-align: left;">
+						<h1 class="r-fit-text" style="color: white;">Advanced telemetry routing completed!</h1>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Routing - Summary of key concepts</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: x-large;">
+						You now have a solid understanding of Fluent Bit routing:<br />
+						<br />
+						<ul>
+							<li><b>Tag-based routing</b> - Traditional approach using tags and match patterns
+								with wildcards (*) and regular expressions (match_regex)</li>
+							<li><b>Conditional routing</b> - Per-record routing based on content (Fluent Bit 4.2+)
+								using conditions with operators like eq, in, regex, and more</li>
+							<li><b>Label-based matching</b> - Stable routing using output aliases that survives
+								configuration changes and restarts</li>
+							<li><b>Combined approaches</b> - Use tag-based for broad categorization and
+								conditional for fine-grained decisions</li>
+						</ul><br />
+						<br />
+						These routing patterns are essential for building production-ready telemetry pipelines
+						that efficiently direct data where it needs to go while minimizing costs!
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 90px; text-align: left; font-size: xx-large;">
+						Whichever path you followed, the combined routing pipeline produces the same result. Below is
+						Kubernetes (k3s) output:
+					</div>
+					<div style="height: 350px; text-align: left; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+
+								...
+								{"date":1766483001.735075,"level":"info","service":"backend","message":"Query completed"}
+								{"date":1766483002.734066,"level":"info","service":"backend","message":"Query completed"}
+								...
+
+								$ kubectl --context rancher-desktop -n logging get pods
+								NAME               READY   STATUS    RESTARTS   AGE
+								<mark>fluent-bit-wh7p9</mark>   1/1     Running   0          26s
+
+								$ kubectl --context rancher-desktop -n logging debug -i <mark>fluent-bit-wh7p9</mark> \
+								          --image=busybox --target=fluent-bit \
+								          -- head -2 /proc/1/root/tmp/errors.log /proc/1/root/tmp/backend.log
+
+								...
+								==&gt; /proc/1/root/tmp/errors.log &lt;==
+								frontend_errors: [1766483196.740031069, {"level":"error","service":"frontend","message":"API timeout"}]
+								app.backend: [1766483196.740073444, {"level":"info","service":"backend","message":"Query completed"}]
+
+								==&gt; /proc/1/root/tmp/backend.log &lt;==
+								app.backend: [1766483196.740073444, {"level":"info","service":"backend","message":"Query completed"}]
+								app.backend: [1766483197.740115189, {"level":"info","service":"backend","message":"Query completed"}]
+								...
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; font-size: xx-large">
+						Congratulations on completing the advanced telemetry routing lab!
+					</div>
+				</section>
+
+				<section data-background="images/questions.png">
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://docs.fluentbit.io/manual/concepts/data-pipeline/router" target="_blank">Fluent Bit Routing Documentation</a></li>
+							<li><a href="https://www.schabell.org/2025/12/mastering-fluent-bit-developer-guide-to-telemetry-pipeline-routing.html" target="_blank">Mastering Fluent Bit: Developer Guide to Telemetry Pipeline Routing</a></li>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://github.com/fluent/fluent-bit/blob/master/README.md" target="_blank">Fluent Bit repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-fluentbit/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Technology Advocate Lead<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h2 class="r-fit-text">Lab and workshop completed!</h2>
+					</div>
+					<div style="height: 450px; font-size: large">
+						<img src="images/lab03-2.jpg" alt="done">
+						<br/>
+						<a href="index.html" target="_blank" style="font-size: xx-large">Return to start</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>
+

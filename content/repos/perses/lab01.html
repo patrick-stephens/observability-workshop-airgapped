@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Perses workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Visualization Workshop</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-BGV1XYZ1ND"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-BGV1XYZ1ND');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h3 class="r-fit-text">Lab 1 - Introduction to Perses</h3>
+				</section>
+				<section>
+					<div style="height: 250px;">
+						<h2>Lab Goal</h2>
+						<h4>To gain an understanding of the Perses project.</h4>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction - Early beginnings</h3>
+					</div>
+					<div style="height: 250px; text-align: left; font-size: xx-large;">
+						Perses is an exploration into finding an open source standard for visualization and dashboards,
+						initially for metrics monitoring. It started as a Linux Foundation project and later promoted
+						into the Cloud Native Computing Foundation (CNCF) as a Sandbox project.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction - What is the Perses project?</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						Since joining the CNCF, Perses has continued to grow its presence as the first observability
+						dashboard + visualization project. Some links to explore:<br /><br />
+						<ul>
+							<li><a href="https://github.com/perses/perses" target="_blank">Perses project overview</a></li>
+							<li><a href="https://github.com/perses/perses/blob/main/CONTRIBUTING.md" target="_blank">Perses contributing guide</a></li>
+							<li>First commit: <a href="https://github.com/perses/perses/commit/2633d2867d81579e3b8079db5991a440f03b8345" target="_blank">26 Jan 2021 (Augustin Husson)</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction - Perses project goals (1/2)</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						<ol>
+							<li>Become an open standard dashboard visualization tool</li>
+							<ul style="font-size: x-large;">
+								<li>Have well-defined dashboard definition model</li>
+								<li>Statically validated dashboards with CLI and CUE schemas</li>
+								<li>GitOps compatible for <i>dashboard-as-code</i> workflows</li>
+								<li>Perses runs locally, edit dashboard JSON file in Git</li>
+							</ul>
+							<li>Provide embeddable charts and dashboards in any user interface</li>
+							<ul style="font-size: x-large;">
+								<li>Provide different NPM packages</li>
+								<li>Example usage could be to improve graph display in Prometheus (or embed)</li>
+							</ul>
+						</ol>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction - Perses project goals (2/2)</h3>
+					</div>
+					<div style="height: 400px; text-align: left; font-size: xx-large;">
+						<ol start="3">
+							<li>Target Kubernetes (k8s) native mode</li>
+							<ul style="font-size: x-large;">
+								<li>dashboard defs deployed into & read from app namespaces (CRDs)</li>
+							</ul>
+							<li>Provide complete static validation for CI/CD pipelines
+								<ul style="font-size: x-large;">
+									<li>To be friendly to <code><b>Dashboard-as-Code</b></code> users, by providing a complete static
+										validation of the dashboard format</li>
+									<li>Provide command line client: <code><b>percli</b></code></li>
+								</ul>
+							<li>Support plugins, to allow users to extend the capacities natively provided</li>
+						</ol>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Chat with Perses project team?</h3>
+					</div>
+					<div style="height: 400px; font-size: xx-large;">
+						On Slack channel: <a href="https://cloud-native.slack.com" target="_blank">
+						<code><b>#perses-dev</b></code></a>
+						<br />
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab01-1.png" alt="matrix">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction - Perses CNCF project</h3>
+					</div>
+					<div style="height: 200px; text-align: left; font-size: xx-large;">
+						In March 2024 Perses
+						<a href="https://github.com/cncf/sandbox/issues/93" target="_blank">applied to become</a> a
+						Cloud Native Computing Foundation (CNCF) Sandbox project. Currently, the CNCF has no dashboard
+						or visualization solution in the Observability area. Being part of the CNCF provides the project
+						visibility and end users with an alternative to vendor visualization observability.
+					</div>
+					<div style="height: 250px; text-align: right;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab01-2.png" alt="cncf">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction - New kid in the sandbox</h3>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						In the third week of August 2024, the CNCF officially opened up
+						<a href="https://github.com/cncf/sandbox/issues/93#issuecomment-2299093817" target="_blank">
+							voting on the Perses application
+						</a>. In less than two weeks time the
+						<a href="https://github.com/cncf/sandbox/issues/93#issuecomment-2306836376" target="_blank">
+							required threshold of 66% of the voting members
+						</a>
+						was reached, along with almost 100 non-binding votes from the community, and Perses is
+						officially the new kid in the CNCF Sandbox!
+					</div>
+					<div style="height: 350px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab01-4.png" alt="voting">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab01-5.png" alt="sandbox">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Introduction - Perses demo and docs</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: xx-large;">
+						Perses has online documentation included with the
+						<a href="https://perses.dev" target="_blank">project website</a> and also provide a
+						<a href="https://demo.perses.dev" target="_blank"> Perses demo instance</a> to explore after
+						logging in:
+					</div>
+					<div style="height: 400px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab01-3.png" alt="demo">
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 120px;">
+						<h2 class="r-fit-text">Lab completed - Results</h2>
+					</div>
+					<div style="height: 70px;">
+						We gained a basic understanding of the Perses project.
+					</div>
+					<div style="height: 300px;">
+						<img style="border-style: solid; border-color: black; border-width: 1px;" src="images/lab01-3.png" alt="demo">
+					</div>
+					<div style="height: 50px;">
+						<br/>
+						Next up, installing Perses project on your machine...
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">References</span>
+					<div style="height: 200px;">
+						<img height="150" width="100%" src="images/references.jpg" alt="references">
+					</div>
+					<div style="height: 400px; font-size: xx-large; text-align: left">
+						<ul>
+							<li><a href="https://o11y-workshops.gitlab.io/" target="_blank">Getting started with cloud native o11y workshops</a></li>
+							<li><a href="https://github.com/perses/perses" target="_blank">Perses project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-perses" target="_blank">This workshop project repository</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops" target="_blank">O11y workshop collection</a></li>
+							<li><a href="https://gitlab.com/o11y-workshops/workshop-perses/-/issues/new" target="_blank">Report an issue with this workshop</a></li>
+						</ul>
+					</div>
+				</section>
+
+				<section>
+					<span class="menu-title" style="display: none">Questions or feedback?</span>
+					<div style="height: 150px">
+						<h2 class="r-fit-text">Contact - are there any questions?</h2>
+					</div>
+					<div style="height: 200px; font-size: x-large; text-align: left">
+						Eric D. Schabell<br/>
+						Director Evangelism<br/>
+						Contact: <a href="https://twitter.com/ericschabell" target="_blank">@ericschabell</a>
+						{<a href="https://fosstodon.org/@ericschabell" target="_blank">@fosstodon.org</a>)
+						or <a href="https://www.schabell.org" target="_blank">https://www.schabell.org</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 250px;">
+						<h2 class="r-fit-text">Up next in workshop...</h2>
+					</div>
+					<div style="height: 200px; font-size: xxx-large;">
+						<a href="lab02.html" target="_blank">Lab 2 - Installing Perses</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			Reveal.initialize({
+				plugins: [ RevealMenu ]
+			});
+		</script>
+	</body>
+</html>

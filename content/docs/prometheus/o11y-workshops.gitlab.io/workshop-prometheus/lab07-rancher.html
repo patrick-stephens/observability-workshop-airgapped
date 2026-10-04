@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+		<meta name="description" content="Prometheus workshop">
+		<meta name="author" content="Eric D. Schabell">
+
+		<title>Lab 7 - Services Kubernetes</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/chrono.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+	</head>
+
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-PW25SPMWGG"></script>
+	<script>
+		window.dataLayer = window.dataLayer || [];
+		function gtag(){dataLayer.push(arguments);}
+		gtag('js', new Date());
+
+		gtag('config', 'G-PW25SPMWGG');
+	</script>
+
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Exercise infrastructure</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						You'll be setting up the following architecture to support your service discovery exercises
+						using the services demo to ensure your local infrastructure contains the following:<br />
+						<br />
+						<ol>
+							<li><b>Production 1</b> reachable at <code><b>http://localhost:11111</b></code></li>
+							<li><b>Production 2</b> reachable at <code><b>http://localhost:22222</b></code></li>
+							<li><b>Development</b> reachable at <code><b>http://localhost:44444</b></code></li>
+						</ol><br />
+						<br />
+						On Kubernetes these are three separate Deployments and Services, each reached locally through
+						its own <code><b>kubectl port-forward</b></code>. In-cluster, Prometheus reaches them by their
+						Service DNS names on port 8080, not through these forwarded ports.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Rancher setup assumptions</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						For the path of installing your exercise infrastructure on Kubernetes, we'll assume you've
+						already got a running k3s cluster with Helm, and the <code><b>prometheus</b></code> namespace
+						in place, as you did in a previous lab.<br />
+						<br />
+						The next few slides build the <code><b>prometheus_services_demo:v1</b></code> image into your
+						cluster. If you already have it there from an earlier lab and haven't reset Rancher Desktop
+						since, skip ahead to the Production 1 manifest.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Downloading the project</h3>
+					</div>
+					<div style="height: 350px; text-align: left; font-size: xx-large;">
+						All three environments in this lab share one image, so we only need to build it once. We're
+						providing a self-contained project you can download, unzip, and use to build it:<br />
+						<br />
+						<a href="https://gitlab.com/o11y-workshops/prometheus-service-demo-installer/-/archive/v1.0/prometheus-service-demo-installer-v1.0.zip" target="_blank">
+							Click here to download the Prometheus Services Demo Installer.</a>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Unzipping the project</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Once you have downloaded the project using the link provided previously, just unzip into its
+						own directory as shown (Note: examples shown are on Mac OS X system):
+					</div>
+					<div style="height: 170px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ unzip prometheus-service-demo-installer-v1.0.zip
+
+								creating: prometheus-service-demo-installer-v1.0/
+								inflating: prometheus-service-demo-installer-v1.0/.gitignore
+								inflating: prometheus-service-demo-installer-v1.0/README.md
+								creating: prometheus-service-demo-installer-v1.0/docs/
+								creating: prometheus-service-demo-installer-v1.0/docs/demo-images/
+								inflating: prometheus-service-demo-installer-v1.0/docs/demo-images/workshop.png
+								inflating: prometheus-service-demo-installer-v1.0/init.sh
+								creating: prometheus-service-demo-installer-v1.0/installs/
+								inflating: prometheus-service-demo-installer-v1.0/installs/README
+								creating: prometheus-service-demo-installer-v1.0/installs/demo/
+								inflating: prometheus-service-demo-installer-v1.0/installs/demo/Buildfile
+								inflating: prometheus-service-demo-installer-v1.0/installs/demo/Dockerfile
+								inflating: prometheus-service-demo-installer-v1.0/installs/demo/LICENSE
+								inflating: prometheus-service-demo-installer-v1.0/installs/demo/README.md
+								...
+								creating: prometheus-service-demo-installer-v1.0/support/
+								extracting: prometheus-service-demo-installer-v1.0/support/README
+								inflating: prometheus-service-demo-installer-v1.0/support/unzip.vbs
+								inflating: prometheus-service-demo-installer-v1.0/support/workshop-prometheus.yml
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Building an image the cluster can see</h3>
+					</div>
+					<div style="height: 110px; text-align: left; font-size: x-large;">
+						Kubernetes pulls images from a registry, and we never push this one anywhere. The trick is to
+						build it straight into the image store your cluster reads from. Rancher Desktop ships two
+						container engines, so first check which one you are running under
+						<i>Preferences &gt; Container Engine</i>, then use the matching command:
+					</div>
+					<div style="height: 130px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Container engine set to dockerd (moby) - k3s reads the docker image store directly.
+								#
+								$ docker build --load -t prometheus_services_demo:v1 -f installs/demo/Buildfile installs/demo
+
+								# Container engine set to containerd - build into the k8s namespace.
+								#
+								$ nerdctl --namespace k8s.io build -t prometheus_services_demo:v1 -f installs/demo/Buildfile installs/demo
+							</code>
+						</pre>
+					</div>
+					<div style="height: 120px; text-align: left; font-size: x-large;">
+						Same gotchas as before: that trailing <code><b>installs/demo</b></code> is the build
+						context, not a typo for <code><b>.</b></code>, on containerd the
+						<code><b>--namespace k8s.io</b></code> is not optional, k3s only looks in that namespace, and on
+						dockerd a <code><b>docker-container</b></code> buildx builder needs <code><b>--load</b></code>
+						or the image never reaches <code><b>docker images</b></code>.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Verifying the built image</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						Looking up our built image to verify everything went well. Ask for it by name, a bare
+						<code><b>docker images</b></code> lists every image on your machine and the one we care about
+						is lost in the noise:
+					</div>
+					<div style="height: 100px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ docker images prometheus_services_demo
+
+								IMAGE                         ID             DISK USAGE   CONTENT SIZE
+								prometheus_services_demo:v1   d039d73640e2       31.8MB         10.1MB
+							</code>
+						</pre>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						On a containerd set up the command is
+						<code><b>nerdctl --namespace k8s.io images prometheus_services_demo</b></code>.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Production 1 manifest</h3>
+					</div>
+					<div style="height: 30px; text-align: left; font-size: x-large;">
+						Using any editor you like, create a file named <code><b>services-demo-prod1.yaml</b></code>:
+					</div>
+					<div style="height: 400px; font-size: large;">
+						<pre>
+							<code data-trim data-noescape>
+								apiVersion: apps/v1
+								kind: Deployment
+								metadata:
+								  name: services-demo-prod1
+								spec:
+								  replicas: 1
+								  selector:
+								    matchLabels:
+								      app: services-demo-prod1
+								  template:
+								    metadata:
+								      labels:
+								        app: services-demo-prod1
+								    spec:
+								      containers:
+								      - name: services-demo-prod1
+								        image: prometheus_services_demo:v1
+								        imagePullPolicy: IfNotPresent
+								        ports:
+								        - containerPort: 8080
+
+								---
+								apiVersion: v1
+								kind: Service
+								metadata:
+								  name: services-demo-prod1
+								spec:
+								  selector:
+								    app: services-demo-prod1
+								  ports:
+								  - port: 8080
+								    targetPort: 8080
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Starting production 1</h3>
+					</div>
+					<div style="height:100px; text-align: left; font-size: x-large;">
+						Deploy it into the <code><b>prometheus</b></code> namespace. If you skipped ahead or aren't sure
+						it still exists, this first command is safe to run every time, it creates the namespace only if
+						missing and no-ops otherwise:
+					</div>
+					<div style="height: 150px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl create namespace prometheus --dry-run=client -o yaml | kubectl apply -f -
+
+								$ kubectl apply -f services-demo-prod1.yaml -n prometheus
+
+								deployment.apps/services-demo-prod1 created
+								service/services-demo-prod1 created
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Testing production 1</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Port-forward it to your chosen local port, in its own terminal window, then test at
+						<code><b>http://localhost:11111/metrics</b></code>:
+					</div>
+					<div style="height: 50px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl port-forward -n prometheus svc/services-demo-prod1 11111:8080
+							</code>
+						</pre>
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab07-1.png" alt="production1"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Production 2 manifest</h3>
+					</div>
+					<div style="height: 100px; text-align: left; font-size: x-large;">
+						Same pattern for a second instance. Create <code><b>services-demo-prod2.yaml</b></code> as a
+						copy of the first, with every occurrence of <code><b>services-demo-prod1</b></code> changed to
+						<code><b>services-demo-prod2</b></code> (name, both label lines, and container name):
+					</div>
+					<div style="height: 400px; font-size: large;">
+						<pre>
+							<code data-trim data-noescape>
+								apiVersion: apps/v1
+								kind: Deployment
+								metadata:
+								  name: services-demo-prod2
+								spec:
+								  replicas: 1
+								  selector:
+								    matchLabels:
+								      app: services-demo-prod2
+								  template:
+								    metadata:
+								      labels:
+								        app: services-demo-prod2
+								    spec:
+								      containers:
+								      - name: services-demo-prod2
+								        image: prometheus_services_demo:v1
+								        imagePullPolicy: IfNotPresent
+								        ports:
+								        - containerPort: 8080
+
+								---
+								apiVersion: v1
+								kind: Service
+								metadata:
+								  name: services-demo-prod2
+								spec:
+								  selector:
+								    app: services-demo-prod2
+								  ports:
+								  - port: 8080
+								    targetPort: 8080
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Starting and testing production 2</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Deploy it, then port-forward to port 22222 in its own terminal window, and test at
+						<code><b>http://localhost:22222/metrics</b></code>:
+					</div>
+					<div style="height: 80px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl apply -f services-demo-prod2.yaml -n prometheus
+
+								$ kubectl port-forward -n prometheus svc/services-demo-prod2 22222:8080
+							</code>
+						</pre>
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab07-2.png" alt="production2"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Services demo - Development manifest</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						One more, the same pattern again. Create <code><b>services-demo-dev.yaml</b></code>, changing
+						every occurrence of <code><b>services-demo-prod1</b></code> to
+						<code><b>services-demo-dev</b></code>:
+					</div>
+					<div style="height: 400px; font-size: large;">
+						<pre>
+							<code data-trim data-noescape>
+								apiVersion: apps/v1
+								kind: Deployment
+								metadata:
+								  name: services-demo-dev
+								spec:
+								  replicas: 1
+								  selector:
+								    matchLabels:
+								      app: services-demo-dev
+								  template:
+								    metadata:
+								      labels:
+								        app: services-demo-dev
+								    spec:
+								      containers:
+								      - name: services-demo-dev
+								        image: prometheus_services_demo:v1
+								        imagePullPolicy: IfNotPresent
+								        ports:
+								        - containerPort: 8080
+
+								---
+								apiVersion: v1
+								kind: Service
+								metadata:
+								  name: services-demo-dev
+								spec:
+								  selector:
+								    app: services-demo-dev
+								  ports:
+								  - port: 8080
+								    targetPort: 8080
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Starting and testing development</h3>
+					</div>
+					<div style="height: 50px; text-align: left; font-size: x-large;">
+						Deploy it, then port-forward to port 44444 in its own terminal window, and test at
+						<code><b>http://localhost:44444/metrics</b></code>:
+					</div>
+					<div style="height: 80px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ kubectl apply -f services-demo-dev.yaml -n prometheus
+
+								$ kubectl port-forward -n prometheus svc/services-demo-dev 44444:8080
+							</code>
+						</pre>
+					</div>
+					<div style="height: 350px;">
+						<img src="images/lab07-3.png" alt="development"><br />
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Prometheus setup assumptions</h3>
+					</div>
+					<div style="height: 150px; text-align: left; font-size: xx-large;">
+						The rest of this exercise will focus on configuration of your Prometheus instance. For this
+						path of the service discovery infrastructure setup, it is assumed you chose in a previous lab
+						to <a href="lab02-rancher.html" target="_blank">install Prometheus on Kubernetes (k3s) with
+						Helm</a>, but if not then we'll revisit this now.<br />
+						<br />
+						To ensure you have a running instance, and we'll pick up at editing your
+						<code><b>workshop-values.yaml</b></code> file.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Confirming workshop-values.yaml (1 of 2)</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: x-large;">
+						Before continuing this lab, check your <code><b>workshop-values.yaml</b></code> matches the
+						following configuration:
+					</div>
+					<div style="height: 300px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# workshop config
+								server:
+								  image:
+								    tag: v3.13.1
+								  global:
+								    scrape_interval: 5s
+								    scrape_timeout: 4s
+								  persistentVolume:
+								    enabled: false
+								  service:
+								    servicePort: 9090
+
+								# Keep the workshop lean - no extra components.
+								alertmanager:
+								  enabled: false
+								kube-state-metrics:
+								  enabled: false
+								prometheus-node-exporter:
+								  enabled: false
+								prometheus-pushgateway:
+								  enabled: false
+							</code>
+						</pre>
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Confirming workshop-values.yaml (2 of 2)</h3>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: x-large;">
+						And the <code><b>scrapeConfigs</b></code> block should match this, the state it should be in
+						from lab 3 on this path:
+					</div>
+					<div style="height: 300px; font-size: x-large;">
+						<pre>
+							<code data-trim data-noescape>
+								# Scraping only Prometheus.
+								scrapeConfigs:
+								  kubernetes-api-servers: { enabled: false }
+								  kubernetes-nodes: { enabled: false }
+								  kubernetes-nodes-cadvisor: { enabled: false }
+								  kubernetes-service-endpoints: { enabled: false }
+								  kubernetes-service-endpoints-slow: { enabled: false }
+								  kubernetes-services: { enabled: false }
+								  kubernetes-pods: { enabled: false }
+								  kubernetes-pods-slow: { enabled: false }
+								  prometheus-pushgateway: { enabled: false }
+
+								  # Scraping services demo.
+								  services:
+								    job_name: services
+								    static_configs:
+								      - targets:
+								        - services-demo:8080
+								        - services-demo-2:8080
+							</code>
+						</pre>
+					</div>
+					<div style="height: 60px; text-align: left; font-size: x-large;">
+						That <code><b>services</b></code> job is unrelated to the three new instances in this lab,
+						later you are told when to comment it out.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Applying your current configuration</h3>
+					</div>
+					<div style="height: 80px; text-align: left; font-size: x-large;">
+						If you had to edit <code><b>workshop-values.yaml</b></code> to match the previous two slides,
+						or just want to be sure the cluster is running exactly what's in the file, re-run the same
+						installation sequence as shown below:
+					</div>
+					<div style="height: 250px; font-size: xx-large;">
+						<pre>
+							<code data-trim data-noescape>
+								$ helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+								"prometheus-community" has been added to your repositories
+
+								$ helm repo update
+								...
+								...Successfully got an update from the "prometheus-community" chart repository
+								Update Complete. ⎈Happy Helming!⎈
+
+								$ helm upgrade --install workshop-prometheus prometheus-community/prometheus \
+								    --version 29.20.0 \
+								    --namespace prometheus --create-namespace \
+								    -f workshop-values.yaml
+							</code>
+						</pre>
+					</div>
+					<div style="height: 70px; text-align: left; font-size: x-large;">
+						If nothing changed, Helm reports it as up to date and does nothing, no harm in running it.
+					</div>
+				</section>
+
+				<section>
+					<div style="height: 100px;">
+						<h3 class="r-fit-text">Service discovery - Kubernetes ready</h3>
+					</div>
+					<div style="height: 170px; text-align: left; font-size: xx-large;">
+						Next up, we'll start using the file-based service discovery mechanism to feed a changing list
+						of custom targets to Prometheus during runtime and verify that it's dynamically discovering the
+						changes:
+					</div>
+					<div style="height: 50px; text-align: center;">
+						<a href="lab07b.html" target="_blank">Click here to continue this lab...</a>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script src="node_modules/reveal.js-menu/menu.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMenu, RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+	</body>
+</html>
