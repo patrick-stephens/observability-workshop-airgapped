@@ -25,6 +25,7 @@ The bundle captures immutable tag-plus-digest image pins, while replay manifests
 - `manifests/`: Kubernetes objects applied directly; `manifests/app/` holds the demo app Deployments, Services, ServiceMonitor, and L7 visibility policy.
 - `dashboards/`: Perses project, datasources, and dashboards for the host-side Perses.
 - `scripts/`: numbered, idempotent VM, bootstrap, and demo scripts.
+- `learner-vm/`: RHEL learner VM configuration, operator run order, and read-only diagnostics; see [learner-vm/README-FIRST.md](learner-vm/README-FIRST.md).
 - `images/`: source Dockerfiles for locally built offline workload images.
 - `app/`: demo application source.
 - `bundle/`: output from offline capture; generated contents are gitignored.

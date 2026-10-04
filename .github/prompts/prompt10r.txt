@@ -1,0 +1,146 @@
+Context
+-------
+Read .github/copilot-instructions.md first. Then append the following
+rules to it:
+
+  - learner-vm scripts are ARTIFACTS. The agent never executes them on
+    the target VM; there is no AI on the airgapped network. Execution
+    evidence arrives only via feedback/airgap-run-*.md. Never claim a
+    script "works" — claim it "validates and self-diagnoses".
+  - Before any learner-vm change, read feedback/airgap-run-*.md (newest
+    first) and the SCRIPT_VERSION comments in the scripts.
+  - On every edit to a learner-vm script, bump its SCRIPT_VERSION and
+    add a one-line comment describing the change.
+  - Every learner-vm script must source scripts/lib.sh, be idempotent,
+    support --dry-run, and emit the REPORT BEGIN/END block per the
+    transcription protocol.
+
+Objective
+---------
+Produce the foundation artifacts for the learner VM:
+  scripts/lib.sh       shared helpers: logging, steps, report block
+  scripts/00-diagnose.sh  read-only environment report
+  lab-vm.conf          all configuration variables
+  README-FIRST.md      the operator's run order and transcription guide
+
+The target VM: RHEL 8.6, minimal base image, self-signed CA already in
+the OS trust store, DNF via Artifactory (BaseOS, AppStream, EPEL,
+Docker CE), fixed hostname, ISO attachable as a file or a CD-ROM
+device. The script runs on this MINIMAL base — python3 may not be
+useful, some tools may be absent. Every check must degrade to SKIPPED
+with a reason rather than crash.
+
+scripts/lib.sh
+--------------
+Provide:
+  SCRIPT_NAME, SCRIPT_VERSION (each script sets these before sourcing)
+  log()          [NN-name] prefix to stdout AND /var/log/lab-setup/
+  step_ok "msg"  counts + logs ✓
+  step_skip "reason" "msg"  counts + logs → SKIPPED
+  step_fail "what" "fix-hint" ["diagnostic command"...]
+    - counts the failure as F<n>
+    - writes to the report: the failure, the fix-hint, and for each
+      diagnostic command: runs it, includes up to 15 lines of output
+      (indented), or the error if the command does not exist
+  begin_report / end_report
+    - end_report prints the REPORT BEGIN/END block: script name +
+      version, hostname, UTC timestamp, repo git SHA (best effort),
+      RESULT line (PASSED/FAILED with ok/failed/skipped counts), all
+      F<n> entries, OK summary with full-log path, SKIPPED list, and a
+      NEXT line supplied by the script
+  run()          wrapper honouring --dry-run: prints "[dry-run] WOULD:
+                 <cmd>" instead of executing
+  require_or_skip "binary" "check description"
+                 if the binary is absent, records a SKIPPED and
+                 returns 1 so the caller can branch
+  No ANSI colour inside the report block. Colour elsewhere is fine.
+  Report block must stay under 60 lines: OK steps are summarised as a
+  count; only failures, skips and diagnostics are itemised.
+
+scripts/00-diagnose.sh
+----------------------
+Read-only. ALWAYS exits 0. No --dry-run needed (it changes nothing).
+Checks, in order:
+  1. System: /etc/redhat-release, uname -m, hostname, primary IPv4,
+     memory, disk free on / and /var/lib
+  2. ISO: ISO_PATH from lab-vm.conf — file or device?
+     If file: loop-mount test to a temp dir, check BaseOS/ and
+     AppStream/ exist, unmount. If device (/dev/cdrom or /dev/sr0):
+     try mounting, same check, unmount. Report which form.
+  3. Artifactory (curl, 10s timeouts, using the CA from the OS trust
+     store — NOT --insecure):
+       https://$ART_HOST/            (expect 200 or 302)
+       manifest probes with Accept:
+       application/vnd.docker.distribution.manifest.v2+json for:
+         /library/busybox/manifests/1.36
+         /fluent/fluent-bit/manifests/5.1.1
+         /prometheus/node-exporter/manifests/v1.12.1
+     On failure, auto-diagnostics: getent hosts $ART_HOST;
+     curl -v tail (10 lines)
+  4. Docker CE DNF candidates — fetch
+     <candidate>/repodata/repomd.xml and report the HTTP status of
+     each. Candidates (operator confirms the right one with the
+     Artifactory admin):
+       $DNF_DOCKER_CE_BASEURL (from lab-vm.conf)
+       https://$ART_HOST/artifactory/docker-ce-rhel8/
+       https://$ART_HOST/artifactory/docker-ce-centos8/
+       https://$ART_HOST/docker-ce-rhel8/
+  5. CA trust, three locations:
+       /etc/pki/ca-trust/source/anchors/ — list files
+       OS bundle contains the Artifactory CA (openssl + grep on the
+       extracted subjects, best effort)
+       /etc/docker/certs.d/$ART_HOST/ca.crt — expected absent
+       /etc/containers/certs.d/$ART_HOST/ca.crt — expected absent
+  6. Proxy env: HTTP_PROXY, HTTPS_PROXY, NO_PROXY (+ lowercase)
+  7. DNF state: dnf repolist; dnf module list container-tools;
+     dnf -q list available docker-ce (report whether it resolves; on
+     failure include dnf -v output tail)
+  8. Content: REPO_ROOT present? content/repos/<track> for all five
+     tracks with lab*.html counts; content/docs/<track> landing pages
+  9. Tools present: git, curl, podman, skopeo, docker, jq, java,
+     python3 — with versions where present
+ 10. SELinux mode; firewalld state
+Modes:
+  (default) run all checks
+  --selftest render a synthetic report block with 2 ok, 1 failed
+             (with diagnostics), 1 skipped — proves the block renders.
+             No system access. The agent runs this online.
+Validation (agent-side, online):
+  bash -n on all scripts; shellcheck with errors as failures and
+  warnings allowed; run scripts/00-diagnose.sh --selftest and confirm
+  the block renders within 60 lines and without colour codes.
+  Report all three results.
+
+lab-vm.conf
+-----------
+Template with defaults and a comment per variable:
+  HOSTNAME="o11y-lab.internal"
+  STATIC_IP=""            # empty = DHCP; set "192.168.10.10/24" if the
+                          # Windows host must reach the VM. In-VM use
+                          # does not need it.
+  ART_HOST="artifactory.internal"
+  ART_HOST_IP=""          # if set, 30-ca-and-trust.sh writes an
+                          # /etc/hosts entry — removes DNS as a
+                          # failure class during provisioning
+  CA_CERT_SOURCE="/etc/pki/ca-trust/source/anchors/airgap-ca.crt"
+  ISO_PATH="/dev/cdrom"   # file path or device
+  DNF_DOCKER_CE_BASEURL="https://artifactory.internal/artifactory/docker-ce-rhel8/"
+  DNF_EPEL_BASEURL=""     # optional
+  CONTENT_ROOT="<derived: repo root on the VM>"
+  WORKSHOPS_ROOT="$CONTENT_ROOT/content/repos"
+  DOCS_ROOT="$CONTENT_ROOT/content/docs"
+  BROWSER="firefox"
+
+README-FIRST.md
+---------------
+One page: what this repo is; transfer to VM; the run order
+(00 → 10-50 → 60 → 70 → 80 → snapshot); the transcription protocol
+with one example block; the rule "transcribe, don't improvise"; how to
+record feedback/airgap-run-00N.md on the online side.
+
+Acceptance
+----------
+1. bash -n and shellcheck pass on all new scripts.
+2. 00-diagnose.sh --selftest output pasted — block renders, ≤60 lines,
+   no colour codes, has F1 with diagnostics and one SKIPPED.
+3. lab-vm.conf and README-FIRST.md pasted for review.
