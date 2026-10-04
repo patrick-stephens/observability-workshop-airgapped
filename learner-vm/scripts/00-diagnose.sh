@@ -2,350 +2,433 @@
 set -euo pipefail
 
 SCRIPT_NAME="00-diagnose"
-SCRIPT_VERSION="1.0.1"
-# SCRIPT_VERSION 1.0.1: Use Bash parsing for minimal-image checks and report invalid configuration safely.
+# SCRIPT_VERSION 3: Diagnose the rootful Podman and single-registry offline design.
+SCRIPT_VERSION="3"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-source "$SCRIPT_DIR/lib.sh"
-
-HOSTNAME="o11y-lab.internal"
-STATIC_IP=""
-ART_HOST="artifactory.internal"
-ART_HOST_IP=""
-CA_CERT_SOURCE="/etc/pki/ca-trust/source/anchors/airgap-ca.crt"
-ISO_PATH="/dev/cdrom"
-DNF_DOCKER_CE_BASEURL="https://artifactory.internal/artifactory/docker-ce-rhel8/"
-DNF_EPEL_BASEURL=""
-CONTENT_ROOT="$SCRIPT_ROOT"
-WORKSHOPS_ROOT="$CONTENT_ROOT/content/repos"
-DOCS_ROOT="$CONTENT_ROOT/content/docs"
-BROWSER="firefox"
-CONFIG_MISSING=false
-CONFIG_INVALID=false
 SELFTEST=false
-
-if [[ -r "$SCRIPT_ROOT/learner-vm/lab-vm.conf" ]]; then
-    if ! source "$SCRIPT_ROOT/learner-vm/lab-vm.conf"; then CONFIG_INVALID=true; fi
-else
-    CONFIG_MISSING=true
-fi
+DRY_RUN=false
+UNKNOWN_ARGUMENTS=()
 
 for argument in "$@"; do
     case "$argument" in
         --selftest) SELFTEST=true ;;
         --dry-run) DRY_RUN=true ;;
-        *) printf '[%s] Unknown argument: %s\n' "$SCRIPT_NAME" "$argument" ;;
+        *) UNKNOWN_ARGUMENTS+=("$argument") ;;
     esac
 done
 
+SELFTEST_MODE="$SELFTEST"
+if ! source "$SCRIPT_DIR/lib.sh"; then
+    exit 0
+fi
+
 begin_report
+for argument in "${UNKNOWN_ARGUMENTS[@]}"; do
+    step_fail "unknown argument: $argument" "Use learner-vm/scripts/00-diagnose.sh with --selftest, --dry-run, or no argument."
+done
 
 if [[ "$SELFTEST" == "true" ]]; then
-    step_ok "self-test check one"
-    step_ok "self-test check two"
-    step_fail "synthetic dependency failure" "Install the missing test dependency" \
+    step_ok "synthetic self-test check one"
+    step_ok "synthetic self-test check two"
+    step_fail "synthetic dependency failure" "Install the missing dependency from learner-vm/lab-vm.conf." \
         "printf 'synthetic diagnostic output\\n'" \
         "lab-selftest-command-that-does-not-exist"
-    step_skip "synthetic optional check" "optional test dependency is absent"
-    NEXT_LINE="Self-test complete; inspect the synthetic report block."
-    end_report
+    step_skip "synthetic optional dependency is absent" "optional self-test tool"
+    end_report "transcribe this report block; provisioning scripts (10-80) are finalised after this report is reviewed"
     exit 0
 fi
 
 if [[ "$DRY_RUN" == "true" ]]; then
-    log "[dry-run] WOULD: run read-only learner VM diagnostics"
-    step_skip "dry-run requested" "read-only diagnostics were not executed"
-    NEXT_LINE="Rerun without --dry-run to collect the read-only diagnostics."
-    end_report
+    run "true"
+    step_skip "--dry-run requested" "read-only diagnostics were not executed"
+    end_report "rerun without --dry-run to collect the read-only environment report"
     exit 0
 fi
 
-if [[ "$CONFIG_MISSING" == "true" ]]; then
-    step_fail "learner-vm/lab-vm.conf is missing" "Restore the configuration template before diagnosing this VM."
-elif [[ "$CONFIG_INVALID" == "true" ]]; then
-    step_fail "learner-vm/lab-vm.conf could not be loaded" "Correct its shell syntax before diagnosing this VM."
-fi
-
 compact_output() {
-    local flattened="${1//$'\n'/;}"
+    local flattened="${1//$'\n'/; }"
     printf '%s' "${flattened:0:180}"
 }
 
-system_summary=()
-if [[ -r /etc/redhat-release ]]; then
-    IFS= read -r release_name </etc/redhat-release || true
-    system_summary+=("release=${release_name:-unknown}")
-else
-    system_summary+=("release=unavailable")
-fi
-if require_or_skip uname "system architecture"; then
-    architecture="$(uname -m 2>/dev/null || printf 'unavailable')"
-    system_summary+=("arch=${architecture}")
-fi
-if require_or_skip hostname "system hostname"; then
-    system_hostname="$(hostname 2>/dev/null || printf 'unavailable')"
-    system_summary+=("hostname=${system_hostname}")
-fi
-if require_or_skip ip "primary IPv4 address"; then
-    route_output="$(ip -4 route get 1.1.1.1 2>/dev/null || true)"
-    route_fields=()
-    read -r -a route_fields <<<"$route_output"
-    primary_ipv4=""
-    for ((route_index = 0; route_index < ${#route_fields[@]}; route_index++)); do
-        if [[ "${route_fields[route_index]}" == "src" && $((route_index + 1)) -lt ${#route_fields[@]} ]]; then
-            primary_ipv4="${route_fields[route_index + 1]}"
-            break
-        fi
-    done
-    if [[ -n "$primary_ipv4" ]]; then
-        system_summary+=("primary_ipv4=${primary_ipv4}")
-    else
-        step_skip "primary IPv4 address" "no IPv4 route source address was found"
+check_binary() {
+    local binary="$1" description="$2" version_output version_line
+    if require_or_skip "$binary" "$description"; then
+        if version_output="$($binary --version 2>&1)"; then :; else version_output="version command failed"; fi
+        version_line="${version_output%%$'\n'*}"
+        step_ok "$description: $version_line"
     fi
-fi
-if [[ -r /proc/meminfo ]]; then
-    memory_total="unknown"
-    memory_available="unknown"
-    while read -r key value unit; do
-        case "$key" in
-            MemTotal:) memory_total="${value} ${unit:-kB}" ;;
-            MemAvailable:) memory_available="${value} ${unit:-kB}" ;;
-        esac
-    done </proc/meminfo
-    system_summary+=("memory_total=${memory_total}" "memory_available=${memory_available}")
-else
-    step_skip "memory report" "/proc/meminfo is unavailable"
-fi
-if require_or_skip df "disk free on / and /var/lib"; then
-    disk_report="$(df -hP / /var/lib 2>&1 || true)"
-    system_summary+=("disk=$(compact_output "$disk_report")")
-fi
-step_ok "system: ${system_summary[*]}"
+}
 
-iso_path="${ISO_PATH:-}"
-if [[ -z "$iso_path" ]]; then
-    step_fail "ISO_PATH is empty" "Set ISO_PATH to an ISO file or CD-ROM device in lab-vm.conf."
-elif [[ -f "$iso_path" ]]; then
-    if ! require_or_skip mount "ISO loop-mount check"; then :; else
-        if ! require_or_skip mktemp "ISO temporary mount directory"; then :; else
-            mount_dir="$(mktemp -d "${TMPDIR:-/tmp}/lab-iso.XXXXXX" 2>/dev/null || true)"
-            if [[ -z "$mount_dir" ]]; then
-                step_skip "ISO loop-mount check" "could not create a temporary mount directory"
-            elif mount -o loop,ro "$iso_path" "$mount_dir" 2>&1; then
-                if [[ -d "$mount_dir/BaseOS" && -d "$mount_dir/AppStream" ]]; then
-                    step_ok "ISO: file form; BaseOS/ and AppStream/ found"
-                else
-                    step_fail "ISO file is missing BaseOS/ or AppStream/" "Attach the correct RHEL 8.6 installation ISO."
-                fi
-                if ! umount "$mount_dir" 2>/dev/null; then
-                    step_fail "could not unmount ISO file" "Unmount the diagnostic mount point before retrying."
-                fi
-                rmdir "$mount_dir" 2>/dev/null || true
+check_iso() {
+    local iso_path="${ISO_PATH:-}" mount_dir="" mount_options="ro" mounted=false
+    if [[ -z "$iso_path" ]]; then
+        step_skip "ISO_PATH is empty" "set ISO_PATH in learner-vm/lab-vm.conf to an ISO file or CD-ROM device"
+        return
+    fi
+    if [[ -f "$iso_path" ]]; then
+        mount_options="loop,ro"
+    elif [[ ! -b "$iso_path" && ! -c "$iso_path" ]]; then
+        step_skip "ISO is unavailable" "$iso_path is neither a readable file nor a device"
+        return
+    fi
+    if ((EUID != 0)); then
+        step_skip "ISO mount check requires root" "rerun 00-diagnose with sudo to inspect $iso_path"
+        return
+    fi
+    if ! require_or_skip mount "ISO mount check" || ! require_or_skip mktemp "ISO mount directory"; then
+        return
+    fi
+    if mount_dir="$(mktemp -d "${TMPDIR:-/tmp}/lab-iso.XXXXXX" 2>/dev/null)"; then :; else
+        step_skip "ISO mount check" "could not create a temporary mount directory"
+        return
+    fi
+    if mount -o "$mount_options" "$iso_path" "$mount_dir" >/dev/null 2>&1; then
+        mounted=true
+        if [[ -d "$mount_dir/BaseOS" && -d "$mount_dir/AppStream" ]]; then
+            if [[ -f "$iso_path" ]]; then
+                step_ok "ISO file mounted read-only; BaseOS/ and AppStream/ found"
             else
-                step_fail "could not loop-mount ISO file $iso_path" "Check the ISO path, image integrity, and mount permissions."
-                rmdir "$mount_dir" 2>/dev/null || true
+                step_ok "ISO device $iso_path mounted read-only; BaseOS/ and AppStream/ found"
             fi
-        fi
-    fi
-elif [[ -b "$iso_path" || -c "$iso_path" ]]; then
-    if ! require_or_skip mount "ISO device-mount check"; then :; else
-        if ! require_or_skip mktemp "ISO temporary mount directory"; then :; else
-            mount_dir="$(mktemp -d "${TMPDIR:-/tmp}/lab-iso.XXXXXX" 2>/dev/null || true)"
-            if [[ -z "$mount_dir" ]]; then
-                step_skip "ISO device-mount check" "could not create a temporary mount directory"
-            elif mount -o ro "$iso_path" "$mount_dir" 2>&1; then
-                if [[ -d "$mount_dir/BaseOS" && -d "$mount_dir/AppStream" ]]; then
-                    step_ok "ISO: device form ($iso_path); BaseOS/ and AppStream/ found"
-                else
-                    step_fail "ISO device is missing BaseOS/ or AppStream/" "Attach the correct RHEL 8.6 installation ISO."
-                fi
-                if ! umount "$mount_dir" 2>/dev/null; then
-                    step_fail "could not unmount ISO device" "Unmount the diagnostic mount point before retrying."
-                fi
-                rmdir "$mount_dir" 2>/dev/null || true
-            else
-                step_fail "could not mount ISO device $iso_path" "Attach the CD-ROM ISO and check mount permissions."
-                rmdir "$mount_dir" 2>/dev/null || true
-            fi
-        fi
-    fi
-else
-    step_fail "ISO_PATH is neither a file nor a device: $iso_path" "Attach an ISO file or a CD-ROM device and update lab-vm.conf."
-fi
-
-if require_or_skip curl "Artifactory HTTPS probes"; then
-    art_host="${ART_HOST:-}"
-    if [[ -z "$art_host" ]]; then
-        step_fail "ART_HOST is empty" "Set ART_HOST in lab-vm.conf to the Artifactory hostname."
-    else
-        check_http() {
-            local label="$1" url="$2" expected="$3" accept_header="${4:-}"
-            local status="000" curl_args=(--connect-timeout 10 --max-time 10 -sS -o /dev/null -w '%{http_code}')
-            if [[ -n "$accept_header" ]]; then curl_args+=(-H "Accept: ${accept_header}"); fi
-            if status="$(curl "${curl_args[@]}" "$url" 2>/dev/null)"; then :; fi
-            case " $expected " in
-                *" ${status} "*) step_ok "Artifactory ${label}: HTTP ${status}" ;;
-                *)
-                    printf -v quoted_host '%q' "$art_host"
-                    printf -v quoted_url '%q' "$url"
-                    step_fail "Artifactory ${label}: HTTP ${status}" "Check Artifactory routing, CA trust, and the requested path." \
-                        "getent hosts ${quoted_host}" \
-                        "curl -v --connect-timeout 10 --max-time 10 -o /dev/null ${quoted_url} 2>&1 | tail -n 10"
-                    ;;
-            esac
-        }
-
-        check_http "root" "https://${art_host}/" "200 302"
-        manifest_accept="application/vnd.docker.distribution.manifest.v2+json"
-        for manifest in \
-            "/library/busybox/manifests/1.36" \
-            "/fluent/fluent-bit/manifests/5.1.1" \
-            "/prometheus/node-exporter/manifests/v1.12.1"; do
-            check_http "manifest ${manifest}" "https://${art_host}/v2${manifest}" "200" "$manifest_accept"
-        done
-    fi
-fi
-
-docker_candidates=(
-    "${DNF_DOCKER_CE_BASEURL:-}"
-    "https://${ART_HOST}/artifactory/docker-ce-rhel8/"
-    "https://${ART_HOST}/artifactory/docker-ce-centos8/"
-    "https://${ART_HOST}/docker-ce-rhel8/"
-)
-if require_or_skip curl "Docker CE repository candidate probes"; then
-    for candidate in "${docker_candidates[@]}"; do
-        [[ -n "$candidate" ]] || continue
-        [[ "$candidate" == */ ]] || candidate="${candidate}/"
-        status="000"
-        if status="$(curl --connect-timeout 10 --max-time 10 -sS -o /dev/null -w '%{http_code}' "${candidate}repodata/repomd.xml" 2>/dev/null)"; then :; fi
-        if [[ "$status" == "200" ]]; then
-            step_ok "Docker CE candidate ${candidate}: HTTP ${status}"
         else
-            step_fail "Docker CE candidate ${candidate}: HTTP ${status}" "Ask the Artifactory administrator to confirm the correct repository URL."
+            step_fail "mounted ISO lacks BaseOS/ or AppStream/" "Attach the RHEL 8.6 installation ISO named by ISO_PATH in learner-vm/lab-vm.conf."
         fi
+    else
+        step_skip "ISO could not be mounted" "check that $iso_path is attached and contains the RHEL 8.6 media"
+    fi
+    if [[ "$mounted" == "true" ]] && ! umount "$mount_dir" >/dev/null 2>&1; then
+        step_fail "temporary ISO mount could not be unmounted" "Unmount $mount_dir before continuing." "mountpoint $mount_dir"
+    fi
+    rmdir "$mount_dir" 2>/dev/null || true
+}
+
+registry_diagnostics() {
+    local label="$1" request_url="$2" fallback_url="$3" host_quoted request_quoted fallback_quoted tls_target
+    printf -v host_quoted '%q' "$ART_HOST"
+    printf -v request_quoted '%q' "$request_url"
+    printf -v fallback_quoted '%q' "$fallback_url"
+    tls_target="${REG_HOST}:443"
+    if [[ "$REG_HOST" == *:* ]]; then tls_target="$REG_HOST"; fi
+    step_fail "$label" "Confirm DOCKER_REGISTRY in learner-vm/lab-vm.conf; escalate 401 as a design change and ensure 404 images are warm before script 60." \
+        "getent hosts $host_quoted" \
+        "curl -v --connect-timeout 10 --max-time 10 -o /dev/null $request_quoted 2>&1 | tail -n 10" \
+        "printf '' | openssl s_client -connect ${tls_target} -servername ${REG_HOST%%:*} 2>/dev/null | openssl x509 -noout -subject -issuer" \
+        "curl -sS --connect-timeout 10 --max-time 10 -o /dev/null -w 'HTTP %{http_code}\\n' $fallback_quoted"
+}
+
+check_http_status() {
+    local label="$1" url="$2" expected="$3" accept_header="${4:-}" status="000"
+    local curl_args=(--connect-timeout 10 --max-time 10 -sS -o /dev/null -w '%{http_code}')
+    if [[ -n "$accept_header" ]]; then curl_args+=(-H "Accept: $accept_header"); fi
+    if status="$(curl "${curl_args[@]}" "$url" 2>/dev/null)"; then :; fi
+    HTTP_STATUS="$status"
+    if [[ " $expected " == *" $status "* ]]; then
+        step_ok "$label: HTTP $status"
+    else
+        local fallback_path="/v2/" fallback_url="https://${ART_HOST}/v2/" fix_hint
+        if [[ "$url" == "https://${DOCKER_REGISTRY}/v2/" ]]; then
+            fallback_path="/v2/"
+            fallback_url="https://${ART_HOST}${fallback_path}"
+        elif [[ "$url" == "https://${ART_HOST}/" ]]; then
+            fallback_url="https://${ART_HOST}/v2/"
+        elif [[ "$url" == "https://${DOCKER_REGISTRY}"* ]]; then
+            fallback_path="${url#https://${DOCKER_REGISTRY}/v2}"
+            fallback_url="https://${ART_HOST}/v2${fallback_path}"
+        fi
+        case "$status" in
+            401) fix_hint="Registry authentication is required despite anonymous-pull confirmation; escalate this design change to the Artifactory administrator." ;;
+            404) fix_hint="The image is not cached or the registry path is wrong; confirm DOCKER_REGISTRY and warm the image before script 60." ;;
+            *) fix_hint="Check ART_HOST, DOCKER_REGISTRY, the OS CA trust store, and the Artifactory route." ;;
+        esac
+        registry_diagnostics "$label: HTTP $status" "$url" "$fallback_url"
+    fi
+}
+
+check_manifest() {
+    local reference="$1" reference_path first_component last_component repository tag manifest_path url
+    [[ -n "$reference" && "$reference" != \#* ]] || return 0
+    reference_path="$reference"
+    first_component="${reference_path%%/*}"
+    if [[ "$first_component" == *.* || "$first_component" == *:* || "$first_component" == "localhost" ]]; then
+        reference_path="${reference_path#*/}"
+    fi
+    if [[ "$reference_path" != */* ]]; then reference_path="library/$reference_path"; fi
+    last_component="${reference_path##*/}"
+    if [[ "$last_component" != *:* ]]; then
+        step_skip "registry image has no tag" "$reference"
+        return 0
+    fi
+    tag="${last_component##*:}"
+    repository="${reference_path%:*}"
+    manifest_path="/$repository/manifests/$tag"
+    url="https://${DOCKER_REGISTRY}/v2${manifest_path}"
+    check_http_status "registry manifest $reference" "$url" "200" "application/vnd.docker.distribution.manifest.v2+json"
+}
+
+image_repository() {
+    local reference="$1" first_component
+    first_component="${reference%%/*}"
+    if [[ "$first_component" == *.* || "$first_component" == *:* || "$first_component" == "localhost" ]]; then
+        reference="${reference#*/}"
+    fi
+    reference="${reference%:*}"
+    if [[ "$reference" != */* ]]; then reference="library/$reference"; fi
+    printf '%s' "$reference"
+}
+
+if [[ -r /etc/redhat-release ]]; then
+    release_name="$(</etc/redhat-release)"
+    step_ok "RHEL release: $release_name"
+else
+    step_skip "/etc/redhat-release is unavailable" "RHEL release identification"
+fi
+if require_or_skip uname "system architecture"; then step_ok "architecture: $(uname -m)"; fi
+if require_or_skip hostname "system hostname"; then step_ok "hostname: $(hostname)"; fi
+if require_or_skip hostname "IP address inventory"; then step_ok "hostname -I: $(hostname -I 2>/dev/null || printf 'unavailable')"; fi
+if require_or_skip free "memory inventory"; then step_ok "memory (GiB): $(free -g 2>&1 | awk '/^Mem:/ {print $2 " total, " $7 " available"}' || true)"; fi
+if require_or_skip df "disk inventory"; then
+    step_ok "disk space: $(df -hP / /var/lib 2>&1 | awk 'NR <= 3 {printf "%s%s", (NR == 1 ? "" : "; "), $0}' || true)"
+fi
+
+if require_or_skip id "workshop user inventory"; then
+    if id "$WORKSHOP_USER" >/dev/null 2>&1; then
+        user_groups="$(id -nG "$WORKSHOP_USER" 2>/dev/null || true)"
+        if [[ " $user_groups " == *" wheel "* ]]; then
+            step_ok "$WORKSHOP_USER exists and belongs to wheel"
+        else
+            step_fail "$WORKSHOP_USER is not a wheel member" "Check WORKSHOP_USER in learner-vm/lab-vm.conf and add the user to wheel using the approved base-image process."
+        fi
+        if grep -R -E "^[[:space:]]*${WORKSHOP_USER}[[:space:]].*NOPASSWD|^[[:space:]]*%wheel[[:space:]].*NOPASSWD" /etc/sudoers /etc/sudoers.d 2>/dev/null; then
+            step_skip "passwordless sudo is already configured" "script 50 normally configures it; wrappers require it"
+        else
+            step_skip "passwordless sudo is absent as expected" "script 50 will configure it because auto-elevate wrappers require non-interactive sudo"
+        fi
+    else
+        step_fail "$WORKSHOP_USER does not exist" "Create $WORKSHOP_USER in the base image and add it to wheel."
+    fi
+fi
+if require_or_skip visudo "sudoers syntax validator"; then step_ok "visudo is installed"; fi
+
+check_iso
+
+if require_or_skip curl "Artifactory and registry HTTPS probes"; then
+    check_http_status "Artifactory root" "https://${ART_HOST}/" "200 302"
+    check_http_status "registry v2 endpoint" "https://${DOCKER_REGISTRY}/v2/" "200"
+    external_images="$REPO_ROOT/content/extracted/external-images.txt"
+    declare -A probed_images=()
+    known_images=(
+        "docker.io/library/busybox:1.36"
+        "ghcr.io/fluent/fluent-bit:5.1.1"
+        "quay.io/prometheus/node-exporter:v1.12.1"
+    )
+    for image in "${known_images[@]}"; do
+        probed_images["$image"]=1
+        check_manifest "$image"
     done
+    if [[ -r "$external_images" ]]; then
+        while IFS= read -r image || [[ -n "$image" ]]; do
+            [[ -n "$image" && -z "${probed_images[$image]+x}" ]] || continue
+            probed_images["$image"]=1
+            for known_image in "${known_images[@]}"; do
+                if [[ "$image" != "$known_image" && "$(image_repository "$image")" == "$(image_repository "$known_image")" ]]; then
+                    step_skip "external-images.txt tag differs from recon tag $known_image" "probing $image because the committed content inventory is authoritative"
+                fi
+            done
+            check_manifest "$image"
+        done <"$external_images"
+        step_ok "additional tagged images from external-images.txt were included in registry probes"
+    else
+        step_skip "external image inventory is unavailable" "transfer content/extracted/external-images.txt from the online capture"
+    fi
+fi
+
+if require_or_skip dnf "DNF repository and module checks"; then
+    if dnf_output="$(dnf -q repolist 2>&1)"; then
+        step_ok "dnf repolist: $(compact_output "$dnf_output")"
+    else
+        step_fail "dnf repolist failed" "Repair the BaseOS, AppStream, and EPEL Artifactory repositories." "dnf -v repolist 2>&1 | tail -n 20"
+    fi
+    if dnf_output="$(dnf -q module list container-tools 2>&1)"; then
+        step_ok "container-tools module state: $(compact_output "$dnf_output")"
+    else
+        step_fail "dnf module list container-tools failed" "Check enabled DNF repositories and module metadata." "dnf -v module list container-tools 2>&1 | tail -n 20"
+    fi
+    dnf_started=$SECONDS
+    if dnf_output="$(dnf -q makecache 2>&1)"; then
+        step_ok "dnf makecache completed in $((SECONDS - dnf_started)) seconds"
+    else
+        step_fail "dnf makecache failed after $((SECONDS - dnf_started)) seconds" "Repair DNF repository connectivity before provisioning." "dnf -v makecache 2>&1 | tail -n 20"
+    fi
 fi
 
 anchor_dir="/etc/pki/ca-trust/source/anchors"
 if [[ -d "$anchor_dir" ]]; then
-    anchor_files=("$anchor_dir"/*)
-    if ((${#anchor_files[@]} == 0)) || [[ ! -e "${anchor_files[0]}" ]]; then
-        step_skip "CA trust anchors" "$anchor_dir contains no visible files"
+    anchor_listing="$(find "$anchor_dir" -maxdepth 1 -type f -printf '%f ' 2>/dev/null || true)"
+    anchor_count="$(find "$anchor_dir" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')"
+    step_ok "OS trust anchors: $anchor_count file(s): ${anchor_listing:-none}"
+else
+    step_skip "$anchor_dir is absent" "OS trust-anchor inventory"
+fi
+trust_bundle="/etc/pki/tls/certs/ca-bundle.crt"
+if [[ -r "$trust_bundle" ]] && require_or_skip openssl "OS CA bundle subject inventory"; then
+    bundle_subjects="$(openssl crl2pkcs7 -nocrl -certfile "$trust_bundle" 2>/dev/null | openssl pkcs7 -print_certs -noout 2>/dev/null || true)"
+    bundle_subject_count="$(grep -c '^subject=' <<<"$bundle_subjects" || true)"
+    if [[ -r "$CA_CERT_SOURCE" ]]; then
+        ca_subject="$(openssl x509 -in "$CA_CERT_SOURCE" -noout -subject 2>/dev/null || true)"
+        if [[ -n "$ca_subject" ]] && grep -Fq -- "${ca_subject#subject=}" <<<"$bundle_subjects"; then
+            step_ok "OS CA bundle has $bundle_subject_count subjects and contains the configured airgap CA"
+        else
+            step_skip "airgap CA subject was not confirmed in the bundle" "verify CA_CERT_SOURCE and the base image trust store"
+        fi
     else
-        anchor_listing=""
-        for anchor_file in "${anchor_files[@]}"; do anchor_listing+="${anchor_file##*/} "; done
-        step_ok "CA trust anchors: ${anchor_listing% }"
+        step_skip "configured airgap CA source is not readable" "CA subject comparison against the OS bundle"
     fi
 else
-    step_skip "CA trust anchors" "$anchor_dir does not exist"
+    step_skip "OS CA bundle is unavailable" "openssl subject inventory"
 fi
-
-trust_bundle="/etc/pki/tls/certs/ca-bundle.crt"
-if [[ -r "$CA_CERT_SOURCE" && -r "$trust_bundle" ]] && require_or_skip openssl "Artifactory CA bundle subject check" && require_or_skip grep "Artifactory CA bundle subject check"; then
-    ca_subject="$(openssl x509 -in "$CA_CERT_SOURCE" -noout -subject 2>/dev/null || true)"
-    ca_subject="${ca_subject#subject=}"
-    bundle_subjects="$(openssl crl2pkcs7 -nocrl -certfile "$trust_bundle" 2>/dev/null | openssl pkcs7 -print_certs -noout 2>/dev/null || true)"
-    if [[ -n "$ca_subject" && -n "$bundle_subjects" ]] && grep -Fq -- "$ca_subject" <<<"$bundle_subjects"; then
-        step_ok "OS CA bundle contains the configured Artifactory CA subject"
-    else
-        step_fail "could not confirm the Artifactory CA in the extracted OS bundle" "Verify CA_CERT_SOURCE and refresh the OS trust store; subject matching is best effort."
-    fi
-elif [[ ! -r "$CA_CERT_SOURCE" ]]; then
-    step_skip "Artifactory CA bundle subject check" "configured CA file is not readable: $CA_CERT_SOURCE"
-elif [[ ! -r "$trust_bundle" ]]; then
-    step_skip "Artifactory CA bundle subject check" "OS CA bundle is not readable: $trust_bundle"
+registry_ca="/etc/containers/certs.d/${REG_HOST}/ca.crt"
+if [[ -e "$registry_ca" ]]; then
+    step_ok "registry-specific CA is already present: $registry_ca"
+else
+    step_skip "registry-specific CA is absent as expected" "script 30 installs $registry_ca"
 fi
-
-for certificate_path in "/etc/docker/certs.d/${ART_HOST}/ca.crt" "/etc/containers/certs.d/${ART_HOST}/ca.crt"; do
-    if [[ -e "$certificate_path" ]]; then
-        step_fail "unexpected per-registry CA file: $certificate_path" "Use the OS trust store and remove this registry-specific certificate if it is not required."
-    else
-        step_ok "per-registry CA file absent as expected: $certificate_path"
-    fi
-done
 
 proxy_report=()
 for proxy_name in HTTP_PROXY HTTPS_PROXY NO_PROXY http_proxy https_proxy no_proxy; do
     proxy_value="${!proxy_name-}"
-    if [[ -n "$proxy_value" ]]; then proxy_report+=("${proxy_name}=${proxy_value}"); else proxy_report+=("${proxy_name}=<unset>"); fi
+    if [[ -n "$proxy_value" ]]; then proxy_report+=("$proxy_name=set"); else proxy_report+=("$proxy_name=unset"); fi
 done
 step_ok "proxy environment: ${proxy_report[*]}"
 
-if require_or_skip dnf "DNF state checks"; then
-    if dnf_output="$(dnf -q repolist 2>&1)"; then
-        step_ok "dnf repolist: $(compact_output "$dnf_output")"
+if command -v docker >/dev/null 2>&1; then
+    docker_path="$(command -v docker)"
+    docker_real="$(readlink -f "$docker_path" 2>/dev/null || printf '%s' "$docker_path")"
+    docker_owner="$(rpm -qf "$docker_path" 2>/dev/null || true)"
+    if [[ "$docker_real" == *podman* ]]; then
+        step_ok "docker resolves to the Podman shim: $docker_path -> $docker_real"
+    elif [[ "$docker_owner" == podman-docker-* ]]; then
+        step_ok "docker command is provided by podman-docker: $docker_path ($docker_owner)"
     else
-        step_fail "dnf repolist failed" "Repair DNF repository configuration and connectivity." "dnf -v repolist 2>&1 | tail -n 15"
+        step_fail "UNEXPECTED real Docker binary at $docker_real; a second runtime is not allowed" "Remove Docker CE and install the podman-docker shim using the planned provisioning scripts." "rpm -qf $(printf '%q' "$docker_path")" "ps -ef | grep -E '[d]ockerd|[c]ontainerd'"
     fi
-    if dnf_output="$(dnf -q module list container-tools 2>&1)"; then
-        step_ok "dnf module list container-tools: $(compact_output "$dnf_output")"
+else
+    step_skip "docker command is absent as expected on the base image" "script 20 installs the podman-docker shim"
+fi
+if [[ -S /var/run/docker.sock ]]; then
+    step_fail "UNEXPECTED Docker API socket is present at /var/run/docker.sock" "Remove the second-runtime socket; only rootful Podman is allowed by this design." "stat /var/run/docker.sock" "ps -ef | grep -E '[d]ockerd|[c]ontainerd'"
+else
+    step_ok "no Docker API socket is present"
+fi
+if require_or_skip pgrep "Docker daemon process inventory"; then
+    if pgrep -x dockerd >/dev/null 2>&1; then
+        step_fail "UNEXPECTED dockerd process is running" "Remove Docker CE; the learner VM must use rootful Podman only." "ps -ef | grep -E '[d]ockerd|[c]ontainerd'"
     else
-        step_fail "dnf module list container-tools failed" "Check enabled repositories and module metadata." "dnf -v module list container-tools 2>&1 | tail -n 15"
+        step_ok "no dockerd process is running"
     fi
-    if dnf_output="$(dnf -q list available docker-ce 2>&1)"; then
-        step_ok "docker-ce resolves in DNF: $(compact_output "$dnf_output")"
+fi
+if require_or_skip rpm "podman-docker package state"; then
+    if rpm -q podman-docker >/dev/null 2>&1; then
+        step_ok "podman-docker is installed"
     else
-        step_fail "docker-ce does not resolve in DNF" "Confirm the Docker CE repository URL with the Artifactory administrator." "dnf -v list available docker-ce 2>&1 | tail -n 15"
+        step_skip "podman-docker is absent as expected" "script 20 installs the Docker-compatible Podman shim"
+    fi
+fi
+for container_tool in podman buildah skopeo; do check_binary "$container_tool" "$container_tool version"; done
+if require_or_skip podman "Podman information and storage"; then
+    if podman_output="$(podman info 2>&1)"; then
+        step_ok "podman info succeeded: $(compact_output "$podman_output")"
+    else
+        step_fail "podman info failed" "Check rootful Podman storage and configuration." "podman info 2>&1 | tail -n 15"
+    fi
+else
+    step_skip "Podman info was not run" "Podman is not installed on the minimal base image"
+fi
+registries_config="/etc/containers/registries.conf"
+if [[ -r "$registries_config" ]]; then
+    step_ok "stock registries.conf context: $(head -n 20 "$registries_config" | tr '\n' '; ')"
+else
+    step_skip "stock registries.conf is absent" "script 40 replaces this file wholesale"
+fi
+
+if require_or_skip systemctl "Podman socket state"; then
+    socket_state="$(systemctl is-active podman.socket 2>&1 || true)"
+    if [[ "$socket_state" == "active" ]]; then
+        step_ok "podman.socket is active"
+    else
+        step_skip "podman.socket is ${socket_state:-unknown} as expected" "script 50 manages the socket if required"
+    fi
+else
+    step_skip "systemd service state is unavailable" "podman.socket check"
+fi
+if require_or_skip sysctl "vm.max_map_count state"; then
+    map_count="$(sysctl -n vm.max_map_count 2>/dev/null || printf 'unavailable')"
+    if [[ "$map_count" == "65530" ]]; then
+        step_skip "stock vm.max_map_count is $map_count" "script 40 raises it to 262144 for the OpenSearch lab"
+    else
+        step_ok "vm.max_map_count is $map_count (OpenSearch requires 262144)"
     fi
 fi
 
-tracks=(opentelemetry opentelemetry-java prometheus fluent-bit perses)
-if [[ -d "$CONTENT_ROOT" ]]; then
-    step_ok "content repository root present: $CONTENT_ROOT"
+if [[ -d "$REPO_ROOT" ]]; then
+    step_ok "repository root present: $REPO_ROOT"
 else
-    step_fail "content repository root is absent: $CONTENT_ROOT" "Transfer the complete workshop repository to the VM and set CONTENT_ROOT."
+    step_fail "repository root is absent: $REPO_ROOT" "Transfer the complete repository to the learner VM."
 fi
+tracks=(opentelemetry otel-developers prometheus fluentbit perses)
 for track in "${tracks[@]}"; do
-    repo_track="$WORKSHOPS_ROOT/$track"
-    docs_track="$DOCS_ROOT/$track"
+    repo_track="$REPOS_ROOT/$track"
     if [[ -d "$repo_track" ]]; then
         shopt -s nullglob
         lab_files=("$repo_track"/lab*.html)
         shopt -u nullglob
-        step_ok "content track $track: ${#lab_files[@]} lab*.html file(s) in $repo_track"
+        if ((${#lab_files[@]} > 0)); then
+            step_ok "content repo $track: ${#lab_files[@]} lab*.html file(s)"
+        else
+            step_fail "content repo $track has no lab*.html files" "Restore content/repos/$track from the online capture."
+        fi
     else
-        step_fail "content track repository is absent: $repo_track" "Transfer the workshop content for the $track track."
+        step_fail "content repo is absent: $repo_track" "Transfer content/repos/$track from the online capture."
     fi
-    if [[ -d "$docs_track" && ( -f "$docs_track/index.html" || -f "$docs_track/README.md" ) ]]; then
-        step_ok "content documentation landing page present: $docs_track"
-    elif [[ -d "$docs_track" ]]; then
-        step_fail "content documentation landing page is absent: $docs_track" "Add index.html or README.md for the $track documentation track."
+    docs_track="$DOCS_ROOT/$track"
+    landing_page="$(find "$docs_track" -type f \( -name index.html -o -name index.htm \) -print -quit 2>/dev/null || true)"
+    if [[ -n "$landing_page" ]]; then
+        step_ok "docs landing page present for $track: ${landing_page#"$REPO_ROOT/"}"
     else
-        step_fail "content documentation track is absent: $docs_track" "Transfer the documentation for the $track track."
+        step_fail "docs landing page is absent for $track" "Transfer the mirrored content/docs/$track tree from the online capture."
     fi
 done
 
-for tool in git curl podman skopeo docker jq java python3; do
-    if require_or_skip "$tool" "tool inventory ($tool)"; then
-        case "$tool" in
-            jq) version_output="$($tool --version 2>&1 || true)" ;;
-            java) version_output="$($tool -version 2>&1 || true)" ;;
-            *) version_output="$($tool --version 2>&1 || true)" ;;
-        esac
-        version_line="${version_output%%$'\n'*}"
-        step_ok "tool present: $tool${version_line:+ ($version_line)}"
-    fi
-done
-
-if require_or_skip getenforce "SELinux mode"; then
-    selinux_mode="$(getenforce 2>/dev/null || printf 'unavailable')"
-    step_ok "SELinux mode: $selinux_mode"
-elif [[ -r /sys/fs/selinux/enforce ]]; then
-    IFS= read -r selinux_mode </sys/fs/selinux/enforce || true
-    step_ok "SELinux enforcement flag: ${selinux_mode:-unknown}"
-else
-    step_skip "SELinux mode" "getenforce and the SELinux enforcement flag are unavailable"
-fi
-if require_or_skip systemctl "firewalld state"; then
-    if firewalld_state="$(systemctl is-active firewalld 2>&1)"; then
-        step_ok "firewalld state: $firewalld_state"
+compose_binary="$VENDOR_BIN/docker-compose-v2"
+compose_checksum="$VENDOR_BIN/docker-compose-v2.sha256"
+if [[ -s "$compose_binary" && -s "$compose_checksum" ]]; then
+    if (cd "$VENDOR_BIN" && sha256sum -c docker-compose-v2.sha256 >/dev/null 2>&1); then
+        step_ok "vendored docker-compose-v2 SHA-256 matches"
     else
-        step_ok "firewalld state: ${firewalld_state:-inactive}"
+        step_fail "vendored docker-compose-v2 SHA-256 mismatch" "Restore content/bin/docker-compose-v2 and its .sha256 file from the online capture." "cd $(printf '%q' "$VENDOR_BIN") && sha256sum -c docker-compose-v2.sha256"
     fi
 else
-    step_skip "firewalld state" "systemctl is unavailable"
+    step_fail "vendored docker-compose-v2 or checksum is missing" "Transfer content/bin/docker-compose-v2 and content/bin/docker-compose-v2.sha256 from the online capture."
+fi
+missing_content=()
+for artifact in commands.json external-images.txt curated.json; do
+    if [[ ! -s "$REPO_ROOT/content/extracted/$artifact" ]]; then missing_content+=("$artifact"); fi
+done
+if ((${#missing_content[@]} == 0)); then
+    step_ok "required extracted content is present: commands.json, external-images.txt, curated.json"
+else
+    step_skip "missing extracted content: ${missing_content[*]}" "produced by prompt 10s online; transfer is incomplete without it, and script 60 consumes commands.json"
 fi
 
-NEXT_LINE="Review failures and skips, correct the VM configuration, then rerun scripts/00-diagnose.sh."
-end_report
+if require_or_skip getenforce "SELinux mode"; then step_ok "SELinux mode: $(getenforce 2>/dev/null || printf 'unavailable')"; fi
+if require_or_skip systemctl "firewalld state"; then step_ok "firewalld state: $(systemctl is-active firewalld 2>&1 || printf 'inactive or unavailable')"; fi
+if require_or_skip systemctl "systemd default target"; then step_ok "default target: $(systemctl get-default 2>&1 || printf 'unavailable')"; fi
+if require_or_skip rpm "GNOME display manager inventory"; then
+    if rpm -q gdm >/dev/null 2>&1; then
+        step_ok "gdm is installed"
+    else
+        step_skip "gdm is absent as expected on the minimal base" "script 20 installs the desktop"
+    fi
+fi
+
+end_report "transcribe this report block; provisioning scripts (10-80) are finalised after this report is reviewed"
 exit 0
