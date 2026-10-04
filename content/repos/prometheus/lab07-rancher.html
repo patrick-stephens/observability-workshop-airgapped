@@ -27,6 +27,8 @@
 	</script>
 
 	<body>
+<div class="offline-lab-banner">OFFLINE LAB VM — all images are preloaded. Skip docker pull steps (marked PRELOADED). Supported paths: docker and podman — both use the same image store on this VM. For Rancher Desktop labs, follow the docker commands and skip the Rancher install steps.</div>
+
 		<div class="reveal">
 			<div class="slides">
 				<section>
@@ -129,7 +131,8 @@
 							<code data-trim data-noescape>
 								# Container engine set to dockerd (moby) - k3s reads the docker image store directly.
 								#
-								$ docker build --load -t prometheus_services_demo:v1 -f installs/demo/Buildfile installs/demo
+								$ docker build  -t prometheus_services_demo:v1 -f installs/demo/Buildfile installs/demo
+# --load removed: buildx-only flag; podman loads by default
 
 								# Container engine set to containerd - build into the k8s namespace.
 								#

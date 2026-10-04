@@ -1,0 +1,8 @@
+otel-developers/lab02.html: context=opentelemetry-java-tracing-demo-{VERSION} urls=https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo/-/archive/v1.1/opentelemetry-java-tracing-demo-v1.1.zip
+otel-developers/lab02-rancher.html: context=opentelemetry-java-tracing-demo-{VERSION} urls=https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo/-/archive/v1.1/opentelemetry-java-tracing-demo-v1.1.zip
+prometheus/lab03-rancher.html: context=installs/demo urls=https://gitlab.com/o11y-workshops/prometheus-service-demo-installer/-/archive/v1.0/prometheus-service-demo-installer-v1.0.zip
+prometheus/lab07-rancher.html: context=installs/demo urls=https://gitlab.com/o11y-workshops/prometheus-service-demo-installer/-/archive/v1.0/prometheus-service-demo-installer-v1.0.zip
+prometheus/lab08-podman.html: context=prometheus-java-metrics-demo-v0.5 urls=https://gitlab.com/o11y-workshops/prometheus-java-metrics-demo/-/archive/v0.5/prometheus-java-metrics-demo-v0.5.zip
+prometheus/lab08-podman.html: context=prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5 urls=https://gitlab.com/o11y-workshops/prometheus-java-metrics-demo/-/archive/v0.5/prometheus-java-metrics-demo-v0.5.zip
+prometheus/lab08-rancher.html: context=prometheus-java-metrics-demo-v0.5 urls=https://gitlab.com/o11y-workshops/prometheus-java-metrics-demo/-/archive/v0.5/prometheus-java-metrics-demo-v0.5.zip
+prometheus/lab08-rancher.html: context=prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5 urls=https://gitlab.com/o11y-workshops/prometheus-java-metrics-demo/-/archive/v0.5/prometheus-java-metrics-demo-v0.5.zip

@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
+# v2: Simulate lab working directories, resolve contexts, deduplicate commands, and scan every code block for base images.
 import collections
 import json
+import os
 import re
 import shlex
 import sys
 from html.parser import HTMLParser
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -13,6 +16,8 @@ CONTENT = ROOT / "content"
 REPOS = CONTENT / "repos"
 EXTRACTED = CONTENT / "extracted"
 TRACKS = ("opentelemetry", "otel-developers", "prometheus", "fluentbit", "perses")
+PREVIOUS_BUILD_OCCURRENCES = {"opentelemetry": 26, "otel-developers": 14, "prometheus": 28, "fluentbit": 22, "perses": 0}
+PREVIOUS_RUN_OCCURRENCES = {"opentelemetry": 7, "otel-developers": 8, "prometheus": 26, "fluentbit": 29, "perses": 4}
 KNOWN_IMAGES = {
     "docker.io/library/busybox:1.36",
     "docker.io/opensearchproject/opensearch-dashboards:3.3.0",
@@ -23,42 +28,83 @@ KNOWN_IMAGES = {
     "docker.io/prom/prometheus:v3.13.1",
     "quay.io/prometheus/node-exporter:v1.12.1",
 }
+BUILD_FLAGS = {"--load", "--push", "--builder", "--provenance", "--sbom"}
 SYNTAX_PATTERNS = (
     ("heredoc", re.compile(r"<<-?\s*(?:'EOF'|\"EOF\"|EOF)\b")),
     ("buildkit-syntax", re.compile(r"^\s*#\s*syntax\s*=", re.IGNORECASE | re.MULTILINE)),
     ("run-mount", re.compile(r"^\s*RUN\s+.*--mount\s*=", re.IGNORECASE | re.MULTILINE)),
 )
+PLACEHOLDER_RE = re.compile(r"\[[A-Z][A-Z0-9_-]*\]|\{[A-Z][A-Z0-9_-]*\}|(?<=[_-])[A-Z][A-Z0-9]*(?=/|$)|(?:(?<=/)|^)[A-Z][A-Z0-9_-]*(?=/|$)")
 COMMAND_START = re.compile(r"^(?:\$\s*)?(?:sudo\s+)?(?:docker|podman)(?:-compose)?\b|^(?:\$\s*)?podman-compose\b")
 DOCKERFILE_FROM = re.compile(r"^\s*FROM\s+(.*)$", re.IGNORECASE | re.MULTILINE)
 
 
-class PreBlockParser(HTMLParser):
+class CodeBlockParser(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
-        self.depth = 0
+        self.pre_depth = 0
+        self.code_depth = 0
         self.current = []
         self.blocks = []
 
     def handle_starttag(self, tag, attrs):
-        if tag.lower() == "pre":
-            if self.depth == 0:
+        tag = tag.lower()
+        if tag == "pre":
+            if self.pre_depth == 0 and self.code_depth == 0:
                 self.current = []
-            self.depth += 1
+            self.pre_depth += 1
+        elif tag == "code" and self.pre_depth == 0:
+            if self.code_depth == 0:
+                self.current = []
+            self.code_depth += 1
+        elif tag == "br" and (self.pre_depth or self.code_depth):
+            self.current.append("\n")
 
     def handle_endtag(self, tag):
-        if tag.lower() == "pre" and self.depth:
-            self.depth -= 1
-            if self.depth == 0:
+        tag = tag.lower()
+        if tag == "pre" and self.pre_depth:
+            self.pre_depth -= 1
+            if self.pre_depth == 0:
+                self.blocks.append("".join(self.current))
+                self.current = []
+        elif tag == "code" and self.code_depth and self.pre_depth == 0:
+            self.code_depth -= 1
+            if self.code_depth == 0:
                 self.blocks.append("".join(self.current))
                 self.current = []
 
     def handle_data(self, data):
-        if self.depth:
+        if self.pre_depth or self.code_depth:
             self.current.append(data)
 
 
+class LinkParser(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.links = []
+
+    def handle_starttag(self, tag, attrs):
+        for key, value in attrs:
+            if tag.lower() == "a" and key.lower() == "href" and value:
+                self.links.append(value)
+
+
 def natural_key(path):
-    return [int(part) if part.isdigit() else part.lower() for part in re.split(r"(\d+)", path.name)]
+    suffix = path.stem.lower()
+    if suffix.endswith("-source"):
+        priority = 0
+    elif suffix.endswith("-podman"):
+        priority = 2
+    elif suffix.endswith("-rancher"):
+        priority = 3
+    else:
+        priority = 1
+    return [int(part) if part.isdigit() else part.lower() for part in re.split(r"(\d+)", path.stem)] + [priority, path.name.lower()]
+
+
+def version_key(path):
+    versions = re.findall(r"\d+", str(path))
+    return tuple(int(number) for number in versions) or (0,)
 
 
 def path_type(path):
@@ -70,26 +116,60 @@ def path_type(path):
     return "docker"
 
 
-def command_lines(block, working_dir):
+def relative_path(repo, path):
+    try:
+        return path.relative_to(repo).as_posix() or "."
+    except ValueError:
+        return path.as_posix()
+
+
+def normalise_path(repo, cwd, target):
+    target_path = Path(os.path.expanduser(target))
+    if not target_path.is_absolute():
+        target_path = cwd / target_path
+    return Path(os.path.normpath(str(target_path)))
+
+
+def simulate_cd(repo, cwd, line):
+    match = re.match(r"^(?:\$\s*)?cd\s+(.+?)\s*(?:&&|;)?\s*$", line)
+    if not match:
+        return cwd
+    try:
+        tokens = shlex.split(match.group(1))
+    except ValueError:
+        return cwd
+    if not tokens or tokens[0] == "-":
+        return cwd
+    return normalise_path(repo, cwd, tokens[0])
+
+
+def command_lines(block, repo, working_dir, earlier_creators):
     lines = block.splitlines()
     index = 0
     commands = []
+    creators = []
+    last_archive = None
     while index < len(lines):
         line = lines[index].strip()
+        extracted = re.match(r"^(?:creating|inflating|extracting):\s+(.+)$", line, re.IGNORECASE)
+        if extracted and last_archive is not None:
+            last_archive.setdefault("members", []).append(extracted.group(1).strip().rstrip("/"))
+            index += 1
+            continue
         if re.match(r"^(?:\$\s*)?cd\s+", line):
-            change = re.sub(r"^(?:\$\s*)?cd\s+", "", line, count=1).strip()
-            try:
-                target = Path(change).expanduser()
-                if not target.is_absolute():
-                    target = working_dir / target
-                working_dir = target.resolve()
-            except (OSError, RuntimeError):
-                pass
+            working_dir = simulate_cd(repo, working_dir, line)
             index += 1
             continue
         if not COMMAND_START.match(line):
+            creator = creator_details(line, repo, working_dir)
+            if creator:
+                creators.append(creator)
+                last_archive = creator if creator.get("kind") == "unzip" else None
+            elif line and not line.lower().startswith("archive:"):
+                last_archive = None
             index += 1
             continue
+        command_cwd = working_dir
         raw_lines = [lines[index].strip()]
         while raw_lines[-1].rstrip().endswith("\\") and index + 1 < len(lines):
             index += 1
@@ -100,16 +180,100 @@ def command_lines(block, working_dir):
         try:
             tokens = shlex.split(parseable, posix=True)
         except ValueError as error:
-            commands.append({"raw": raw, "tokens": [], "warning": str(error), "working_dir": working_dir})
+            commands.append({"raw": raw, "tokens": [], "warning": str(error), "cwd_path": command_cwd})
             index += 1
             continue
-        commands.append({"raw": raw, "tokens": tokens, "working_dir": working_dir})
+        commands.append({
+            "raw": raw,
+            "tokens": tokens,
+            "cwd_path": command_cwd,
+            "prior_creators": earlier_creators + creators,
+        })
         index += 1
-    return commands, working_dir
+    return commands, working_dir, creators
+
+
+def urls_in(tokens):
+    return [token.rstrip(")],;\"'") for token in tokens if token.startswith(("http://", "https://"))]
+
+
+def creator_details(line, repo, cwd):
+    clean = re.sub(r"^(?:\$\s*)", "", line.strip(), count=1)
+    try:
+        tokens = shlex.split(clean, posix=True)
+    except ValueError:
+        return None
+    if not tokens:
+        return None
+    command = Path(tokens[0]).name
+    urls = urls_in(tokens)
+    created = None
+
+    def option(name):
+        if name in tokens:
+            at = tokens.index(name)
+            return tokens[at + 1] if at + 1 < len(tokens) else None
+        return None
+
+    if command in ("wget", "curl"):
+        output_name = option("-O") or option("--output-document") or option("-o")
+        directory = option("-P") or option("--directory-prefix")
+        if output_name:
+            created = normalise_path(repo, cwd, output_name)
+        elif directory and urls:
+            created = normalise_path(repo, cwd, directory) / Path(urlparse(urls[-1]).path).name
+        elif urls:
+            created = cwd / Path(urlparse(urls[-1]).path).name
+    elif command == "git" and len(tokens) > 1 and tokens[1] == "clone":
+        non_options = [token for token in tokens[2:] if not token.startswith("-") and not token.startswith(("http://", "https://", "git@"))]
+        source = next((token for token in tokens[2:] if token.startswith(("http://", "https://", "git@"))), None)
+        if non_options:
+            created = normalise_path(repo, cwd, non_options[-1])
+        elif source:
+            created = cwd / Path(source.rstrip("/").split(":")[-1].removesuffix(".git")).name
+            urls = [source]
+    elif command == "unzip":
+        destination = option("-d")
+        archive = next((token for token in tokens[1:] if not token.startswith("-")), None)
+        if destination:
+            created = normalise_path(repo, cwd, destination)
+        elif archive:
+            created = cwd / Path(archive).name.removesuffix(".zip")
+    elif command == "tar":
+        destination = option("-C")
+        archive = next((token for token in tokens[1:] if not token.startswith("-") and token not in ("xf", "xzf", "xvf", "xJf", "x")), None)
+        if destination:
+            created = normalise_path(repo, cwd, destination)
+        elif archive:
+            created = cwd / strip_archive(Path(archive).name)
+    elif command == "cp":
+        operands = [token for token in tokens[1:] if not token.startswith("-")]
+        if len(operands) >= 2:
+            created = normalise_path(repo, cwd, operands[-1])
+    if created is None and not urls:
+        return None
+    return {
+        "cwd": relative_path(repo, cwd),
+        "created_path": relative_path(repo, created) if created else None,
+        "urls": urls,
+        "raw": line.strip(),
+        "kind": command,
+        "input_path": next((token for token in tokens[1:] if not token.startswith("-")), None) if command in ("unzip", "tar", "cp") else None,
+        "members": [],
+    }
+
+
+def strip_archive(name):
+    for suffix in (".tar.gz", ".tgz", ".tar.bz2", ".tar.xz", ".tar"):
+        if name.endswith(suffix):
+            return name[:-len(suffix)]
+    return name
 
 
 def parse_engine(tokens):
     index = 1 if tokens and tokens[0] == "sudo" else 0
+    while index < len(tokens) and tokens[index] in ("-E", "--preserve-env", "-n", "--non-interactive"):
+        index += 1
     if index >= len(tokens):
         return None, None, index
     binary = tokens[index]
@@ -161,10 +325,10 @@ def option_values(tokens, start, names, short_prefixes=()):
 
 def positional_args(tokens, start, kind):
     result = []
-    value_options = {"-f", "--file", "-p", "--publish", "-v", "--volume", "-e", "--env", "--env-file", "--name", "--network", "--mount", "--platform", "--build-arg", "--label", "--entrypoint", "--user", "-w", "--workdir", "--hostname", "--add-host", "--memory", "-m", "--cpus", "--cpu-period", "--cpu-quota", "--shm-size", "--ulimit", "--security-opt", "--dns", "--pod"}
+    value_options = {"-f", "--file", "-p", "--publish", "-v", "--volume", "-e", "--env", "--env-file", "--name", "--network", "--mount", "--platform", "--build-arg", "--label", "--entrypoint", "--user", "-w", "--workdir", "--hostname", "--add-host", "--memory", "-m", "--cpus", "--cpu-period", "--cpu-quota", "--shm-size", "--ulimit", "--security-opt", "--dns", "--pod", "--builder", "--provenance", "--sbom"}
     if kind == "build":
         value_options.update(("-t", "--tag"))
-    boolean_options = {"-d", "--detach", "--rm", "-i", "--interactive", "-t", "--tty", "-P", "--publish-all", "--privileged", "--pull", "--quiet", "--no-cache", "--load"}
+    boolean_options = {"-d", "--detach", "--rm", "-i", "--interactive", "-t", "--tty", "-P", "--publish-all", "--privileged", "--pull", "--quiet", "--no-cache", "--load", "--push"}
     index = start
     while index < len(tokens):
         token = tokens[index]
@@ -185,35 +349,128 @@ def positional_args(tokens, start, kind):
 def dockerfile_images(text):
     images = []
     for match in DOCKERFILE_FROM.finditer(text):
-        if re.search(r"\s+import\s+", match.group(1), re.IGNORECASE):
+        argument = match.group(1).strip()
+        if re.search(r"\s+import\s+", argument, re.IGNORECASE):
             continue
-        parts = shlex.split(match.group(1), comments=True)
+        try:
+            parts = shlex.split(argument, comments=True)
+        except ValueError:
+            parts = argument.split()
         image = next((part for part in parts if not part.startswith("--")), "")
-        if image:
+        if image and image.lower() not in ("pathlib", "os", "sys", "collections", "typing"):
             images.append(image)
     return images
 
 
-def syntax_flags(text):
+def dockerfile_syntax_flags(text):
     return [name for name, pattern in SYNTAX_PATTERNS if pattern.search(text)]
 
 
-def resolve_under_repo(repo, path):
-    try:
-        resolved = path.resolve()
-        return resolved if resolved == repo.resolve() or repo.resolve() in resolved.parents else None
-    except (OSError, RuntimeError):
+def buildx_flags(tokens, start):
+    found = []
+    for token in tokens[start:]:
+        flag = token.split("=", 1)[0]
+        if flag in BUILD_FLAGS and flag not in found:
+            found.append(flag)
+    return found
+
+
+def placeholder_glob(context):
+    matches = list(PLACEHOLDER_RE.finditer(context))
+    if not matches:
         return None
+    pattern = PLACEHOLDER_RE.sub("*", context)
+    return pattern, [match.group(0) for match in matches]
 
 
-def build_details(command, repo, embedded_candidates, warnings, track, lab_name):
+def resolve_placeholders(repo, context):
+    globbed = placeholder_glob(context)
+    if not globbed:
+        return context, [], [], []
+    pattern, placeholders = globbed
+    try:
+        matches = sorted({path for path in repo.glob(pattern) if path.is_dir()}, key=lambda path: (version_key(path), str(path)))
+    except (OSError, ValueError):
+        matches = []
+    if not matches:
+        return context, [], [], placeholders
+    selected = matches[-1]
+    resolved = relative_path(repo, selected)
+    assumption = {"type": "placeholder-resolution", "placeholder": ",".join(placeholders), "resolved": resolved}
+    alternatives = [relative_path(repo, path) for path in matches if path != selected]
+    if alternatives:
+        assumption["alternatives"] = alternatives
+        warning = f"placeholder {','.join(placeholders)} in {context}: selected {resolved}; alternatives: {', '.join(alternatives)}"
+        return resolved, [assumption], [warning], placeholders
+    return resolved, [assumption], [], placeholders
+
+
+def path_matches_context(context, created):
+    for member in created.get("members", []):
+        member = member.removeprefix("./").rstrip("/")
+        if member == context or member.endswith("/" + context.strip("./")):
+            return True
+    created_path = created.get("created_path")
+    if created_path:
+        if context == created_path or context.startswith(created_path.rstrip("/") + "/"):
+            return True
+        if created_path.endswith("/" + context.lstrip("./")) or context.endswith("/" + created_path.lstrip("./")):
+            return True
+        context_base = context.rstrip("/").split("/")[-1]
+        created_base = created_path.rstrip("/").split("/")[-1]
+        context_pattern = PLACEHOLDER_RE.sub("*", context_base)
+        if re.fullmatch(context_pattern.replace("*", ".*"), created_base):
+            return True
+    target_base = context.rstrip("/").split("/")[-1]
+    for url in created.get("urls", []):
+        source_base = Path(urlparse(url).path).name
+        source_base = strip_archive(source_base)
+        target_pattern = PLACEHOLDER_RE.sub(".*", target_base)
+        if source_base and re.fullmatch(target_pattern, source_base):
+            return True
+    return False
+
+
+def find_runtime_sources(context, creators):
+    matches = [creator for creator in creators if path_matches_context(context, creator)]
+    urls = sorted({url for creator in matches for url in creator.get("urls", [])})
+    return matches, urls
+
+
+def connect_archive_urls(creators, archive_urls):
+    by_name = collections.defaultdict(list)
+    for url in archive_urls:
+        by_name[Path(urlparse(url).path).name].append(url)
+    for creator in creators:
+        if creator.get("kind") != "unzip" or creator.get("urls"):
+            continue
+        input_path = creator.get("input_path") or ""
+        archive_name = Path(input_path).name
+        creator["urls"] = by_name.get(archive_name, [])
+    return creators
+
+
+def resolve_dockerfile(repo, cwd_path, file_value):
+    file_path = normalise_path(repo, cwd_path, file_value)
+    if repo.resolve() not in (file_path.resolve(), *file_path.resolve().parents):
+        return None
+    return file_path
+
+
+def command_fields(command, repo, embedded_blocks, creators, warnings, track, lab_name):
     tokens = command["tokens"]
     engine, kind, start = parse_engine(tokens)
+    cwd_path = command["cwd_path"]
+    cwd_value = relative_path(repo, cwd_path)
     item = {
         "type": kind,
         "engine": engine,
         "sudo": bool(tokens and tokens[0] == "sudo"),
         "raw": command["raw"],
+        "cwd": cwd_value,
+        "occurrences": 1,
+        "assumptions": [],
+        "syntax_flags": [],
     }
     ports = option_values(tokens, start, ("-p", "--publish"), ("-p",))
     if "-P" in tokens[start:] or "--publish-all" in tokens[start:]:
@@ -228,58 +485,116 @@ def build_details(command, repo, embedded_candidates, warnings, track, lab_name)
         "volumes": option_values(tokens, start, ("-v", "--volume", "--mount"), ("-v",)),
         "pod": pods[-1] if pods else None,
     })
+    if kind in ("build", "run"):
+        item["syntax_flags"] = buildx_flags(tokens, start)
+        if item["syntax_flags"]:
+            item["flag_transformations"] = [
+                {"flag": flag, "action": "strip at preload", "reason": "Buildx-only flag; Buildah/Podman does not use it"}
+                for flag in item["syntax_flags"] if flag in BUILD_FLAGS
+            ]
     if kind not in ("build", "pull", "run"):
-        return item
-
-    if kind == "build":
-        tags = option_values(tokens, start, ("-t", "--tag"), ("-t",))
-        files = option_values(tokens, start, ("-f", "--file"), ("-f",))
-        args = positional_args(tokens, start, kind)
-        context_token = args[-1] if args else "."
-        cwd = command["working_dir"]
-        context_path = Path(context_token).expanduser()
-        if not context_path.is_absolute():
-            context_path = cwd / context_path
-        resolved_context = resolve_under_repo(repo, context_path)
-        context_exists = resolved_context is not None and resolved_context.is_dir()
-        build_file = files[-1] if files else "Dockerfile"
-        build_file_path = Path(build_file).expanduser()
-        if not build_file_path.is_absolute():
-            build_file_path = cwd / build_file_path
-        resolved_file = resolve_under_repo(repo, build_file_path)
-        dockerfile_text = ""
-        if resolved_file is not None and resolved_file.is_file():
-            try:
-                dockerfile_text = resolved_file.read_text(encoding="utf-8", errors="replace")
-            except OSError as error:
-                warnings.append(f"{track}/{lab_name}: cannot read Dockerfile {resolved_file}: {error}")
-        if not dockerfile_text and embedded_candidates:
-            dockerfile_text = "\n".join(embedded_candidates)
-            if len(embedded_candidates) > 1:
-                warnings.append(f"{track}/{lab_name}: multiple embedded Dockerfiles; syntax/base-image scan is best-effort")
-        item.update({
-            "tag": tags[-1] if tags else None,
-            "context": context_path.relative_to(repo).as_posix() if resolve_under_repo(repo, context_path) else context_token,
-            "dockerfile": files[-1] if files else None,
-            "syntax_flags": syntax_flags(dockerfile_text),
-            "base_images": dockerfile_images(dockerfile_text),
-            "interactive_context": not context_exists,
-        })
-        if not context_exists:
-            warnings.append(f"{track}/{lab_name}: build context is missing or outside the repository: {item['context']}")
-        if not dockerfile_text:
-            warnings.append(f"{track}/{lab_name}: no readable or embedded Dockerfile for build context {item['context']}")
         return item
 
     args = positional_args(tokens, start, kind)
     if kind == "pull":
         item["image"] = args[0] if args else None
-    else:
+        return item
+    if kind == "run":
         item["image"] = args[0] if args else None
-        if kind == "run" and args:
+        if args:
             image_index = tokens.index(args[0], start)
             item["cmd"] = tokens[image_index + 1:]
+        return item
+
+    tags = option_values(tokens, start, ("-t", "--tag"), ("-t",))
+    files = option_values(tokens, start, ("-f", "--file"), ("-f",))
+    context_token = args[-1] if args else "."
+    context_path = normalise_path(repo, cwd_path, context_token)
+    context_value = relative_path(repo, context_path)
+    resolved_context, assumptions, placeholder_warnings, placeholders = resolve_placeholders(repo, context_value)
+    item["assumptions"].extend(assumptions)
+    warnings.extend(f"{track}/{lab_name}: {warning}" for warning in placeholder_warnings)
+    resolved_path = normalise_path(repo, repo.resolve(), resolved_context)
+    file_value = files[-1] if files else "Dockerfile"
+    dockerfile_path = resolve_dockerfile(repo, cwd_path, file_value)
+    dockerfile_text = ""
+    if dockerfile_path and dockerfile_path.is_file():
+        try:
+            dockerfile_text = dockerfile_path.read_text(encoding="utf-8", errors="replace")
+        except OSError as error:
+            warnings.append(f"{track}/{lab_name}: cannot read Dockerfile {relative_path(repo, dockerfile_path)}: {error}")
+    if not dockerfile_text and embedded_blocks:
+        dockerfile_text = "\n".join(embedded_blocks)
+    item.update({
+        "tag": tags[-1] if tags else None,
+        "context": resolved_context,
+        "dockerfile": relative_path(repo, dockerfile_path) if files and dockerfile_path else (file_value if files else None),
+        "dockerfile_arg": file_value if files else None,
+        "cwd": cwd_value,
+        "interactive_context": not resolved_path.is_dir(),
+        "runtime_download": False,
+        "base_images": dockerfile_images(dockerfile_text),
+    })
+    for flag in dockerfile_syntax_flags(dockerfile_text):
+        if flag not in item["syntax_flags"]:
+            item["syntax_flags"].append(flag)
+    if not resolved_path.is_dir():
+        prior_creators, urls = find_runtime_sources(resolved_context, creators)
+        if prior_creators and urls:
+            item["runtime_download"] = True
+            item["runtime_download_sources"] = urls
+            item["interactive_context"] = False
+            if placeholders:
+                resolved_from_archive = next((creator.get("created_path") for creator in prior_creators if creator.get("created_path")), None)
+                item["assumptions"].append({
+                    "type": "placeholder-runtime-download",
+                    "placeholder": ",".join(placeholders),
+                    "resolved": resolved_from_archive or resolved_context,
+                    "source_urls": urls,
+                })
+        elif prior_creators:
+            item["runtime_download"] = True
+            item["runtime_download_sources"] = []
+            item["interactive_context"] = False
+        elif placeholders:
+            warnings.append(f"{track}/{lab_name}: unresolved placeholder context {context_value}; no earlier creator command matched")
+        else:
+            warnings.append(f"{track}/{lab_name}: missing context {resolved_context}; no earlier creator command matched")
+    if not dockerfile_text:
+        warnings.append(f"{track}/{lab_name}: no readable Dockerfile or embedded FROM block for context {resolved_context}")
     return item
+
+
+def deduplicate_commands(commands):
+    unique = []
+    by_raw = {}
+    for command in commands:
+        raw = command["raw"]
+        if raw not in by_raw:
+            by_raw[raw] = command
+            unique.append(command)
+            continue
+        existing = by_raw[raw]
+        existing["occurrences"] += 1
+        cwd_values = existing.setdefault("cwd_occurrences", [existing["cwd"]])
+        cwd_values.append(command["cwd"])
+        if "context" in command:
+            context_values = existing.setdefault("context_occurrences", [existing["context"]])
+            context_values.append(command["context"])
+        for assumption in command.get("assumptions", []):
+            if assumption not in existing["assumptions"]:
+                existing["assumptions"].append(assumption)
+    return unique
+
+
+def creator_urls_for_lab(blocks, repo, cwd):
+    records = []
+    for block in blocks:
+        for line in block.splitlines():
+            details = creator_details(line, repo, cwd)
+            if details:
+                records.append(details)
+    return records
 
 
 def main():
@@ -287,26 +602,52 @@ def main():
     result = {}
     warnings = []
     all_images = set(KNOWN_IMAGES)
+    initial_images = set(KNOWN_IMAGES)
     expected_skips = []
     syntax_risks = []
+    runtime_downloads = []
+    pulls_by_track = collections.Counter()
+    summary = {}
 
     for track in TRACKS:
         repo = REPOS / track
         labs = []
+        creators_so_far = []
+        tag_sources = collections.defaultdict(list)
         lab_files = sorted(repo.glob("lab*.html"), key=natural_key)
-        for lab_path in lab_files:
-            parser = PreBlockParser()
+        track_archive_urls = []
+        for source_page in lab_files:
+            link_parser = LinkParser()
             try:
-                parser.feed(lab_path.read_text(encoding="utf-8", errors="replace"))
+                link_parser.feed(source_page.read_text(encoding="utf-8", errors="replace"))
+            except OSError:
+                continue
+            track_archive_urls.extend(link for link in link_parser.links if re.search(r"\.(?:zip|tar(?:\.gz|\.bz2|\.xz)?|tgz)(?:[?#].*)?$", urlparse(link).path, re.IGNORECASE))
+        track_archive_urls = list(dict.fromkeys(track_archive_urls))
+        for lab_path in lab_files:
+            parser = CodeBlockParser()
+            try:
+                lab_html = lab_path.read_text(encoding="utf-8", errors="replace")
+                parser.feed(lab_html)
             except OSError as error:
                 warnings.append(f"{track}/{lab_path.name}: cannot read lab: {error}")
                 continue
             blocks = parser.blocks
-            embedded = [block for block in blocks if DOCKERFILE_FROM.search(block)]
-            working_dir = repo.resolve()
-            commands = []
+            link_parser = LinkParser()
+            link_parser.feed(lab_html)
+            archive_urls = [link for link in link_parser.links if re.search(r"\.(?:zip|tar(?:\.gz|\.bz2|\.xz)?|tgz)(?:[?#].*)?$", urlparse(link).path, re.IGNORECASE)]
+            if not archive_urls:
+                archive_urls = track_archive_urls
+            embedded_blocks = [block for block in blocks if DOCKERFILE_FROM.search(block)]
             for block in blocks:
-                parsed, working_dir = command_lines(block, working_dir)
+                all_images.update(dockerfile_images(block))
+            cwd = repo.resolve()
+            commands = []
+            lab_creators = []
+            for block in blocks:
+                parsed, cwd, creators = command_lines(block, repo, cwd, creators_so_far + lab_creators)
+                creators = connect_archive_urls(creators, archive_urls)
+                lab_creators.extend(creators)
                 for command in parsed:
                     if command.get("warning"):
                         warnings.append(f"{track}/{lab_path.name}: ambiguous command {command['raw']!r}: {command['warning']}")
@@ -316,46 +657,91 @@ def main():
                         continue
                     engine, kind, _ = parse_engine(tokens)
                     if engine is None:
+                        creator = creator_details(command["raw"], repo, command["cwd_path"])
+                        if creator:
+                            lab_creators.append(creator)
                         continue
-                    item = build_details(command, repo, embedded, warnings, track, lab_path.name)
+                    item = command_fields(command, repo, embedded_blocks, command.get("prior_creators", []), warnings, track, lab_path.name)
                     commands.append(item)
+                    if item["type"] == "pull":
+                        pulls_by_track[track] += 1
                     if item["type"] == "build":
-                        all_images.update(item["base_images"])
-                        if item["interactive_context"]:
-                            expected_skips.append(f"{track}/{lab_path.name}: context={item['context']} command={item['raw']}")
-                        if item["syntax_flags"]:
+                        all_images.update(item.get("base_images", []))
+                        if item.get("interactive_context"):
+                            expected_skips.append(f"{track}/{lab_path.name}: context={item['context']} cwd={item['cwd']} command={item['raw']}")
+                        if item.get("runtime_download"):
+                            urls = item.get("runtime_download_sources", [])
+                            runtime_downloads.append(f"{track}/{lab_path.name}: context={item['context']} urls={','.join(urls) if urls else 'creator command found; no source URL'}")
+                        if item.get("syntax_flags"):
                             syntax_risks.append(f"{track}/{lab_path.name}: flags={','.join(item['syntax_flags'])} context={item['context']} command={item['raw']}")
-            labs.append({"file": lab_path.name, "path_type": path_type(lab_path), "commands": commands})
+            unique_commands = deduplicate_commands(commands)
+            for item in unique_commands:
+                if item["type"] == "build" and item.get("tag"):
+                    tag_sources[item["tag"]].append((lab_path.name, item["raw"]))
+            labs.append({"file": lab_path.name, "path_type": path_type(lab_path), "commands": unique_commands})
+            creators_so_far.extend(lab_creators)
+        for tag, sources in sorted(tag_sources.items()):
+            unique_raws = sorted({raw for _, raw in sources})
+            if len(unique_raws) > 1:
+                locations = ", ".join(f"{lab}: {raw}" for lab, raw in sources)
+                warnings.append(f"{track}: duplicate build tag {tag} from different commands: {locations}")
         result[track] = {"labs": labs}
+        unique_tags = {command["tag"] for lab in labs for command in lab["commands"] if command["type"] == "build" and command.get("tag")}
+        unique_runs = {(lab["file"], command["raw"]) for lab in labs for command in lab["commands"] if command["type"] == "run"}
+        summary[track] = {"build_tags": sorted(unique_tags), "run_count": len(unique_runs), "pull_count": pulls_by_track[track]}
 
     (EXTRACTED / "commands.json").write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     (EXTRACTED / "external-images.txt").write_text("".join(f"{image}\n" for image in sorted(all_images)), encoding="utf-8")
+    expected_skips = list(dict.fromkeys(expected_skips))
+    syntax_risks = list(dict.fromkeys(syntax_risks))
+    runtime_downloads = list(dict.fromkeys(runtime_downloads))
+    warnings = list(dict.fromkeys(warnings))
     (EXTRACTED / "build-failures-expected.txt").write_text("".join(f"{line}\n" for line in expected_skips), encoding="utf-8")
     (EXTRACTED / "syntax-risk.txt").write_text("".join(f"{line}\n" for line in syntax_risks), encoding="utf-8")
+    (EXTRACTED / "runtime-downloads.txt").write_text("".join(f"{line}\n" for line in runtime_downloads), encoding="utf-8")
     (EXTRACTED / "parse-warnings.txt").write_text("".join(f"{line}\n" for line in warnings), encoding="utf-8")
 
+    added_images = sorted(all_images - initial_images)
+    print("track | unique build tags | unique run commands | pulls")
+    for track, data in summary.items():
+        previous_builds = PREVIOUS_BUILD_OCCURRENCES.get(track, 0)
+        previous_runs = PREVIOUS_RUN_OCCURRENCES.get(track, 0)
+        print(f"{track} | unique build tags={len(data['build_tags'])} vs prior build occurrences={previous_builds}; tags={data['build_tags']} | unique run commands={data['run_count']} vs prior run occurrences={previous_runs} | pulls={data['pull_count']}")
+    print(f"pulls found: {sum(pulls_by_track.values())}")
+    print(f"externals added this pass: {added_images}")
+    print("placeholder resolutions:")
+    resolutions = []
     for track, data in result.items():
-        by_type = collections.Counter()
-        by_engine = collections.Counter()
-        by_path = collections.Counter(lab["path_type"] for lab in data["labs"])
-        builds_by_path = collections.Counter()
-        sudo_by_path = collections.defaultdict(collections.Counter)
-        images = set()
         for lab in data["labs"]:
             for command in lab["commands"]:
-                by_type[command["type"]] += 1
-                by_engine[command["engine"]] += 1
-                sudo_by_path[lab["path_type"]]["sudo" if command["sudo"] else "user"] += 1
-                if command["type"] == "build":
-                    builds_by_path[lab["path_type"]] += 1
-                images.update(command.get("base_images", []))
-        print(f"{track}: labs={len(data['labs'])}; types={dict(sorted(by_type.items()))}; builds_by_path_type={dict(sorted(builds_by_path.items()))}; engines={dict(sorted(by_engine.items()))}; path_type={dict(sorted(by_path.items()))}")
-        print(f"  sudo_by_path_type={{{', '.join(f'{key}: {dict(sorted(value.items()))}' for key, value in sorted(sudo_by_path.items()))}}}; base_images={sorted(images)}")
-
-    if not any(result.values()):
-        print(f"No lab HTML files found under {REPOS}", file=sys.stderr)
-        return 1
-    return 0
+                for assumption in command.get("assumptions", []):
+                    if assumption.get("type") in ("placeholder-resolution", "placeholder-runtime-download"):
+                        resolutions.append((track, assumption["placeholder"], assumption["resolved"], assumption.get("alternatives", [])))
+    seen_resolutions = set()
+    for track, placeholder, resolved, alternatives in resolutions:
+        resolution_key = (track, placeholder, resolved, tuple(alternatives))
+        if resolution_key in seen_resolutions:
+            continue
+        seen_resolutions.add(resolution_key)
+        print(f"{track}: {placeholder} -> {resolved}" + (f" (alternatives: {alternatives})" if alternatives else ""))
+    unresolved_placeholders = set()
+    for track, data in result.items():
+        for lab in data["labs"]:
+            for command in lab["commands"]:
+                if command["type"] != "build":
+                    continue
+                for placeholder in placeholder_glob(command["context"])[1] if placeholder_glob(command["context"]) else []:
+                    key = (track, f"{placeholder} in {command['context']}")
+                    if not any(item.get("placeholder") == placeholder for item in command.get("assumptions", [])):
+                        unresolved_placeholders.add(key)
+    for track, placeholder in sorted(unresolved_placeholders):
+        print(f"{track}: {placeholder} -> unresolved (no matching captured directory or earlier creator command)")
+    print(f"expected-skip count delta: {len(expected_skips) - 36:+d} ({len(expected_skips)} now; was 36)")
+    if sum(pulls_by_track.values()) == 0:
+        print("Pull check: no docker/podman pull commands exist in any lab HTML; podman auto-pulls on run, and preload makes those pulls a no-op.")
+    else:
+        print(f"Pull check: {sum(pulls_by_track.values())} docker/podman pull commands found; repo lab HTML must receive PRELOADED markers.")
+    return 0 if any(result.values()) else 1
 
 
 if __name__ == "__main__":

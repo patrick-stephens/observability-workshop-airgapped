@@ -1,5 +1,5 @@
-opentelemetry: patched=12 html_pages=12
-otel-developers: patched=12 html_pages=12
-prometheus: patched=23 html_pages=23
-fluentbit: patched=19 html_pages=19
-perses: patched=16 html_pages=16
+opentelemetry: docs_pages=12 repo_pages=12 banners_present=24 pull_markers_present=0 docker_build_load_notes=0 docs+0 repo load_rewrites_this_run=0
+otel-developers: docs_pages=12 repo_pages=12 banners_present=24 pull_markers_present=0 docker_build_load_notes=0 docs+0 repo load_rewrites_this_run=0
+prometheus: docs_pages=23 repo_pages=23 banners_present=46 pull_markers_present=0 docker_build_load_notes=10 docs+10 repo load_rewrites_this_run=0
+fluentbit: docs_pages=19 repo_pages=19 banners_present=38 pull_markers_present=0 docker_build_load_notes=0 docs+0 repo load_rewrites_this_run=0
+perses: docs_pages=16 repo_pages=16 banners_present=32 pull_markers_present=0 docker_build_load_notes=0 docs+0 repo load_rewrites_this_run=0

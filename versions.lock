@@ -84,4 +84,4 @@ workshop.repo.fluentbit dcbbb50daa24e860a86ecc9bc9e41e62c9ce509d - GitLab source
 workshop.docs.fluentbit 2026-10-04 - GitLab Pages mirror date
 workshop.repo.perses 5c93d0fada4dcabaacfe24feacb4a75b78d1c3bb - GitLab source HEAD SHA
 workshop.docs.perses 2026-10-04 - GitLab Pages mirror date
-workshop.compose-v2 5.6.0 - source=https://github.com/docker/compose/releases/download/v5.6.0/docker-compose-linux-x86_64 sha256=40343e21ca777173e69cff5dbafeb37c6f81f3b0d57d9e597f036e95eb63e76a
+workshop.compose-v2 2.40.3 - source=https://github.com/docker/compose/releases/download/v2.40.3/docker-compose-linux-x86_64 sha256=dba9d98e1ba5bfe11d88c99b9bd32fc4a0624a30fafe68eea34d61a3e42fd372; corrected invalid v5.6.0 binary to official Docker Compose v2.

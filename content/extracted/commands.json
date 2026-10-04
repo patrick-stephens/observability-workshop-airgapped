@@ -7,102 +7,6 @@
         "commands": []
       },
       {
-        "file": "lab02-rancher.html",
-        "path_type": "rancher",
-        "commands": [
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t hello-otel:base -f Buildfile",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "hello-otel:base",
-            "context": "workshop-opentelemetry/intro-to-instrument-VERSION",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
-            "base_images": [],
-            "interactive_context": true
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman save localhost/hello-otel:base -o hello-otel-base.tar",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t hello-otel:auto -f automatic/Buildfile-auto",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "hello-otel:auto",
-            "context": "workshop-opentelemetry/intro-to-instrument-VERSION",
-            "dockerfile": "automatic/Buildfile-auto",
-            "syntax_flags": [],
-            "base_images": [],
-            "interactive_context": true
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman save localhost/hello-otel:auto -o hello-otel-auto.tar",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t hello-otel:auto-manual -f automatic/Buildfile-auto",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "hello-otel:auto-manual",
-            "context": "workshop-opentelemetry/intro-to-instrument-VERSION",
-            "dockerfile": "automatic/Buildfile-auto",
-            "syntax_flags": [],
-            "base_images": [],
-            "interactive_context": true
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman save localhost/hello-otel:auto-manual -o hello-otel-auto-manual.tar",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          }
-        ]
-      },
-      {
         "file": "lab02.html",
         "path_type": "docker",
         "commands": [
@@ -111,6 +15,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t hello-otel:base -f Buildfile",
+            "cwd": "workshop-opentelemetry/intro-to-instrument-[VERSION]",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -119,16 +27,21 @@
             "pod": null,
             "tag": "hello-otel:base",
             "context": "workshop-opentelemetry/intro-to-instrument-[VERSION]",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
-            "base_images": [],
-            "interactive_context": true
+            "dockerfile": "workshop-opentelemetry/intro-to-instrument-[VERSION]/Buildfile",
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": true,
+            "runtime_download": false,
+            "base_images": []
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run -i -p 8001:8000 -e FLASK_RUN_PORT=8000 hello-otel:base",
+            "cwd": "workshop-opentelemetry/intro-to-instrument-[VERSION]",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "8001:8000"
             ],
@@ -147,6 +60,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t hello-otel:auto -f automatic/Buildfile-auto",
+            "cwd": "workshop-opentelemetry/intro-to-instrument-[VERSION]",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -155,16 +72,21 @@
             "pod": null,
             "tag": "hello-otel:auto",
             "context": "workshop-opentelemetry/intro-to-instrument-[VERSION]",
-            "dockerfile": "automatic/Buildfile-auto",
-            "syntax_flags": [],
-            "base_images": [],
-            "interactive_context": true
+            "dockerfile": "workshop-opentelemetry/intro-to-instrument-[VERSION]/automatic/Buildfile-auto",
+            "dockerfile_arg": "automatic/Buildfile-auto",
+            "interactive_context": true,
+            "runtime_download": false,
+            "base_images": []
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "podman run -i -p 8001:8000 -e FLASK_RUN_PORT=8000 hello-otel:auto opentelemetry-instrument \\\n--traces_exporter console \\\n--metrics_exporter none \\\n--service_name hello-otel \\\nflask run --host=0.0.0.0",
+            "cwd": "workshop-opentelemetry/intro-to-instrument-[VERSION]",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "8001:8000"
             ],
@@ -194,6 +116,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t hello-otel:auto-manual -f automatic/Buildfile-auto",
+            "cwd": "workshop-opentelemetry/intro-to-instrument-[VERSION]",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -202,16 +128,21 @@
             "pod": null,
             "tag": "hello-otel:auto-manual",
             "context": "workshop-opentelemetry/intro-to-instrument-[VERSION]",
-            "dockerfile": "automatic/Buildfile-auto",
-            "syntax_flags": [],
-            "base_images": [],
-            "interactive_context": true
+            "dockerfile": "workshop-opentelemetry/intro-to-instrument-[VERSION]/automatic/Buildfile-auto",
+            "dockerfile_arg": "automatic/Buildfile-auto",
+            "interactive_context": true,
+            "runtime_download": false,
+            "base_images": []
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "podman run -i -p 8001:8000 -e FLASK_RUN_PORT=8000 hello-otel:auto-manual opentelemetry-instrument \\\n--traces_exporter console \\\n--metrics_exporter none \\\n--service_name hello-otel \\\nflask run --host=0.0.0.0",
+            "cwd": "workshop-opentelemetry/intro-to-instrument-[VERSION]",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "8001:8000"
             ],
@@ -239,53 +170,74 @@
         ]
       },
       {
-        "file": "lab03-rancher.html",
+        "file": "lab02-rancher.html",
         "path_type": "rancher",
         "commands": [
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
-            "raw": "$ podman run -it hello-otel:auto opentelemetry-bootstrap -a requirements",
+            "raw": "podman run",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
             "env": [],
             "volumes": [],
             "pod": null,
-            "image": "hello-otel:auto",
-            "cmd": [
-              "opentelemetry-bootstrap",
-              "-a",
-              "requirements"
-            ]
+            "image": null
           },
           {
             "type": "build",
             "engine": "podman",
             "sudo": false,
-            "raw": "$ podman build -t hello-otel:prog -f programmatic/Buildfile-prog",
+            "raw": "$ podman build -t hello-otel:base -f Buildfile",
+            "cwd": "workshop-opentelemetry/intro-to-instrument-VERSION",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
             "env": [],
             "volumes": [],
             "pod": null,
-            "tag": "hello-otel:prog",
-            "context": ".",
-            "dockerfile": "programmatic/Buildfile-prog",
-            "syntax_flags": [],
-            "base_images": [
-              "python:3.13-bullseye",
-              "python:3.13-bullseye"
-            ],
-            "interactive_context": false
+            "tag": "hello-otel:base",
+            "context": "workshop-opentelemetry/intro-to-instrument-VERSION",
+            "dockerfile": "workshop-opentelemetry/intro-to-instrument-VERSION/Buildfile",
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": true,
+            "runtime_download": false,
+            "base_images": []
           },
           {
             "type": "other",
             "engine": "podman",
             "sudo": false,
-            "raw": "$ podman save localhost/hello-otel:prog -o hello-otel-prog.tar",
+            "raw": "$ podman save localhost/hello-otel:base -o hello-otel-base.tar",
+            "cwd": "workshop-opentelemetry/intro-to-instrument-VERSION",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null
+          },
+          {
+            "type": "other",
+            "engine": "docker",
+            "sudo": false,
+            "raw": "docker load -i hello-otel-base.tar",
+            "cwd": "workshop-opentelemetry/intro-to-instrument-VERSION",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -297,28 +249,73 @@
             "type": "build",
             "engine": "podman",
             "sudo": false,
-            "raw": "$ podman build -t hello-otel:prog -f programmatic/Buildfile-prog",
+            "raw": "$ podman build -t hello-otel:auto -f automatic/Buildfile-auto",
+            "cwd": "workshop-opentelemetry/intro-to-instrument-VERSION",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
             "env": [],
             "volumes": [],
             "pod": null,
-            "tag": "hello-otel:prog",
-            "context": ".",
-            "dockerfile": "programmatic/Buildfile-prog",
-            "syntax_flags": [],
-            "base_images": [
-              "python:3.13-bullseye",
-              "python:3.13-bullseye"
-            ],
-            "interactive_context": false
+            "tag": "hello-otel:auto",
+            "context": "workshop-opentelemetry/intro-to-instrument-VERSION",
+            "dockerfile": "workshop-opentelemetry/intro-to-instrument-VERSION/automatic/Buildfile-auto",
+            "dockerfile_arg": "automatic/Buildfile-auto",
+            "interactive_context": true,
+            "runtime_download": false,
+            "base_images": []
           },
           {
             "type": "other",
             "engine": "podman",
             "sudo": false,
-            "raw": "$ podman save localhost/hello-otel:prog -o hello-otel-prog.tar",
+            "raw": "$ podman save localhost/hello-otel:auto -o hello-otel-auto.tar",
+            "cwd": "workshop-opentelemetry/intro-to-instrument-VERSION",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null
+          },
+          {
+            "type": "build",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman build -t hello-otel:auto-manual -f automatic/Buildfile-auto",
+            "cwd": "workshop-opentelemetry/intro-to-instrument-VERSION",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null,
+            "tag": "hello-otel:auto-manual",
+            "context": "workshop-opentelemetry/intro-to-instrument-VERSION",
+            "dockerfile": "workshop-opentelemetry/intro-to-instrument-VERSION/automatic/Buildfile-auto",
+            "dockerfile_arg": "automatic/Buildfile-auto",
+            "interactive_context": true,
+            "runtime_download": false,
+            "base_images": []
+          },
+          {
+            "type": "other",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman save localhost/hello-otel:auto-manual -o hello-otel-auto-manual.tar",
+            "cwd": "workshop-opentelemetry/intro-to-instrument-VERSION",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -337,6 +334,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run -it hello-otel:auto opentelemetry-bootstrap -a requirements",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -355,6 +356,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t hello-otel:prog -f programmatic/Buildfile-prog",
+            "cwd": ".",
+            "occurrences": 2,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -364,18 +369,31 @@
             "tag": "hello-otel:prog",
             "context": ".",
             "dockerfile": "programmatic/Buildfile-prog",
-            "syntax_flags": [],
+            "dockerfile_arg": "programmatic/Buildfile-prog",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "python:3.13-bullseye",
               "python:3.13-bullseye"
             ],
-            "interactive_context": false
+            "cwd_occurrences": [
+              ".",
+              "."
+            ],
+            "context_occurrences": [
+              ".",
+              "."
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run -i -p 8001:8000 -e FLASK_RUN_PORT=8000 hello-otel:prog",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "8001:8000"
             ],
@@ -390,10 +408,91 @@
             "cmd": []
           },
           {
+            "type": "other",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman play kube programmatic/app_pod.yaml",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null
+          }
+        ]
+      },
+      {
+        "file": "lab03-rancher.html",
+        "path_type": "rancher",
+        "commands": [
+          {
+            "type": "run",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "podman run",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null,
+            "image": null
+          },
+          {
+            "type": "other",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "podman play kube",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null
+          },
+          {
+            "type": "run",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman run -it hello-otel:auto opentelemetry-bootstrap -a requirements",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null,
+            "image": "hello-otel:auto",
+            "cmd": [
+              "opentelemetry-bootstrap",
+              "-a",
+              "requirements"
+            ]
+          },
+          {
             "type": "build",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t hello-otel:prog -f programmatic/Buildfile-prog",
+            "cwd": ".",
+            "occurrences": 2,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -403,18 +502,121 @@
             "tag": "hello-otel:prog",
             "context": ".",
             "dockerfile": "programmatic/Buildfile-prog",
-            "syntax_flags": [],
+            "dockerfile_arg": "programmatic/Buildfile-prog",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "python:3.13-bullseye",
               "python:3.13-bullseye"
             ],
-            "interactive_context": false
+            "cwd_occurrences": [
+              ".",
+              "."
+            ],
+            "context_occurrences": [
+              ".",
+              "."
+            ]
+          },
+          {
+            "type": "other",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman save localhost/hello-otel:prog -o hello-otel-prog.tar",
+            "cwd": ".",
+            "occurrences": 2,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null,
+            "cwd_occurrences": [
+              ".",
+              "."
+            ]
+          },
+          {
+            "type": "other",
+            "engine": "docker",
+            "sudo": false,
+            "raw": "docker load -i hello-otel-prog.tar",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null
+          }
+        ]
+      },
+      {
+        "file": "lab04.html",
+        "path_type": "docker",
+        "commands": [
+          {
+            "type": "other",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "podman pod ps",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null
           },
           {
             "type": "other",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman play kube programmatic/app_pod.yaml",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null
+          },
+          {
+            "type": "other",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman pod ps",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null
+          },
+          {
+            "type": "other",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman play kube programmatic/app_pod.yaml --down",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -430,44 +632,86 @@
         "commands": []
       },
       {
-        "file": "lab04.html",
+        "file": "lab05.html",
         "path_type": "docker",
         "commands": [
           {
-            "type": "other",
+            "type": "build",
             "engine": "podman",
             "sudo": false,
-            "raw": "$ podman play kube programmatic/app_pod.yaml",
+            "raw": "$ podman build -t hello-otel:manual -f manual/Buildfile-manual",
+            "cwd": ".",
+            "occurrences": 4,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
             "env": [],
             "volumes": [],
-            "pod": null
+            "pod": null,
+            "tag": "hello-otel:manual",
+            "context": ".",
+            "dockerfile": "manual/Buildfile-manual",
+            "dockerfile_arg": "manual/Buildfile-manual",
+            "interactive_context": false,
+            "runtime_download": false,
+            "base_images": [],
+            "cwd_occurrences": [
+              ".",
+              ".",
+              ".",
+              "."
+            ],
+            "context_occurrences": [
+              ".",
+              ".",
+              ".",
+              "."
+            ]
           },
           {
             "type": "other",
             "engine": "podman",
             "sudo": false,
-            "raw": "$ podman pod ps",
+            "raw": "$ podman play kube manual/app_pod.yaml",
+            "cwd": ".",
+            "occurrences": 4,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
             "env": [],
             "volumes": [],
-            "pod": null
+            "pod": null,
+            "cwd_occurrences": [
+              ".",
+              ".",
+              ".",
+              "."
+            ]
           },
           {
             "type": "other",
             "engine": "podman",
             "sudo": false,
-            "raw": "$ podman play kube programmatic/app_pod.yaml --down",
+            "raw": "$ podman play kube manual/app_pod.yaml --down",
+            "cwd": ".",
+            "occurrences": 3,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
             "env": [],
             "volumes": [],
-            "pod": null
+            "pod": null,
+            "cwd_occurrences": [
+              ".",
+              ".",
+              "."
+            ]
           }
         ]
       },
@@ -480,6 +724,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t hello-otel:manual -f manual/Buildfile-manual",
+            "cwd": ".",
+            "occurrences": 4,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -489,409 +737,54 @@
             "tag": "hello-otel:manual",
             "context": ".",
             "dockerfile": "manual/Buildfile-manual",
-            "syntax_flags": [],
+            "dockerfile_arg": "manual/Buildfile-manual",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [],
-            "interactive_context": false
+            "cwd_occurrences": [
+              ".",
+              ".",
+              ".",
+              "."
+            ],
+            "context_occurrences": [
+              ".",
+              ".",
+              ".",
+              "."
+            ]
           },
           {
             "type": "other",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman save localhost/hello-otel:manual -o hello-otel-manual.tar",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t hello-otel:manual -f manual/Buildfile-manual",
+            "cwd": ".",
+            "occurrences": 4,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
             "env": [],
             "volumes": [],
             "pod": null,
-            "tag": "hello-otel:manual",
-            "context": ".",
-            "dockerfile": "manual/Buildfile-manual",
+            "cwd_occurrences": [
+              ".",
+              ".",
+              ".",
+              "."
+            ]
+          },
+          {
+            "type": "other",
+            "engine": "docker",
+            "sudo": false,
+            "raw": "docker load -i hello-otel-manual.tar",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
             "syntax_flags": [],
-            "base_images": [],
-            "interactive_context": false
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman save localhost/hello-otel:manual -o hello-otel-manual.tar",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t hello-otel:manual -f manual/Buildfile-manual",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "hello-otel:manual",
-            "context": ".",
-            "dockerfile": "manual/Buildfile-manual",
-            "syntax_flags": [],
-            "base_images": [],
-            "interactive_context": false
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman save localhost/hello-otel:manual -o hello-otel-manual.tar",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t hello-otel:manual -f manual/Buildfile-manual",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "hello-otel:manual",
-            "context": ".",
-            "dockerfile": "manual/Buildfile-manual",
-            "syntax_flags": [],
-            "base_images": [],
-            "interactive_context": false
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman save localhost/hello-otel:manual -o hello-otel-manual.tar",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          }
-        ]
-      },
-      {
-        "file": "lab05.html",
-        "path_type": "docker",
-        "commands": [
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t hello-otel:manual -f manual/Buildfile-manual",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "hello-otel:manual",
-            "context": ".",
-            "dockerfile": "manual/Buildfile-manual",
-            "syntax_flags": [],
-            "base_images": [],
-            "interactive_context": false
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman play kube manual/app_pod.yaml",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman play kube manual/app_pod.yaml --down",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t hello-otel:manual -f manual/Buildfile-manual",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "hello-otel:manual",
-            "context": ".",
-            "dockerfile": "manual/Buildfile-manual",
-            "syntax_flags": [],
-            "base_images": [],
-            "interactive_context": false
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman play kube manual/app_pod.yaml",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman play kube manual/app_pod.yaml --down",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t hello-otel:manual -f manual/Buildfile-manual",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "hello-otel:manual",
-            "context": ".",
-            "dockerfile": "manual/Buildfile-manual",
-            "syntax_flags": [],
-            "base_images": [],
-            "interactive_context": false
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman play kube manual/app_pod.yaml",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman play kube manual/app_pod.yaml --down",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t hello-otel:manual -f manual/Buildfile-manual",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "hello-otel:manual",
-            "context": ".",
-            "dockerfile": "manual/Buildfile-manual",
-            "syntax_flags": [],
-            "base_images": [],
-            "interactive_context": false
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman play kube manual/app_pod.yaml",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          }
-        ]
-      },
-      {
-        "file": "lab06-rancher.html",
-        "path_type": "rancher",
-        "commands": [
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t workshop-prometheus:v3.13.1 -f ./metrics/prometheus/Buildfile-prom",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "workshop-prometheus:v3.13.1",
-            "context": ".",
-            "dockerfile": "./metrics/prometheus/Buildfile-prom",
-            "syntax_flags": [],
-            "base_images": [
-              "python:3.13-bullseye",
-              "prom/prometheus:v3.13.1",
-              "python:3.13-bullseye"
-            ],
-            "interactive_context": false
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman save localhost/workshop-prometheus:v3.13.1 -o workshop-prometheus.tar",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t hello-otel:metrics -f metrics/Buildfile-metrics",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "hello-otel:metrics",
-            "context": ".",
-            "dockerfile": "metrics/Buildfile-metrics",
-            "syntax_flags": [],
-            "base_images": [
-              "python:3.13-bullseye",
-              "prom/prometheus:v3.13.1",
-              "python:3.13-bullseye"
-            ],
-            "interactive_context": false
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman save localhost/hello-otel:metrics -o hello-otel-metrics.tar",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t workshop-prometheus:v3.13.1 -f metrics/prometheus/Buildfile-prom",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "workshop-prometheus:v3.13.1",
-            "context": ".",
-            "dockerfile": "metrics/prometheus/Buildfile-prom",
-            "syntax_flags": [],
-            "base_images": [
-              "python:3.13-bullseye",
-              "prom/prometheus:v3.13.1",
-              "python:3.13-bullseye"
-            ],
-            "interactive_context": false
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman save localhost/workshop-prometheus:v3.13.1 -o workshop-prometheus.tar",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t hello-otel:metrics -f metrics/Buildfile-metrics",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "hello-otel:metrics",
-            "context": ".",
-            "dockerfile": "metrics/Buildfile-metrics",
-            "syntax_flags": [],
-            "base_images": [
-              "python:3.13-bullseye",
-              "prom/prometheus:v3.13.1",
-              "python:3.13-bullseye"
-            ],
-            "interactive_context": false
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman save localhost/hello-otel:metrics -o hello-otel-metrics.tar",
             "ports": [],
             "name": null,
             "detached": false,
@@ -910,6 +803,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t workshop-prometheus:v3.13.1 -f ./metrics/prometheus/Buildfile-prom",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -918,20 +815,25 @@
             "pod": null,
             "tag": "workshop-prometheus:v3.13.1",
             "context": ".",
-            "dockerfile": "./metrics/prometheus/Buildfile-prom",
-            "syntax_flags": [],
+            "dockerfile": "metrics/prometheus/Buildfile-prom",
+            "dockerfile_arg": "./metrics/prometheus/Buildfile-prom",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "python:3.13-bullseye",
               "prom/prometheus:v3.13.1",
               "python:3.13-bullseye"
-            ],
-            "interactive_context": false
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run -p 9090:9090 workshop-prometheus:v3.13.1 --config.file=/etc/prometheus/prometheus.yml",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "9090:9090"
             ],
@@ -950,6 +852,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t hello-otel:metrics -f metrics/Buildfile-metrics",
+            "cwd": ".",
+            "occurrences": 2,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -959,43 +865,72 @@
             "tag": "hello-otel:metrics",
             "context": ".",
             "dockerfile": "metrics/Buildfile-metrics",
-            "syntax_flags": [],
+            "dockerfile_arg": "metrics/Buildfile-metrics",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "python:3.13-bullseye",
               "prom/prometheus:v3.13.1",
               "python:3.13-bullseye"
             ],
-            "interactive_context": false
+            "cwd_occurrences": [
+              ".",
+              "."
+            ],
+            "context_occurrences": [
+              ".",
+              "."
+            ]
           },
           {
             "type": "other",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman play kube metrics/app-prom-pod.yml",
+            "cwd": ".",
+            "occurrences": 2,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
             "env": [],
             "volumes": [],
-            "pod": null
+            "pod": null,
+            "cwd_occurrences": [
+              ".",
+              "."
+            ]
           },
           {
             "type": "other",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman play kube metrics/app-prom-pod.yml --down",
+            "cwd": ".",
+            "occurrences": 2,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
             "env": [],
             "volumes": [],
-            "pod": null
+            "pod": null,
+            "cwd_occurrences": [
+              ".",
+              "."
+            ]
           },
           {
             "type": "build",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t workshop-prometheus:v3.13.1 -f metrics/prometheus/Buildfile-prom",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -1005,19 +940,93 @@
             "tag": "workshop-prometheus:v3.13.1",
             "context": ".",
             "dockerfile": "metrics/prometheus/Buildfile-prom",
-            "syntax_flags": [],
+            "dockerfile_arg": "metrics/prometheus/Buildfile-prom",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "python:3.13-bullseye",
               "prom/prometheus:v3.13.1",
               "python:3.13-bullseye"
-            ],
-            "interactive_context": false
+            ]
+          }
+        ]
+      },
+      {
+        "file": "lab06-rancher.html",
+        "path_type": "rancher",
+        "commands": [
+          {
+            "type": "build",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman build -t workshop-prometheus:v3.13.1 -f ./metrics/prometheus/Buildfile-prom",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null,
+            "tag": "workshop-prometheus:v3.13.1",
+            "context": ".",
+            "dockerfile": "metrics/prometheus/Buildfile-prom",
+            "dockerfile_arg": "./metrics/prometheus/Buildfile-prom",
+            "interactive_context": false,
+            "runtime_download": false,
+            "base_images": [
+              "python:3.13-bullseye",
+              "prom/prometheus:v3.13.1",
+              "python:3.13-bullseye"
+            ]
+          },
+          {
+            "type": "other",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman save localhost/workshop-prometheus:v3.13.1 -o workshop-prometheus.tar",
+            "cwd": ".",
+            "occurrences": 2,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null,
+            "cwd_occurrences": [
+              ".",
+              "."
+            ]
+          },
+          {
+            "type": "other",
+            "engine": "docker",
+            "sudo": false,
+            "raw": "docker load -i workshop-prometheus.tar",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null
           },
           {
             "type": "build",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t hello-otel:metrics -f metrics/Buildfile-metrics",
+            "cwd": ".",
+            "occurrences": 2,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -1027,37 +1036,69 @@
             "tag": "hello-otel:metrics",
             "context": ".",
             "dockerfile": "metrics/Buildfile-metrics",
-            "syntax_flags": [],
+            "dockerfile_arg": "metrics/Buildfile-metrics",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "python:3.13-bullseye",
               "prom/prometheus:v3.13.1",
               "python:3.13-bullseye"
             ],
-            "interactive_context": false
+            "cwd_occurrences": [
+              ".",
+              "."
+            ],
+            "context_occurrences": [
+              ".",
+              "."
+            ]
           },
           {
             "type": "other",
             "engine": "podman",
             "sudo": false,
-            "raw": "$ podman play kube metrics/app-prom-pod.yml",
+            "raw": "$ podman save localhost/hello-otel:metrics -o hello-otel-metrics.tar",
+            "cwd": ".",
+            "occurrences": 2,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
             "env": [],
             "volumes": [],
-            "pod": null
+            "pod": null,
+            "cwd_occurrences": [
+              ".",
+              "."
+            ]
           },
           {
-            "type": "other",
+            "type": "build",
             "engine": "podman",
             "sudo": false,
-            "raw": "$ podman play kube metrics/app-prom-pod.yml --down",
+            "raw": "$ podman build -t workshop-prometheus:v3.13.1 -f metrics/prometheus/Buildfile-prom",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
             "env": [],
             "volumes": [],
-            "pod": null
+            "pod": null,
+            "tag": "workshop-prometheus:v3.13.1",
+            "context": ".",
+            "dockerfile": "metrics/prometheus/Buildfile-prom",
+            "dockerfile_arg": "metrics/prometheus/Buildfile-prom",
+            "interactive_context": false,
+            "runtime_download": false,
+            "base_images": [
+              "python:3.13-bullseye",
+              "prom/prometheus:v3.13.1",
+              "python:3.13-bullseye"
+            ]
           }
         ]
       }
@@ -1071,148 +1112,6 @@
         "commands": []
       },
       {
-        "file": "lab02-rancher.html",
-        "path_type": "rancher",
-        "commands": [
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t java-demo:base -f Buildfile",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "java-demo:base",
-            "context": "opentelemetry-java-tracing-demo-{VERSION}",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
-            "base_images": [
-              "eclipse-temurin:21",
-              "eclipse-temurin:21",
-              "eclipse-temurin:21"
-            ],
-            "interactive_context": true
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman save localhost/java-demo:base -o java-demo-base.tar",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t java-demo:auto -f Buildfile-AgentContainer",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "java-demo:auto",
-            "context": "opentelemetry-java-tracing-demo-{VERSION}",
-            "dockerfile": "Buildfile-AgentContainer",
-            "syntax_flags": [],
-            "base_images": [
-              "eclipse-temurin:21",
-              "eclipse-temurin:21",
-              "eclipse-temurin:21"
-            ],
-            "interactive_context": true
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman save localhost/java-demo:auto -o java-demo-auto.tar",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t java-demo:java-tools -f Buildfile-AgentJavaTools",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "java-demo:java-tools",
-            "context": "opentelemetry-java-tracing-demo-{VERSION}",
-            "dockerfile": "Buildfile-AgentJavaTools",
-            "syntax_flags": [],
-            "base_images": [
-              "eclipse-temurin:21",
-              "eclipse-temurin:21",
-              "eclipse-temurin:21"
-            ],
-            "interactive_context": true
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman save localhost/java-demo:java-tools -o java-demo-java-tools.tar",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t java-demo:auto -f Buildfile-AgentContainer",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "java-demo:auto",
-            "context": "opentelemetry-java-tracing-demo-{VERSION}",
-            "dockerfile": "Buildfile-AgentContainer",
-            "syntax_flags": [],
-            "base_images": [
-              "eclipse-temurin:21",
-              "eclipse-temurin:21",
-              "eclipse-temurin:21"
-            ],
-            "interactive_context": true
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman save localhost/java-demo:auto -o java-demo-auto.tar",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          }
-        ]
-      },
-      {
         "file": "lab02.html",
         "path_type": "docker",
         "commands": [
@@ -1221,6 +1120,19 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t java-demo:auto -f Buildfile-AgentContainer",
+            "cwd": "opentelemetry-java-tracing-demo-{VERSION}",
+            "occurrences": 1,
+            "assumptions": [
+              {
+                "type": "placeholder-runtime-download",
+                "placeholder": "{VERSION}",
+                "resolved": "opentelemetry-java-tracing-demo-v1.1",
+                "source_urls": [
+                  "https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo/-/archive/v1.1/opentelemetry-java-tracing-demo-v1.1.zip"
+                ]
+              }
+            ],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -1229,20 +1141,28 @@
             "pod": null,
             "tag": "java-demo:auto",
             "context": "opentelemetry-java-tracing-demo-{VERSION}",
-            "dockerfile": "Buildfile-AgentContainer",
-            "syntax_flags": [],
+            "dockerfile": "opentelemetry-java-tracing-demo-{VERSION}/Buildfile-AgentContainer",
+            "dockerfile_arg": "Buildfile-AgentContainer",
+            "interactive_context": false,
+            "runtime_download": true,
             "base_images": [
               "eclipse-temurin:21",
               "eclipse-temurin:21",
               "eclipse-temurin:21"
             ],
-            "interactive_context": true
+            "runtime_download_sources": [
+              "https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo/-/archive/v1.1/opentelemetry-java-tracing-demo-v1.1.zip"
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --rm --name agent-container -p 9999:9999 \\\n-e OTEL_SERVICE_NAME=java-demo \\\n-e OTEL_TRACES_EXPORTER=logging \\\n-e OTEL_METRICS_EXPORTER=none \\\n-e OTEL_LOGS_EXPORTER=none \\\njava-demo:auto",
+            "cwd": "opentelemetry-java-tracing-demo-{VERSION}",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "9999:9999"
             ],
@@ -1264,6 +1184,19 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t java-demo:java-tools -f Buildfile-AgentJavaTools",
+            "cwd": "opentelemetry-java-tracing-demo-{VERSION}",
+            "occurrences": 1,
+            "assumptions": [
+              {
+                "type": "placeholder-runtime-download",
+                "placeholder": "{VERSION}",
+                "resolved": "opentelemetry-java-tracing-demo-v1.1",
+                "source_urls": [
+                  "https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo/-/archive/v1.1/opentelemetry-java-tracing-demo-v1.1.zip"
+                ]
+              }
+            ],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -1272,20 +1205,28 @@
             "pod": null,
             "tag": "java-demo:java-tools",
             "context": "opentelemetry-java-tracing-demo-{VERSION}",
-            "dockerfile": "Buildfile-AgentJavaTools",
-            "syntax_flags": [],
+            "dockerfile": "opentelemetry-java-tracing-demo-{VERSION}/Buildfile-AgentJavaTools",
+            "dockerfile_arg": "Buildfile-AgentJavaTools",
+            "interactive_context": false,
+            "runtime_download": true,
             "base_images": [
               "eclipse-temurin:21",
               "eclipse-temurin:21",
               "eclipse-temurin:21"
             ],
-            "interactive_context": true
+            "runtime_download_sources": [
+              "https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo/-/archive/v1.1/opentelemetry-java-tracing-demo-v1.1.zip"
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --rm --name java-tools-container -p 9999:9999 java-demo:java-tools",
+            "cwd": "opentelemetry-java-tracing-demo-{VERSION}",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "9999:9999"
             ],
@@ -1302,6 +1243,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --rm -p 9999:9999 -e JAVA_TOOL_OPTIONS=\"\" java-demo:java-tools",
+            "cwd": "opentelemetry-java-tracing-demo-{VERSION}",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "9999:9999"
             ],
@@ -1320,6 +1265,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --rm -p 9999:9999 \\\n-e OTEL_TRACES_EXPORTER=otlp \\\n-e OTEL_EXPORTER_OTLP_ENDPOINT=http://host.containers.internal:4318 \\\njava-demo:java-tools",
+            "cwd": "opentelemetry-java-tracing-demo-{VERSION}",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "9999:9999"
             ],
@@ -1339,6 +1288,19 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t java-demo -f Buildfile",
+            "cwd": "opentelemetry-java-tracing-demo-{VERSION}",
+            "occurrences": 1,
+            "assumptions": [
+              {
+                "type": "placeholder-runtime-download",
+                "placeholder": "{VERSION}",
+                "resolved": "opentelemetry-java-tracing-demo-v1.1",
+                "source_urls": [
+                  "https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo/-/archive/v1.1/opentelemetry-java-tracing-demo-v1.1.zip"
+                ]
+              }
+            ],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -1347,20 +1309,28 @@
             "pod": null,
             "tag": "java-demo",
             "context": "opentelemetry-java-tracing-demo-{VERSION}",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
+            "dockerfile": "opentelemetry-java-tracing-demo-{VERSION}/Buildfile",
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": false,
+            "runtime_download": true,
             "base_images": [
               "eclipse-temurin:21",
               "eclipse-temurin:21",
               "eclipse-temurin:21"
             ],
-            "interactive_context": true
+            "runtime_download_sources": [
+              "https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo/-/archive/v1.1/opentelemetry-java-tracing-demo-v1.1.zip"
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --rm --name mounted-agent -p 9999:9999 \\\n-v ./opentelemetry-javaagent-2.30.0.jar:/otel/agent.jar:ro \\\n-e JAVA_TOOL_OPTIONS=\"-javaagent:/otel/agent.jar\" \\\n-e OTEL_SERVICE_NAME=java-demo \\\n-e OTEL_TRACES_EXPORTER=logging \\\n-e OTEL_METRICS_EXPORTER=none \\\n-e OTEL_LOGS_EXPORTER=none \\\njava-demo",
+            "cwd": "opentelemetry-java-tracing-demo-{VERSION}",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "9999:9999"
             ],
@@ -1383,9 +1353,203 @@
         ]
       },
       {
-        "file": "lab03-rancher.html",
+        "file": "lab02-rancher.html",
         "path_type": "rancher",
-        "commands": []
+        "commands": [
+          {
+            "type": "build",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman build -t java-demo:base -f Buildfile",
+            "cwd": "opentelemetry-java-tracing-demo-{VERSION}",
+            "occurrences": 1,
+            "assumptions": [
+              {
+                "type": "placeholder-runtime-download",
+                "placeholder": "{VERSION}",
+                "resolved": "opentelemetry-java-tracing-demo-v1.1",
+                "source_urls": [
+                  "https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo/-/archive/v1.1/opentelemetry-java-tracing-demo-v1.1.zip"
+                ]
+              }
+            ],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null,
+            "tag": "java-demo:base",
+            "context": "opentelemetry-java-tracing-demo-{VERSION}",
+            "dockerfile": "opentelemetry-java-tracing-demo-{VERSION}/Buildfile",
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": false,
+            "runtime_download": true,
+            "base_images": [
+              "eclipse-temurin:21",
+              "eclipse-temurin:21",
+              "eclipse-temurin:21"
+            ],
+            "runtime_download_sources": [
+              "https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo/-/archive/v1.1/opentelemetry-java-tracing-demo-v1.1.zip"
+            ]
+          },
+          {
+            "type": "other",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman save localhost/java-demo:base -o java-demo-base.tar",
+            "cwd": "opentelemetry-java-tracing-demo-{VERSION}",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null
+          },
+          {
+            "type": "other",
+            "engine": "docker",
+            "sudo": false,
+            "raw": "docker load -i",
+            "cwd": "opentelemetry-java-tracing-demo-{VERSION}",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null
+          },
+          {
+            "type": "build",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman build -t java-demo:auto -f Buildfile-AgentContainer",
+            "cwd": "opentelemetry-java-tracing-demo-{VERSION}",
+            "occurrences": 2,
+            "assumptions": [
+              {
+                "type": "placeholder-runtime-download",
+                "placeholder": "{VERSION}",
+                "resolved": "opentelemetry-java-tracing-demo-v1.1",
+                "source_urls": [
+                  "https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo/-/archive/v1.1/opentelemetry-java-tracing-demo-v1.1.zip"
+                ]
+              }
+            ],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null,
+            "tag": "java-demo:auto",
+            "context": "opentelemetry-java-tracing-demo-{VERSION}",
+            "dockerfile": "opentelemetry-java-tracing-demo-{VERSION}/Buildfile-AgentContainer",
+            "dockerfile_arg": "Buildfile-AgentContainer",
+            "interactive_context": false,
+            "runtime_download": true,
+            "base_images": [
+              "eclipse-temurin:21",
+              "eclipse-temurin:21",
+              "eclipse-temurin:21"
+            ],
+            "runtime_download_sources": [
+              "https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo/-/archive/v1.1/opentelemetry-java-tracing-demo-v1.1.zip"
+            ],
+            "cwd_occurrences": [
+              "opentelemetry-java-tracing-demo-{VERSION}",
+              "opentelemetry-java-tracing-demo-{VERSION}"
+            ],
+            "context_occurrences": [
+              "opentelemetry-java-tracing-demo-{VERSION}",
+              "opentelemetry-java-tracing-demo-{VERSION}"
+            ]
+          },
+          {
+            "type": "other",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman save localhost/java-demo:auto -o java-demo-auto.tar",
+            "cwd": "opentelemetry-java-tracing-demo-{VERSION}",
+            "occurrences": 2,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null,
+            "cwd_occurrences": [
+              "opentelemetry-java-tracing-demo-{VERSION}",
+              "opentelemetry-java-tracing-demo-{VERSION}"
+            ]
+          },
+          {
+            "type": "build",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman build -t java-demo:java-tools -f Buildfile-AgentJavaTools",
+            "cwd": "opentelemetry-java-tracing-demo-{VERSION}",
+            "occurrences": 1,
+            "assumptions": [
+              {
+                "type": "placeholder-runtime-download",
+                "placeholder": "{VERSION}",
+                "resolved": "opentelemetry-java-tracing-demo-v1.1",
+                "source_urls": [
+                  "https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo/-/archive/v1.1/opentelemetry-java-tracing-demo-v1.1.zip"
+                ]
+              }
+            ],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null,
+            "tag": "java-demo:java-tools",
+            "context": "opentelemetry-java-tracing-demo-{VERSION}",
+            "dockerfile": "opentelemetry-java-tracing-demo-{VERSION}/Buildfile-AgentJavaTools",
+            "dockerfile_arg": "Buildfile-AgentJavaTools",
+            "interactive_context": false,
+            "runtime_download": true,
+            "base_images": [
+              "eclipse-temurin:21",
+              "eclipse-temurin:21",
+              "eclipse-temurin:21"
+            ],
+            "runtime_download_sources": [
+              "https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo/-/archive/v1.1/opentelemetry-java-tracing-demo-v1.1.zip"
+            ]
+          },
+          {
+            "type": "other",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman save localhost/java-demo:java-tools -o java-demo-java-tools.tar",
+            "cwd": "opentelemetry-java-tracing-demo-{VERSION}",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null
+          }
+        ]
       },
       {
         "file": "lab03.html",
@@ -1396,6 +1560,45 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --rm -it --name jaeger \\\n-p 16686:16686 \\\n-p 4317:4317 \\\n-p 4318:4318 \\\n-e COLLECTOR_OTLP_ENABLED=true \\\njaegertracing/all-in-one:1.76.0",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [
+              "16686:16686",
+              "4317:4317",
+              "4318:4318"
+            ],
+            "name": "jaeger",
+            "detached": false,
+            "env": [
+              "COLLECTOR_OTLP_ENABLED=true"
+            ],
+            "volumes": [],
+            "pod": null,
+            "image": "jaegertracing/all-in-one:1.76.0",
+            "cmd": []
+          }
+        ]
+      },
+      {
+        "file": "lab03-rancher.html",
+        "path_type": "rancher",
+        "commands": []
+      },
+      {
+        "file": "lab04.html",
+        "path_type": "docker",
+        "commands": [
+          {
+            "type": "run",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman run --rm -it --name jaeger \\\n-p 16686:16686 \\\n-p 4317:4317 \\\n-p 4318:4318 \\\n-e COLLECTOR_OTLP_ENABLED=true \\\njaegertracing/all-in-one:1.76.0",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "16686:16686",
               "4317:4317",
@@ -1419,30 +1622,9 @@
         "commands": []
       },
       {
-        "file": "lab04.html",
+        "file": "lab05.html",
         "path_type": "docker",
-        "commands": [
-          {
-            "type": "run",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman run --rm -it --name jaeger \\\n-p 16686:16686 \\\n-p 4317:4317 \\\n-p 4318:4318 \\\n-e COLLECTOR_OTLP_ENABLED=true \\\njaegertracing/all-in-one:1.76.0",
-            "ports": [
-              "16686:16686",
-              "4317:4317",
-              "4318:4318"
-            ],
-            "name": "jaeger",
-            "detached": false,
-            "env": [
-              "COLLECTOR_OTLP_ENABLED=true"
-            ],
-            "volumes": [],
-            "pod": null,
-            "image": "jaegertracing/all-in-one:1.76.0",
-            "cmd": []
-          }
-        ]
+        "commands": []
       },
       {
         "file": "lab05-rancher.html",
@@ -1453,6 +1635,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t java-demo:manual -f Buildfile-manual",
+            "cwd": ".",
+            "occurrences": 4,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -1462,186 +1648,44 @@
             "tag": "java-demo:manual",
             "context": ".",
             "dockerfile": "Buildfile-manual",
-            "syntax_flags": [],
+            "dockerfile_arg": "Buildfile-manual",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [],
-            "interactive_context": false
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman save localhost/java-demo:manual -o java-demo-manual.tar",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t java-demo:manual -f Buildfile-manual",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "java-demo:manual",
-            "context": ".",
-            "dockerfile": "Buildfile-manual",
-            "syntax_flags": [],
-            "base_images": [],
-            "interactive_context": false
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman save localhost/java-demo:manual -o java-demo-manual.tar",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t java-demo:manual -f Buildfile-manual",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "java-demo:manual",
-            "context": ".",
-            "dockerfile": "Buildfile-manual",
-            "syntax_flags": [],
-            "base_images": [],
-            "interactive_context": false
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman save localhost/java-demo:manual -o java-demo-manual.tar",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t java-demo:manual -f Buildfile-manual",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "java-demo:manual",
-            "context": ".",
-            "dockerfile": "Buildfile-manual",
-            "syntax_flags": [],
-            "base_images": [],
-            "interactive_context": false
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman save localhost/java-demo:manual -o java-demo-manual.tar",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          }
-        ]
-      },
-      {
-        "file": "lab05.html",
-        "path_type": "docker",
-        "commands": []
-      },
-      {
-        "file": "lab06-rancher.html",
-        "path_type": "rancher",
-        "commands": [
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t java-demo:metrics -f Buildfile",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "java-demo:metrics",
-            "context": ".",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
-            "base_images": [
-              "prom/prometheus:v3.13.1"
+            "cwd_occurrences": [
+              ".",
+              ".",
+              ".",
+              "."
             ],
-            "interactive_context": false
+            "context_occurrences": [
+              ".",
+              ".",
+              ".",
+              "."
+            ]
           },
           {
-            "type": "build",
+            "type": "other",
             "engine": "podman",
             "sudo": false,
-            "raw": "$ podman build -t java-demo-prometheus:v3.13.1 -f Buildfile-prom",
+            "raw": "$ podman save localhost/java-demo:manual -o java-demo-manual.tar",
+            "cwd": ".",
+            "occurrences": 4,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
             "env": [],
             "volumes": [],
             "pod": null,
-            "tag": "java-demo-prometheus:v3.13.1",
-            "context": ".",
-            "dockerfile": "Buildfile-prom",
-            "syntax_flags": [],
-            "base_images": [
-              "prom/prometheus:v3.13.1"
-            ],
-            "interactive_context": false
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman save localhost/java-demo:metrics -o java-demo-metrics.tar",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman save localhost/java-demo-prometheus:v3.13.1 -o java-demo-prometheus.tar",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
+            "cwd_occurrences": [
+              ".",
+              ".",
+              ".",
+              "."
+            ]
           }
         ]
       },
@@ -1654,6 +1698,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t java-demo-prometheus:v3.13.1 -f Buildfile-prom",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -1663,17 +1711,22 @@
             "tag": "java-demo-prometheus:v3.13.1",
             "context": ".",
             "dockerfile": "Buildfile-prom",
-            "syntax_flags": [],
+            "dockerfile_arg": "Buildfile-prom",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "prom/prometheus:v3.13.1"
-            ],
-            "interactive_context": false
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --rm -ti --name prometheus \\\n-p 9090:9090 \\\njava-demo-prometheus:v3.13.1",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "9090:9090"
             ],
@@ -1686,6 +1739,110 @@
             "cmd": []
           }
         ]
+      },
+      {
+        "file": "lab06-rancher.html",
+        "path_type": "rancher",
+        "commands": [
+          {
+            "type": "build",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman build -t java-demo:metrics -f Buildfile",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null,
+            "tag": "java-demo:metrics",
+            "context": ".",
+            "dockerfile": "Buildfile",
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": false,
+            "runtime_download": false,
+            "base_images": [
+              "prom/prometheus:v3.13.1"
+            ]
+          },
+          {
+            "type": "build",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman build -t java-demo-prometheus:v3.13.1 -f Buildfile-prom",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null,
+            "tag": "java-demo-prometheus:v3.13.1",
+            "context": ".",
+            "dockerfile": "Buildfile-prom",
+            "dockerfile_arg": "Buildfile-prom",
+            "interactive_context": false,
+            "runtime_download": false,
+            "base_images": [
+              "prom/prometheus:v3.13.1"
+            ]
+          },
+          {
+            "type": "other",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman save localhost/java-demo:metrics -o java-demo-metrics.tar",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null
+          },
+          {
+            "type": "other",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman save localhost/java-demo-prometheus:v3.13.1 -o java-demo-prometheus.tar",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null
+          },
+          {
+            "type": "other",
+            "engine": "docker",
+            "sudo": false,
+            "raw": "docker load -i",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null
+          }
+        ]
       }
     ]
   },
@@ -1693,6 +1850,11 @@
     "labs": [
       {
         "file": "lab01.html",
+        "path_type": "docker",
+        "commands": []
+      },
+      {
+        "file": "lab02.html",
         "path_type": "docker",
         "commands": []
       },
@@ -1710,6 +1872,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman -v",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -1722,6 +1888,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "podman version 5.x  <<<< MINIMUM VERSION REQUIRED",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -1734,6 +1904,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman machine init",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -1746,6 +1920,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman machine start",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -1758,6 +1936,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman machine list",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -1770,6 +1952,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t workshop-prometheus:v3.13 -f Buildfile",
+            "cwd": "workshop-prometheus",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -1778,30 +1964,43 @@
             "pod": null,
             "tag": "workshop-prometheus:v3.13",
             "context": "workshop-prometheus",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
+            "dockerfile": "workshop-prometheus/Buildfile",
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": true,
+            "runtime_download": false,
             "base_images": [
               "prom/prometheus:v3.13.1"
-            ],
-            "interactive_context": true
+            ]
           },
           {
             "type": "other",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman images",
+            "cwd": "workshop-prometheus",
+            "occurrences": 2,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
             "env": [],
             "volumes": [],
-            "pod": null
+            "pod": null,
+            "cwd_occurrences": [
+              "workshop-prometheus",
+              "workshop-prometheus"
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run -p 9090:9090 workshop-prometheus:v3.13 --config.file=/etc/prometheus/workshop-prometheus.yml",
+            "cwd": "workshop-prometheus",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "9090:9090"
             ],
@@ -1820,6 +2019,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t workshop-prometheus:bad-target -f Buildfile",
+            "cwd": "workshop-prometheus",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -1828,30 +2031,23 @@
             "pod": null,
             "tag": "workshop-prometheus:bad-target",
             "context": "workshop-prometheus",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
+            "dockerfile": "workshop-prometheus/Buildfile",
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": true,
+            "runtime_download": false,
             "base_images": [
               "prom/prometheus:v3.13.1"
-            ],
-            "interactive_context": true
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman images",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run -p 9090:9090 workshop-prometheus:bad-target --config.file=/etc/prometheus/workshop-prometheus.yml",
+            "cwd": "workshop-prometheus",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "9090:9090"
             ],
@@ -1873,7 +2069,7 @@
         "commands": []
       },
       {
-        "file": "lab02.html",
+        "file": "lab03.html",
         "path_type": "docker",
         "commands": []
       },
@@ -1886,6 +2082,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t prometheus_services_demo:v1 -f installs/demo/Buildfile",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -1895,17 +2095,22 @@
             "tag": "prometheus_services_demo:v1",
             "context": ".",
             "dockerfile": "installs/demo/Buildfile",
-            "syntax_flags": [],
+            "dockerfile_arg": "installs/demo/Buildfile",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "prom/prometheus:v3.13.1"
-            ],
-            "interactive_context": false
+            ]
           },
           {
             "type": "other",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman images",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -1918,6 +2123,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run -p 8080:8080 prometheus_services_demo:v1",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "8080:8080"
             ],
@@ -1934,6 +2143,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t workshop-prometheus:v3.13 -f Buildfile",
+            "cwd": ".",
+            "occurrences": 2,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -1943,17 +2156,30 @@
             "tag": "workshop-prometheus:v3.13",
             "context": ".",
             "dockerfile": "Buildfile",
-            "syntax_flags": [],
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "prom/prometheus:v3.13.1"
             ],
-            "interactive_context": false
+            "cwd_occurrences": [
+              ".",
+              "."
+            ],
+            "context_occurrences": [
+              ".",
+              "."
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run -p 9090:9090 workshop-prometheus:v3.13 --config.file=/etc/prometheus/workshop-prometheus.yml",
+            "cwd": ".",
+            "occurrences": 2,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "9090:9090"
             ],
@@ -1965,6 +2191,10 @@
             "image": "workshop-prometheus:v3.13",
             "cmd": [
               "--config.file=/etc/prometheus/workshop-prometheus.yml"
+            ],
+            "cwd_occurrences": [
+              ".",
+              "."
             ]
           },
           {
@@ -1972,6 +2202,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run -p 8081:8080 prometheus_services_demo:v1",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "8081:8080"
             ],
@@ -1982,44 +2216,6 @@
             "pod": null,
             "image": "prometheus_services_demo:v1",
             "cmd": []
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t workshop-prometheus:v3.13 -f Buildfile",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "workshop-prometheus:v3.13",
-            "context": ".",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
-            "base_images": [
-              "prom/prometheus:v3.13.1"
-            ],
-            "interactive_context": false
-          },
-          {
-            "type": "run",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman run -p 9090:9090 workshop-prometheus:v3.13 --config.file=/etc/prometheus/workshop-prometheus.yml",
-            "ports": [
-              "9090:9090"
-            ],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "image": "workshop-prometheus:v3.13",
-            "cmd": [
-              "--config.file=/etc/prometheus/workshop-prometheus.yml"
-            ]
           }
         ]
       },
@@ -2031,7 +2227,11 @@
             "type": "build",
             "engine": "docker",
             "sudo": false,
-            "raw": "$ docker build --load -t prometheus_services_demo:v1 -f installs/demo/Buildfile installs/demo",
+            "raw": "$ docker build  -t prometheus_services_demo:v1 -f installs/demo/Buildfile installs/demo",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -2041,15 +2241,66 @@
             "tag": "prometheus_services_demo:v1",
             "context": "installs/demo",
             "dockerfile": "installs/demo/Buildfile",
-            "syntax_flags": [],
+            "dockerfile_arg": "installs/demo/Buildfile",
+            "interactive_context": false,
+            "runtime_download": true,
             "base_images": [],
-            "interactive_context": true
+            "runtime_download_sources": [
+              "https://gitlab.com/o11y-workshops/prometheus-service-demo-installer/-/archive/v1.0/prometheus-service-demo-installer-v1.0.zip"
+            ]
+          },
+          {
+            "type": "build",
+            "engine": "docker",
+            "sudo": false,
+            "raw": "docker build",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null,
+            "tag": null,
+            "context": ".",
+            "dockerfile": null,
+            "dockerfile_arg": null,
+            "interactive_context": false,
+            "runtime_download": false,
+            "base_images": []
+          },
+          {
+            "type": "other",
+            "engine": "docker",
+            "sudo": false,
+            "raw": "docker images",
+            "cwd": ".",
+            "occurrences": 2,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null,
+            "cwd_occurrences": [
+              ".",
+              "."
+            ]
           },
           {
             "type": "other",
             "engine": "docker",
             "sudo": false,
             "raw": "$ docker images prometheus_services_demo",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -2061,11 +2312,6 @@
       },
       {
         "file": "lab03-source.html",
-        "path_type": "docker",
-        "commands": []
-      },
-      {
-        "file": "lab03.html",
         "path_type": "docker",
         "commands": []
       },
@@ -2083,6 +2329,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run -p 8088:8080 prometheus_services_demo:v1",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "8088:8080"
             ],
@@ -2099,6 +2349,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run -p 9090:9090 workshop-prometheus:v3.13 --config.file=/etc/prometheus/workshop-prometheus.yml",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "9090:9090"
             ],
@@ -2111,6 +2365,22 @@
             "cmd": [
               "--config.file=/etc/prometheus/workshop-prometheus.yml"
             ]
+          },
+          {
+            "type": "other",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "podman stop",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null
           }
         ]
       },
@@ -2123,6 +2393,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run -p 8080:8080 prometheus_services_demo:v1",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "8080:8080"
             ],
@@ -2139,6 +2413,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run -p 8088:8080 prometheus_services_demo:v1",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "8088:8080"
             ],
@@ -2155,6 +2433,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run -p 9090:9090 workshop-prometheus:v3.13 --config.file=/etc/prometheus/workshop-prometheus.yml",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "9090:9090"
             ],
@@ -2171,6 +2453,11 @@
         ]
       },
       {
+        "file": "lab07.html",
+        "path_type": "docker",
+        "commands": []
+      },
+      {
         "file": "lab07-podman.html",
         "path_type": "podman",
         "commands": [
@@ -2179,6 +2466,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t prometheus_services_demo:v1 -f installs/demo/Buildfile",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -2188,15 +2479,20 @@
             "tag": "prometheus_services_demo:v1",
             "context": ".",
             "dockerfile": "installs/demo/Buildfile",
-            "syntax_flags": [],
-            "base_images": [],
-            "interactive_context": false
+            "dockerfile_arg": "installs/demo/Buildfile",
+            "interactive_context": false,
+            "runtime_download": false,
+            "base_images": []
           },
           {
             "type": "other",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman images",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -2209,6 +2505,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run -p 11111:8080 prometheus_services_demo:v1",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "11111:8080"
             ],
@@ -2225,6 +2525,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run -p 22222:8080 prometheus_services_demo:v1",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "22222:8080"
             ],
@@ -2241,6 +2545,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run -p 44444:8080 prometheus_services_demo:v1",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "44444:8080"
             ],
@@ -2262,7 +2570,11 @@
             "type": "build",
             "engine": "docker",
             "sudo": false,
-            "raw": "$ docker build --load -t prometheus_services_demo:v1 -f installs/demo/Buildfile installs/demo",
+            "raw": "$ docker build  -t prometheus_services_demo:v1 -f installs/demo/Buildfile installs/demo",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -2272,15 +2584,43 @@
             "tag": "prometheus_services_demo:v1",
             "context": "installs/demo",
             "dockerfile": "installs/demo/Buildfile",
-            "syntax_flags": [],
+            "dockerfile_arg": "installs/demo/Buildfile",
+            "interactive_context": false,
+            "runtime_download": true,
             "base_images": [],
-            "interactive_context": true
+            "runtime_download_sources": [
+              "https://gitlab.com/o11y-workshops/prometheus-service-demo-installer/-/archive/v1.0/prometheus-service-demo-installer-v1.0.zip"
+            ]
+          },
+          {
+            "type": "other",
+            "engine": "docker",
+            "sudo": false,
+            "raw": "docker images",
+            "cwd": ".",
+            "occurrences": 2,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null,
+            "cwd_occurrences": [
+              ".",
+              "."
+            ]
           },
           {
             "type": "other",
             "engine": "docker",
             "sudo": false,
             "raw": "$ docker images prometheus_services_demo",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -2296,11 +2636,6 @@
         "commands": []
       },
       {
-        "file": "lab07.html",
-        "path_type": "docker",
-        "commands": []
-      },
-      {
         "file": "lab07b.html",
         "path_type": "docker",
         "commands": [
@@ -2309,6 +2644,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t workshop-prometheus:v3.13 -f Buildfile",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -2318,17 +2657,22 @@
             "tag": "workshop-prometheus:v3.13",
             "context": ".",
             "dockerfile": "Buildfile",
-            "syntax_flags": [],
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "prom/prometheus:v3.13.1"
-            ],
-            "interactive_context": false
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run -p 9090:9090 -v ./:/tmp workshop-prometheus:v3.13 --config.file=/etc/prometheus/workshop-prometheus.yml",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "9090:9090"
             ],
@@ -2347,6 +2691,11 @@
         ]
       },
       {
+        "file": "lab08.html",
+        "path_type": "docker",
+        "commands": []
+      },
+      {
         "file": "lab08-podman.html",
         "path_type": "podman",
         "commands": [
@@ -2355,6 +2704,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t basic-java-metrics -f Buildfile",
+            "cwd": "prometheus-java-metrics-demo-v0.5",
+            "occurrences": 8,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -2363,18 +2716,46 @@
             "pod": null,
             "tag": "basic-java-metrics",
             "context": "prometheus-java-metrics-demo-v0.5",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
+            "dockerfile": "prometheus-java-metrics-demo-v0.5/Buildfile",
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": false,
+            "runtime_download": true,
             "base_images": [
               "eclipse-temurin:21"
             ],
-            "interactive_context": true
+            "runtime_download_sources": [
+              "https://gitlab.com/o11y-workshops/prometheus-java-metrics-demo/-/archive/v0.5/prometheus-java-metrics-demo-v0.5.zip"
+            ],
+            "cwd_occurrences": [
+              "prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5"
+            ],
+            "context_occurrences": [
+              "prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5"
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run -p 7777:7777 basic-java-metrics",
+            "cwd": "prometheus-java-metrics-demo-v0.5",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "7777:7777"
             ],
@@ -2391,6 +2772,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t workshop-prometheus:v3.13 -f Buildfile",
+            "cwd": "prometheus-java-metrics-demo-v0.5",
+            "occurrences": 3,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -2399,56 +2784,36 @@
             "pod": null,
             "tag": "workshop-prometheus:v3.13",
             "context": "prometheus-java-metrics-demo-v0.5",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
+            "dockerfile": "prometheus-java-metrics-demo-v0.5/Buildfile",
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": false,
+            "runtime_download": true,
             "base_images": [
               "eclipse-temurin:21"
             ],
-            "interactive_context": true
-          },
-          {
-            "type": "run",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman run -p 9090:9090 workshop-prometheus:v3.13 --config.file=/etc/prometheus/workshop-prometheus.yml",
-            "ports": [
-              "9090:9090"
+            "runtime_download_sources": [
+              "https://gitlab.com/o11y-workshops/prometheus-java-metrics-demo/-/archive/v0.5/prometheus-java-metrics-demo-v0.5.zip"
             ],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "image": "workshop-prometheus:v3.13",
-            "cmd": [
-              "--config.file=/etc/prometheus/workshop-prometheus.yml"
+            "cwd_occurrences": [
+              "prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5"
+            ],
+            "context_occurrences": [
+              "prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5"
             ]
           },
           {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t workshop-prometheus:v3.13 -f Buildfile",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "workshop-prometheus:v3.13",
-            "context": "prometheus-java-metrics-demo-v0.5",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
-            "base_images": [
-              "eclipse-temurin:21"
-            ],
-            "interactive_context": true
-          },
-          {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run -p 9090:9090 workshop-prometheus:v3.13 --config.file=/etc/prometheus/workshop-prometheus.yml",
+            "cwd": "prometheus-java-metrics-demo-v0.5",
+            "occurrences": 3,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "9090:9090"
             ],
@@ -2460,33 +2825,22 @@
             "image": "workshop-prometheus:v3.13",
             "cmd": [
               "--config.file=/etc/prometheus/workshop-prometheus.yml"
+            ],
+            "cwd_occurrences": [
+              "prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5"
             ]
           },
           {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t basic-java-metrics -f Buildfile",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "basic-java-metrics",
-            "context": "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
-            "base_images": [
-              "eclipse-temurin:21"
-            ],
-            "interactive_context": true
-          },
-          {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run -p 9999:9999 basic-java-metrics",
+            "cwd": "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+            "occurrences": 7,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "9999:9999"
             ],
@@ -2496,260 +2850,15 @@
             "volumes": [],
             "pod": null,
             "image": "basic-java-metrics",
-            "cmd": []
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t basic-java-metrics -f Buildfile",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "basic-java-metrics",
-            "context": "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
-            "base_images": [
-              "eclipse-temurin:21"
-            ],
-            "interactive_context": true
-          },
-          {
-            "type": "run",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman run -p 9999:9999 basic-java-metrics",
-            "ports": [
-              "9999:9999"
-            ],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "image": "basic-java-metrics",
-            "cmd": []
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t basic-java-metrics -f Buildfile",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "basic-java-metrics",
-            "context": "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
-            "base_images": [
-              "eclipse-temurin:21"
-            ],
-            "interactive_context": true
-          },
-          {
-            "type": "run",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman run -p 9999:9999 basic-java-metrics",
-            "ports": [
-              "9999:9999"
-            ],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "image": "basic-java-metrics",
-            "cmd": []
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t basic-java-metrics -f Buildfile",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "basic-java-metrics",
-            "context": "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
-            "base_images": [
-              "eclipse-temurin:21"
-            ],
-            "interactive_context": true
-          },
-          {
-            "type": "run",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman run -p 9999:9999 basic-java-metrics",
-            "ports": [
-              "9999:9999"
-            ],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "image": "basic-java-metrics",
-            "cmd": []
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t basic-java-metrics -f Buildfile",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "basic-java-metrics",
-            "context": "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
-            "base_images": [
-              "eclipse-temurin:21"
-            ],
-            "interactive_context": true
-          },
-          {
-            "type": "run",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman run -p 9999:9999 basic-java-metrics",
-            "ports": [
-              "9999:9999"
-            ],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "image": "basic-java-metrics",
-            "cmd": []
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t basic-java-metrics -f Buildfile",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "basic-java-metrics",
-            "context": "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
-            "base_images": [
-              "eclipse-temurin:21"
-            ],
-            "interactive_context": true
-          },
-          {
-            "type": "run",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman run -p 9999:9999 basic-java-metrics",
-            "ports": [
-              "9999:9999"
-            ],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "image": "basic-java-metrics",
-            "cmd": []
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t basic-java-metrics -f Buildfile",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "basic-java-metrics",
-            "context": "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
-            "base_images": [
-              "eclipse-temurin:21"
-            ],
-            "interactive_context": true
-          },
-          {
-            "type": "run",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman run -p 9999:9999 basic-java-metrics",
-            "ports": [
-              "9999:9999"
-            ],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "image": "basic-java-metrics",
-            "cmd": []
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t workshop-prometheus:v3.13 -f Buildfile",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "workshop-prometheus:v3.13",
-            "context": "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
-            "base_images": [
-              "eclipse-temurin:21"
-            ],
-            "interactive_context": true
-          },
-          {
-            "type": "run",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman run -p 9090:9090 workshop-prometheus:v3.13 --config.file=/etc/prometheus/workshop-prometheus.yml",
-            "ports": [
-              "9090:9090"
-            ],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "image": "workshop-prometheus:v3.13",
-            "cmd": [
-              "--config.file=/etc/prometheus/workshop-prometheus.yml"
+            "cmd": [],
+            "cwd_occurrences": [
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5"
             ]
           }
         ]
@@ -2762,7 +2871,11 @@
             "type": "build",
             "engine": "docker",
             "sudo": false,
-            "raw": "$ docker build --load -t basic-java-metrics -f Buildfile .",
+            "raw": "$ docker build  -t basic-java-metrics -f Buildfile .",
+            "cwd": "prometheus-java-metrics-demo-v0.5",
+            "occurrences": 8,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -2771,174 +2884,105 @@
             "pod": null,
             "tag": "basic-java-metrics",
             "context": "prometheus-java-metrics-demo-v0.5",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
+            "dockerfile": "prometheus-java-metrics-demo-v0.5/Buildfile",
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": false,
+            "runtime_download": true,
             "base_images": [
               "eclipse-temurin:21"
             ],
-            "interactive_context": true
+            "runtime_download_sources": [
+              "https://gitlab.com/o11y-workshops/prometheus-java-metrics-demo/-/archive/v0.5/prometheus-java-metrics-demo-v0.5.zip"
+            ],
+            "cwd_occurrences": [
+              "prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5"
+            ],
+            "context_occurrences": [
+              "prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5"
+            ]
+          },
+          {
+            "type": "build",
+            "engine": "docker",
+            "sudo": false,
+            "raw": "docker build",
+            "cwd": "prometheus-java-metrics-demo-v0.5",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null,
+            "tag": null,
+            "context": "prometheus-java-metrics-demo-v0.5",
+            "dockerfile": null,
+            "dockerfile_arg": null,
+            "interactive_context": false,
+            "runtime_download": true,
+            "base_images": [
+              "eclipse-temurin:21"
+            ],
+            "runtime_download_sources": [
+              "https://gitlab.com/o11y-workshops/prometheus-java-metrics-demo/-/archive/v0.5/prometheus-java-metrics-demo-v0.5.zip"
+            ]
+          },
+          {
+            "type": "other",
+            "engine": "docker",
+            "sudo": false,
+            "raw": "docker images",
+            "cwd": "prometheus-java-metrics-demo-v0.5",
+            "occurrences": 2,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null,
+            "cwd_occurrences": [
+              "prometheus-java-metrics-demo-v0.5",
+              "prometheus-java-metrics-demo-v0.5"
+            ]
           },
           {
             "type": "other",
             "engine": "docker",
             "sudo": false,
             "raw": "$ docker images basic-java-metrics",
+            "cwd": "prometheus-java-metrics-demo-v0.5",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
             "env": [],
             "volumes": [],
             "pod": null
-          },
-          {
-            "type": "build",
-            "engine": "docker",
-            "sudo": false,
-            "raw": "$ docker build --load -t basic-java-metrics -f Buildfile .",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "basic-java-metrics",
-            "context": "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
-            "base_images": [
-              "eclipse-temurin:21"
-            ],
-            "interactive_context": true
-          },
-          {
-            "type": "build",
-            "engine": "docker",
-            "sudo": false,
-            "raw": "$ docker build --load -t basic-java-metrics -f Buildfile .",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "basic-java-metrics",
-            "context": "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
-            "base_images": [
-              "eclipse-temurin:21"
-            ],
-            "interactive_context": true
-          },
-          {
-            "type": "build",
-            "engine": "docker",
-            "sudo": false,
-            "raw": "$ docker build --load -t basic-java-metrics -f Buildfile .",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "basic-java-metrics",
-            "context": "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
-            "base_images": [
-              "eclipse-temurin:21"
-            ],
-            "interactive_context": true
-          },
-          {
-            "type": "build",
-            "engine": "docker",
-            "sudo": false,
-            "raw": "$ docker build --load -t basic-java-metrics -f Buildfile .",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "basic-java-metrics",
-            "context": "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
-            "base_images": [
-              "eclipse-temurin:21"
-            ],
-            "interactive_context": true
-          },
-          {
-            "type": "build",
-            "engine": "docker",
-            "sudo": false,
-            "raw": "$ docker build --load -t basic-java-metrics -f Buildfile .",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "basic-java-metrics",
-            "context": "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
-            "base_images": [
-              "eclipse-temurin:21"
-            ],
-            "interactive_context": true
-          },
-          {
-            "type": "build",
-            "engine": "docker",
-            "sudo": false,
-            "raw": "$ docker build --load -t basic-java-metrics -f Buildfile .",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "basic-java-metrics",
-            "context": "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
-            "base_images": [
-              "eclipse-temurin:21"
-            ],
-            "interactive_context": true
-          },
-          {
-            "type": "build",
-            "engine": "docker",
-            "sudo": false,
-            "raw": "$ docker build --load -t basic-java-metrics -f Buildfile .",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "basic-java-metrics",
-            "context": "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-            "dockerfile": "Buildfile",
-            "syntax_flags": [],
-            "base_images": [
-              "eclipse-temurin:21"
-            ],
-            "interactive_context": true
           }
         ]
       },
       {
         "file": "lab08-source.html",
-        "path_type": "docker",
-        "commands": []
-      },
-      {
-        "file": "lab08.html",
         "path_type": "docker",
         "commands": []
       },
@@ -2957,14 +3001,55 @@
         "commands": []
       },
       {
+        "file": "lab02.html",
+        "path_type": "docker",
+        "commands": []
+      },
+      {
         "file": "lab02-podman.html",
         "path_type": "podman",
         "commands": [
           {
             "type": "other",
+            "engine": "docker",
+            "sudo": false,
+            "raw": "docker",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null
+          },
+          {
+            "type": "other",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "podman",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null
+          },
+          {
+            "type": "other",
             "engine": "podman",
             "sudo": false,
             "raw": "podman machine start",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -2977,6 +3062,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "podman run --rm --name fb -ti ghcr.io/fluent/fluent-bit:5.1.1",
+            "cwd": ".",
+            "occurrences": 2,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": "fb",
             "detached": false,
@@ -2984,27 +3073,21 @@
             "volumes": [],
             "pod": null,
             "image": "ghcr.io/fluent/fluent-bit:5.1.1",
-            "cmd": []
-          },
-          {
-            "type": "run",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "podman run --rm --name fb -ti ghcr.io/fluent/fluent-bit:5.1.1",
-            "ports": [],
-            "name": "fb",
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "image": "ghcr.io/fluent/fluent-bit:5.1.1",
-            "cmd": []
+            "cmd": [],
+            "cwd_occurrences": [
+              ".",
+              "."
+            ]
           },
           {
             "type": "other",
             "engine": "podman",
             "sudo": false,
             "raw": "podman machine stop",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3025,11 +3108,6 @@
         "commands": []
       },
       {
-        "file": "lab02.html",
-        "path_type": "docker",
-        "commands": []
-      },
-      {
         "file": "lab03.html",
         "path_type": "docker",
         "commands": [
@@ -3038,6 +3116,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t workshop-fb:v1 -f Buildfile",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3047,17 +3129,22 @@
             "tag": "workshop-fb:v1",
             "context": ".",
             "dockerfile": "Buildfile",
-            "syntax_flags": [],
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ],
-            "interactive_context": false
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --rm --name fb workshop-fb:v1",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": "fb",
             "detached": false,
@@ -3072,6 +3159,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t workshop-fb:v2 -f Buildfile",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3081,17 +3172,22 @@
             "tag": "workshop-fb:v2",
             "context": ".",
             "dockerfile": "Buildfile",
-            "syntax_flags": [],
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ],
-            "interactive_context": false
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --rm --name fb -v ./:/tmp workshop-fb:v2",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": "fb",
             "detached": false,
@@ -3108,6 +3204,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t workshop-fb:v3 -f Buildfile",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3117,17 +3217,22 @@
             "tag": "workshop-fb:v3",
             "context": ".",
             "dockerfile": "Buildfile",
-            "syntax_flags": [],
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ],
-            "interactive_context": false
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --rm --name fb -v ./:/tmp workshop-fb:v3",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": "fb",
             "detached": false,
@@ -3150,6 +3255,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t workshop-fb:v4 -f Buildfile",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3159,17 +3268,22 @@
             "tag": "workshop-fb:v4",
             "context": ".",
             "dockerfile": "Buildfile",
-            "syntax_flags": [],
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ],
-            "interactive_context": false
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --rm --name fb workshop-fb:v4",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": "fb",
             "detached": false,
@@ -3184,6 +3298,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t workshop-fb:v5 -f Buildfile",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3193,17 +3311,22 @@
             "tag": "workshop-fb:v5",
             "context": ".",
             "dockerfile": "Buildfile",
-            "syntax_flags": [],
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ],
-            "interactive_context": false
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --rm --name fb workshop-fb:v5",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": "fb",
             "detached": false,
@@ -3218,6 +3341,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t workshop-fb:v6 -f Buildfile",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3227,17 +3354,22 @@
             "tag": "workshop-fb:v6",
             "context": ".",
             "dockerfile": "Buildfile",
-            "syntax_flags": [],
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ],
-            "interactive_context": false
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --rm workshop-fb:v6",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3252,6 +3384,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t workshop-fb:v7 -f Buildfile",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3261,17 +3397,22 @@
             "tag": "workshop-fb:v7",
             "context": ".",
             "dockerfile": "Buildfile",
-            "syntax_flags": [],
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ],
-            "interactive_context": false
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --rm -p 9999:9999 workshop-fb:v7",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "9999:9999"
             ],
@@ -3286,11 +3427,6 @@
         ]
       },
       {
-        "file": "lab05-rancher.html",
-        "path_type": "rancher",
-        "commands": []
-      },
-      {
         "file": "lab05.html",
         "path_type": "docker",
         "commands": [
@@ -3299,6 +3435,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t workshop-fb:v8 -f Buildfile",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3308,17 +3448,22 @@
             "tag": "workshop-fb:v8",
             "context": ".",
             "dockerfile": "Buildfile",
-            "syntax_flags": [],
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ],
-            "interactive_context": false
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --name fb-oom workshop-fb:v8",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": "fb-oom",
             "detached": false,
@@ -3333,6 +3478,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman stats fb-oom",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3345,6 +3494,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman container rm fb-oom",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3357,6 +3510,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --name fb-oom --memory 10.2MB workshop-fb:v8",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": "fb-oom",
             "detached": false,
@@ -3371,6 +3528,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman inspect fb-oom | grep OOM",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3383,6 +3544,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t workshop-fb:v9 -f Buildfile",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3392,17 +3557,22 @@
             "tag": "workshop-fb:v9",
             "context": ".",
             "dockerfile": "Buildfile",
-            "syntax_flags": [],
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ],
-            "interactive_context": false
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --rm --name fb-limit -it --memory=18MB workshop-fb:v9",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": "fb-limit",
             "detached": false,
@@ -3415,7 +3585,7 @@
         ]
       },
       {
-        "file": "lab06-rancher.html",
+        "file": "lab05-rancher.html",
         "path_type": "rancher",
         "commands": []
       },
@@ -3428,6 +3598,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t workshop-fb:v10 -f Buildfile",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3437,17 +3611,22 @@
             "tag": "workshop-fb:v10",
             "context": ".",
             "dockerfile": "Buildfile",
-            "syntax_flags": [],
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ],
-            "interactive_context": false
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run -it --memory 10.2MB --name fbv10 workshop-fb:v10",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": "fbv10",
             "detached": false,
@@ -3462,6 +3641,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman inspect fbv10 | grep OOM",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3474,6 +3657,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t workshop-fb:v11 -f Buildfile",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3483,17 +3670,22 @@
             "tag": "workshop-fb:v11",
             "context": ".",
             "dockerfile": "Buildfile",
-            "syntax_flags": [],
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ],
-            "interactive_context": false
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --rm -v ./:/tmp --memory 12MB --name fbv11 workshop-fb:v11",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": "fbv11",
             "detached": false,
@@ -3508,6 +3700,103 @@
         ]
       },
       {
+        "file": "lab06-rancher.html",
+        "path_type": "rancher",
+        "commands": []
+      },
+      {
+        "file": "lab07.html",
+        "path_type": "docker",
+        "commands": [
+          {
+            "type": "build",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman build -t workshop-fb:v12 -f Buildfile-fb",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null,
+            "tag": "workshop-fb:v12",
+            "context": ".",
+            "dockerfile": "Buildfile-fb",
+            "dockerfile_arg": "Buildfile-fb",
+            "interactive_context": false,
+            "runtime_download": false,
+            "base_images": [
+              "ghcr.io/fluent/fluent-bit:5.1.1"
+            ]
+          },
+          {
+            "type": "run",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman run --rm --name fbv12 workshop-fb:v12",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": "fbv12",
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null,
+            "image": "workshop-fb:v12",
+            "cmd": []
+          },
+          {
+            "type": "build",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman build -t workshop-fb:v13 -f Buildfile-fb",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null,
+            "tag": "workshop-fb:v13",
+            "context": ".",
+            "dockerfile": "Buildfile-fb",
+            "dockerfile_arg": "Buildfile-fb",
+            "interactive_context": false,
+            "runtime_download": false,
+            "base_images": [
+              "ghcr.io/fluent/fluent-bit:5.1.1"
+            ]
+          },
+          {
+            "type": "run",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman run --rm --name fbv13 workshop-fb:v13",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": "fbv13",
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null,
+            "image": "workshop-fb:v13",
+            "cmd": []
+          }
+        ]
+      },
+      {
         "file": "lab07-podman.html",
         "path_type": "podman",
         "commands": [
@@ -3516,6 +3805,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t workshop-otel:v0.159 -f Buildfile-otel",
+            "cwd": ".",
+            "occurrences": 2,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3525,17 +3818,30 @@
             "tag": "workshop-otel:v0.159",
             "context": ".",
             "dockerfile": "Buildfile-otel",
-            "syntax_flags": [],
+            "dockerfile_arg": "Buildfile-otel",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "otel/opentelemetry-collector-contrib:0.159.0"
             ],
-            "interactive_context": false
+            "cwd_occurrences": [
+              ".",
+              "."
+            ],
+            "context_occurrences": [
+              ".",
+              "."
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --rm -p 4317:4317 --name otelcol workshop-otel:v0.159",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "4317:4317"
             ],
@@ -3552,6 +3858,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t workshop-fb:v14 -f Buildfile-fb",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3561,17 +3871,22 @@
             "tag": "workshop-fb:v14",
             "context": ".",
             "dockerfile": "Buildfile-fb",
-            "syntax_flags": [],
+            "dockerfile_arg": "Buildfile-fb",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "otel/opentelemetry-collector-contrib:0.159.0"
-            ],
-            "interactive_context": false
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --rm --name fbv14 -e OTEL_HOST=$(podman inspect -f \"{{.NetworkSettings.IPAddress}}\" otelcol) workshop-fb:v14",
+            "cwd": ".",
+            "occurrences": 2,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": "fbv14",
             "detached": false,
@@ -3586,33 +3901,21 @@
               "{{.NetworkSettings.IPAddress}}",
               "otelcol)",
               "workshop-fb:v14"
-            ]
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t workshop-otel:v0.159 -f Buildfile-otel",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "workshop-otel:v0.159",
-            "context": ".",
-            "dockerfile": "Buildfile-otel",
-            "syntax_flags": [],
-            "base_images": [
-              "otel/opentelemetry-collector-contrib:0.159.0"
             ],
-            "interactive_context": false
+            "cwd_occurrences": [
+              ".",
+              "."
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --rm -p 4317:4317 --name otelcol -v ./:/tmp workshop-otel:v0.159",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "4317:4317"
             ],
@@ -3625,27 +3928,6 @@
             "pod": null,
             "image": "workshop-otel:v0.159",
             "cmd": []
-          },
-          {
-            "type": "run",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman run --rm --name fbv14 -e OTEL_HOST=$(podman inspect -f \"{{.NetworkSettings.IPAddress}}\" otelcol) workshop-fb:v14",
-            "ports": [],
-            "name": "fbv14",
-            "detached": false,
-            "env": [
-              "OTEL_HOST=$(podman"
-            ],
-            "volumes": [],
-            "pod": null,
-            "image": "inspect",
-            "cmd": [
-              "-f",
-              "{{.NetworkSettings.IPAddress}}",
-              "otelcol)",
-              "workshop-fb:v14"
-            ]
           }
         ]
       },
@@ -3660,80 +3942,6 @@
         "commands": []
       },
       {
-        "file": "lab07.html",
-        "path_type": "docker",
-        "commands": [
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t workshop-fb:v12 -f Buildfile-fb",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "workshop-fb:v12",
-            "context": ".",
-            "dockerfile": "Buildfile-fb",
-            "syntax_flags": [],
-            "base_images": [
-              "ghcr.io/fluent/fluent-bit:5.1.1"
-            ],
-            "interactive_context": false
-          },
-          {
-            "type": "run",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman run --rm --name fbv12 workshop-fb:v12",
-            "ports": [],
-            "name": "fbv12",
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "image": "workshop-fb:v12",
-            "cmd": []
-          },
-          {
-            "type": "build",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman build -t workshop-fb:v13 -f Buildfile-fb",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "tag": "workshop-fb:v13",
-            "context": ".",
-            "dockerfile": "Buildfile-fb",
-            "syntax_flags": [],
-            "base_images": [
-              "ghcr.io/fluent/fluent-bit:5.1.1"
-            ],
-            "interactive_context": false
-          },
-          {
-            "type": "run",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman run --rm --name fbv13 workshop-fb:v13",
-            "ports": [],
-            "name": "fbv13",
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "image": "workshop-fb:v13",
-            "cmd": []
-          }
-        ]
-      },
-      {
         "file": "lab08.html",
         "path_type": "docker",
         "commands": [
@@ -3742,6 +3950,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman machine rm",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3754,6 +3966,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman machine init --memory 4096",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3766,6 +3982,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman machine start",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3781,9 +4001,45 @@
         "commands": [
           {
             "type": "other",
+            "engine": "docker",
+            "sudo": false,
+            "raw": "docker",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null
+          },
+          {
+            "type": "other",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "podman",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null
+          },
+          {
+            "type": "other",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman machine set --memory 6144",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3796,6 +4052,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman machine start",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3808,6 +4068,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman network rm -f os-net",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3820,6 +4084,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman network create os-net",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3832,6 +4100,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "podman run --rm --name opensearch --network os-net -p 9200:9200 -p 9600:9600 -e \"discovery.type=single-node\" -e \"DISABLE_INSTALL_DEMO_CONFIG=true\" -e \"DISABLE_SECURITY_PLUGIN=true\" opensearchproject/opensearch:3.3.1",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "9200:9200",
               "9600:9600"
@@ -3853,6 +4125,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "podman run --rm --name osd --network os-net -p 5601:5601 -e \"DISABLE_SECURITY_DASHBOARDS_PLUGIN=true\" -v ./opensearch-dashboards.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml opensearchproject/opensearch-dashboards:3.3.0",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "5601:5601"
             ],
@@ -3869,10 +4145,31 @@
             "cmd": []
           },
           {
+            "type": "run",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "podman run --rm",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null,
+            "image": null
+          },
+          {
             "type": "build",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t opensearch:fb-opensearch -f Buildfile",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3882,15 +4179,20 @@
             "tag": "opensearch:fb-opensearch",
             "context": ".",
             "dockerfile": "Buildfile",
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": false,
+            "runtime_download": false,
+            "base_images": []
+          },
+          {
+            "type": "run",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman run --rm --name fb-opensearch --network os-net opensearch:fb-opensearch",
+            "cwd": ".",
+            "occurrences": 2,
+            "assumptions": [],
             "syntax_flags": [],
-            "base_images": [],
-            "interactive_context": false
-          },
-          {
-            "type": "run",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman run --rm --name fb-opensearch --network os-net opensearch:fb-opensearch",
             "ports": [],
             "name": "fb-opensearch",
             "detached": false,
@@ -3898,27 +4200,21 @@
             "volumes": [],
             "pod": null,
             "image": "opensearch:fb-opensearch",
-            "cmd": []
-          },
-          {
-            "type": "run",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman run --rm --name fb-opensearch --network os-net opensearch:fb-opensearch",
-            "ports": [],
-            "name": "fb-opensearch",
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null,
-            "image": "opensearch:fb-opensearch",
-            "cmd": []
+            "cmd": [],
+            "cwd_occurrences": [
+              ".",
+              "."
+            ]
           },
           {
             "type": "other",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman stop opensearch osd fb-opensearch",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3931,6 +4227,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman machine stop",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3949,6 +4249,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t workshop-fb:v15 -f Buildfile",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3958,17 +4262,22 @@
             "tag": "workshop-fb:v15",
             "context": ".",
             "dockerfile": "Buildfile",
-            "syntax_flags": [],
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ],
-            "interactive_context": false
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --rm --name fb workshop-fb:v15",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": "fb",
             "detached": false,
@@ -3983,6 +4292,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t workshop-fb:v16 -f Buildfile",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -3992,17 +4305,22 @@
             "tag": "workshop-fb:v16",
             "context": ".",
             "dockerfile": "Buildfile",
-            "syntax_flags": [],
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ],
-            "interactive_context": false
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --rm --name fb -v ./:/tmp workshop-fb:v16",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": "fb",
             "detached": false,
@@ -4019,6 +4337,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t workshop-fb:v17 -f Buildfile",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -4028,17 +4350,22 @@
             "tag": "workshop-fb:v17",
             "context": ".",
             "dockerfile": "Buildfile",
-            "syntax_flags": [],
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ],
-            "interactive_context": false
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --rm --name fb workshop-fb:v17",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": "fb",
             "detached": false,
@@ -4053,6 +4380,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t workshop-fb:v18 -f Buildfile",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -4062,17 +4393,22 @@
             "tag": "workshop-fb:v18",
             "context": ".",
             "dockerfile": "Buildfile",
-            "syntax_flags": [],
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ],
-            "interactive_context": false
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --rm --name fb -v ./:/tmp workshop-fb:v18",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": "fb",
             "detached": false,
@@ -4089,6 +4425,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman build -t workshop-fb:v19 -f Buildfile",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -4098,17 +4438,22 @@
             "tag": "workshop-fb:v19",
             "context": ".",
             "dockerfile": "Buildfile",
-            "syntax_flags": [],
+            "dockerfile_arg": "Buildfile",
+            "interactive_context": false,
+            "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ],
-            "interactive_context": false
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --rm --name fb -v ./:/tmp workshop-fb:v19",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": "fb",
             "detached": false,
@@ -4125,6 +4470,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman stop fb",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -4137,6 +4486,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman machine stop",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -4156,14 +4509,23 @@
         "commands": []
       },
       {
+        "file": "lab02.html",
+        "path_type": "docker",
+        "commands": []
+      },
+      {
         "file": "lab02-podman.html",
         "path_type": "podman",
         "commands": [
           {
             "type": "other",
-            "engine": "podman",
+            "engine": "docker",
             "sudo": false,
-            "raw": "$ podman machine start",
+            "raw": "docker",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -4172,26 +4534,50 @@
             "pod": null
           },
           {
-            "type": "run",
+            "type": "other",
             "engine": "podman",
             "sudo": false,
-            "raw": "$ podman run --name perses --rm -p 127.0.0.1:8080:8080 persesdev/perses:v0.54.0",
-            "ports": [
-              "127.0.0.1:8080:8080"
-            ],
-            "name": "perses",
+            "raw": "podman",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null
+          },
+          {
+            "type": "other",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "$ podman machine start",
+            "cwd": ".",
+            "occurrences": 2,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
             "detached": false,
             "env": [],
             "volumes": [],
             "pod": null,
-            "image": "persesdev/perses:v0.54.0",
-            "cmd": []
+            "cwd_occurrences": [
+              ".",
+              "perses-install-demo-{VERSION}"
+            ]
           },
           {
             "type": "run",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run --name perses --rm -p 127.0.0.1:8080:8080 persesdev/perses:v0.54.0",
+            "cwd": ".",
+            "occurrences": 2,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "127.0.0.1:8080:8080"
             ],
@@ -4201,25 +4587,21 @@
             "volumes": [],
             "pod": null,
             "image": "persesdev/perses:v0.54.0",
-            "cmd": []
+            "cmd": [],
+            "cwd_occurrences": [
+              ".",
+              "."
+            ]
           },
           {
             "type": "other",
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman machine stop",
-            "ports": [],
-            "name": null,
-            "detached": false,
-            "env": [],
-            "volumes": [],
-            "pod": null
-          },
-          {
-            "type": "other",
-            "engine": "podman",
-            "sudo": false,
-            "raw": "$ podman machine start",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -4245,17 +4627,17 @@
         "commands": []
       },
       {
-        "file": "lab02.html",
-        "path_type": "docker",
-        "commands": []
-      },
-      {
         "file": "lab03.html",
         "path_type": "docker",
         "commands": []
       },
       {
         "file": "lab04.html",
+        "path_type": "docker",
+        "commands": []
+      },
+      {
+        "file": "lab05.html",
         "path_type": "docker",
         "commands": []
       },
@@ -4273,6 +4655,42 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman machine start",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null
+          },
+          {
+            "type": "other",
+            "engine": "docker",
+            "sudo": false,
+            "raw": "docker",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
+            "ports": [],
+            "name": null,
+            "detached": false,
+            "env": [],
+            "volumes": [],
+            "pod": null
+          },
+          {
+            "type": "other",
+            "engine": "podman",
+            "sudo": false,
+            "raw": "podman",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -4285,6 +4703,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman pod create --name workshop-datasource \\\n-p 127.0.0.1:9090:9090 \\\n-p 127.0.0.1:9100:9100",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [
               "127.0.0.1:9090:9090",
               "127.0.0.1:9100:9100"
@@ -4300,6 +4722,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run -d --pod workshop-datasource --name prometheus \\\n-v \"$(pwd)/support/workshop-prometheus.yml:/etc/prometheus/prometheus.yml:ro,Z\" \\\ndocker.io/prom/prometheus:v3.13.1",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": "prometheus",
             "detached": true,
@@ -4316,6 +4742,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman logs -f prometheus",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -4328,6 +4758,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman run -d --pod workshop-datasource --name node-exporter \\\nquay.io/prometheus/node-exporter:v1.12.1",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": "node-exporter",
             "detached": true,
@@ -4342,6 +4776,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman ps --pod",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -4354,6 +4792,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman pod rm -f workshop-datasource",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -4366,6 +4808,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman container stop perses",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -4378,6 +4824,10 @@
             "engine": "podman",
             "sudo": false,
             "raw": "$ podman machine stop",
+            "cwd": ".",
+            "occurrences": 1,
+            "assumptions": [],
+            "syntax_flags": [],
             "ports": [],
             "name": null,
             "detached": false,
@@ -4390,11 +4840,6 @@
       {
         "file": "lab05-rancher.html",
         "path_type": "rancher",
-        "commands": []
-      },
-      {
-        "file": "lab05.html",
-        "path_type": "docker",
         "commands": []
       },
       {

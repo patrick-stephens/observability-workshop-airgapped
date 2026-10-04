@@ -1,4 +1,7 @@
+# v2: Curate primary services across every lab variant with source evidence and explicit execution adaptations.
 import json
+import re
+from html.parser import HTMLParser
 from pathlib import Path
 
 
@@ -7,115 +10,224 @@ EXTRACTED = ROOT / "content" / "extracted"
 COMMANDS_PATH = EXTRACTED / "commands.json"
 OUTPUT_PATH = EXTRACTED / "curated.json"
 TRACKS = ("opentelemetry", "otel-developers", "prometheus", "fluentbit", "perses")
+JAEGER_IMAGE = "docker.io/jaegertracing/all-in-one:1.76.0"
 
 
-def docs_text(track):
-    parts = []
-    for path in sorted((ROOT / "content" / "docs" / track).rglob("*.html")):
-        parts.append(path.read_text(encoding="utf-8", errors="replace"))
-    return "\n".join(parts).lower()
+class LinkParser(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.links = []
+
+    def handle_starttag(self, tag, attrs):
+        for key, value in attrs:
+            if tag.lower() == "a" and key.lower() == "href" and value:
+                self.links.append(value)
 
 
-def docker_path_runs(track, commands):
+def track_html(track):
+    pages = []
+    for base in (ROOT / "content" / "repos" / track, ROOT / "content" / "docs" / track):
+        if base.is_dir():
+            pages.extend(sorted(base.rglob("*.html")))
+    return pages
+
+
+def track_text(track):
+    return "\n".join(path.read_text(encoding="utf-8", errors="replace") for path in track_html(track)).lower()
+
+
+def archive_links(track):
+    links = []
+    for page in track_html(track):
+        parser = LinkParser()
+        parser.feed(page.read_text(encoding="utf-8", errors="replace"))
+        links.extend(link for link in parser.links if re.search(r"\.(?:zip|tgz|tar(?:\.gz|\.bz2|\.xz)?)(?:[?#].*)?$", link, re.IGNORECASE))
+    return list(dict.fromkeys(links))
+
+
+def all_commands(track, commands):
     for lab in commands[track]["labs"]:
-        if lab["path_type"] != "docker":
-            continue
         for command in lab["commands"]:
-            if command["type"] == "run":
-                yield lab, command
+            yield lab, command
 
 
-def make_entry(name, lab, command, check):
+def choose(track, commands, predicate, preferred_files=()):
+    candidates = list(all_commands(track, commands))
+    ordered = []
+    for filename in preferred_files:
+        ordered.extend(pair for pair in candidates if pair[0]["file"] == filename)
+    ordered.extend(pair for pair in candidates if pair[0]["file"] not in preferred_files)
+    return next(((lab, command) for lab, command in ordered if predicate(lab, command)), None)
+
+
+def build_provenance(track, tag, commands):
+    sources = []
+    for lab, command in all_commands(track, commands):
+        if command["type"] == "build" and command.get("tag") == tag:
+            sources.append({
+                "file": lab["file"],
+                "path_type": lab["path_type"],
+                "engine": command["engine"],
+                "cwd": command.get("cwd", "."),
+                "context": command.get("context"),
+                "dockerfile": command.get("dockerfile"),
+                "dockerfile_arg": command.get("dockerfile_arg"),
+                "runtime_download": command.get("runtime_download", False),
+                "runtime_download_sources": command.get("runtime_download_sources", []),
+                "raw": command["raw"],
+            })
+    return sources
+
+
+def make_entry(name, lab, command, image, check, ports=None, prep=None, source_extra=None, adaptations=None, cmd=None):
     env = {}
-    for item in command.get("env", []):
-        key, separator, value = item.partition("=")
+    for value in command.get("env", []):
+        key, separator, item = value.partition("=")
         if separator:
-            env[key] = value
-    return {
-        "name": name,
-        "engine": "docker",
-        "image": command.get("image"),
-        "ports": command.get("ports", []),
-        "env": env,
-        "volumes": command.get("volumes", []),
-        "cmd": command.get("cmd", []),
-        "check": check,
-        "source": {
-            "file": lab["file"],
-            "path_type": lab["path_type"],
-            "engine": command["engine"],
-            "raw": command["raw"],
-        },
+            env[key] = item
+    chosen_ports = list(command.get("ports", [])) if ports is None else list(ports)
+    raw = command.get("raw", "")
+    exec_adaptations = []
+    if command.get("engine") == "podman":
+        if "play kube" in raw:
+            exec_adaptations.append("Preserve the source podman play-kube operation through the rootful Podman runtime; this manifest start is not rewritten as docker run.")
+        else:
+            exec_adaptations.append("Use the docker shim for the source Podman command; both resolve to the same rootful Podman image store.")
+    if command.get("type") == "run" and not command.get("detached"):
+        exec_adaptations.append("-d added so the service remains available for verification.")
+    if re.search(r"(?:^|\s)-i(?:t|\s)|(?:^|\s)-t(?:i|\s)|--interactive|--tty", raw):
+        exec_adaptations.append("Interactive/TTY flags removed because verification has no interactive terminal.")
+    exec_adaptations.extend(adaptations or [])
+    source = {
+        "file": lab["file"],
+        "path_type": lab["path_type"],
+        "engine": command.get("engine"),
+        "raw": raw,
+        "cwd": command.get("cwd", "."),
     }
+    if source_extra:
+        source.update(source_extra)
+    result = {
+        "name": name,
+        "exec": "docker",
+        "image": image,
+        "ports": chosen_ports,
+        "env": env,
+        "volumes": list(command.get("volumes", [])),
+        "cmd": list(command.get("cmd", [])) if cmd is None else list(cmd),
+        "check": check,
+        "exec_adaptations": exec_adaptations,
+        "source": source,
+    }
+    if prep:
+        result["verify_time_prep"] = prep
+    return result
 
 
-def first_match(track, commands, predicate):
-    for lab, command in docker_path_runs(track, commands):
-        if predicate(command):
-            return lab, command
-    return None
+def check_for(text, url, expected, fallback_reason):
+    if expected.lower() in text:
+        return {"url": url, "expect": expected}
+    return {"type": "running", "url": url, "reason": fallback_reason}
 
 
 def main():
     commands = json.loads(COMMANDS_PATH.read_text(encoding="utf-8"))
+    docs = {track: track_text(track) for track in TRACKS}
+    archives = {track: archive_links(track) for track in TRACKS}
     curated = {}
 
     for track in TRACKS:
-        docs = docs_text(track)
         runs = []
         unresolved = []
         notes = []
+        text = docs[track]
 
         if track == "opentelemetry":
-            match = first_match(track, commands, lambda item: "jaegertracing/all-in-one" in (item.get("image") or ""))
-            if match and "16686" in docs and "jaeger" in docs:
-                runs.append(make_entry("jaeger", *match, {"url": "http://localhost:16686", "expect": "Jaeger"}))
-                if match[1]["engine"] != "docker":
-                    notes.append("The unsuffixed docker-path file invokes Podman; source.engine records the actual binary while engine follows the requested path label.")
+            match = choose(track, commands, lambda lab, item: "play kube" in item.get("raw", "") and "app_pod.yaml" in item.get("raw", ""), ("lab04.html", "lab03.html", "lab04-rancher.html"))
+            if match:
+                lab, command = match
+                archive = next((link for link in archives[track] if "intro-to-instrument" in link), None)
+                prep = ["programmatic/app_pod.yaml is not present in the captured repository and must be supplied from the workshop project archive before this manifest launch."]
+                if archive:
+                    prep.append(f"Archive URL linked by the lab: {archive}")
+                source_extra = {
+                    "manifest": "programmatic/app_pod.yaml",
+                    "manifest_present_in_repo": (ROOT / "content/repos/opentelemetry/programmatic/app_pod.yaml").is_file(),
+                }
+                runs.append(make_entry("jaeger", lab, command, JAEGER_IMAGE, check_for(text, "http://localhost:16686", "Jaeger", "The lab documents the Jaeger UI at localhost:16686."), ports=["16686:16686"], prep=prep, source_extra=source_extra, cmd=[]))
+                unresolved.append("Searched all content/repos/opentelemetry/lab*.html; lab04.html has `$ podman play kube programmatic/app_pod.yaml` and the docs show localhost:16686, but the referenced manifest is absent from the captured tree. The entry needs the linked archive at verify time.")
             else:
-                unresolved.append("The unsuffixed lab path contains no Jaeger container run command; no flags were inferred from another workshop.")
+                unresolved.append("Searched all content/repos/opentelemetry/lab*.html; no Jaeger run or play-kube command was extracted.")
 
         elif track == "otel-developers":
-            match = first_match(track, commands, lambda item: "jaegertracing/all-in-one" in (item.get("image") or ""))
-            if match and "16686" in docs and "jaeger" in docs:
-                runs.append(make_entry("jaeger", *match, {"url": "http://localhost:16686", "expect": "Jaeger"}))
-                if match[1]["engine"] != "docker":
-                    notes.append("The unsuffixed docker-path file invokes Podman; source.engine records the actual binary while engine follows the requested path label.")
+            match = choose(track, commands, lambda lab, item: item["type"] == "run" and "jaegertracing/all-in-one" in (item.get("image") or ""), ("lab03.html",))
+            if match:
+                lab, command = match
+                runs.append(make_entry("jaeger", lab, command, command["image"], check_for(text, "http://localhost:16686", "Jaeger", "The mirrored lab identifies the Jaeger UI at localhost:16686.")))
             else:
-                unresolved.append("No Jaeger run command with a docs-confirmed 16686 endpoint was found in the unsuffixed labs.")
+                unresolved.append("Searched every content/repos/otel-developers/lab*.html; lab03.html is expected to contain the Jaeger run, but no matching parsed run command exists.")
 
         elif track == "prometheus":
-            match = first_match(track, commands, lambda item: "prometheus" in (item.get("image") or "").lower() and any(port.endswith(":9090") for port in item.get("ports", [])))
-            if match and "9090" in docs and "prometheus" in docs:
-                runs.append(make_entry("prometheus", *match, {"url": "http://localhost:9090/-/ready", "expect": "Prometheus"}))
-                if match[1]["engine"] != "docker":
-                    notes.append("The unsuffixed docker-path file invokes Podman; source.engine records the actual binary while engine follows the requested path label.")
-                if "/-/ready" not in docs:
-                    notes.append("The docs confirm Prometheus on port 9090 but do not mention /-/ready; the requested readiness URL is retained.")
+            main_run = choose(track, commands, lambda lab, item: item["type"] == "run" and item.get("image") == "workshop-prometheus:v3.13" and any(port.endswith(":9090") for port in item.get("ports", [])), ("lab05.html",))
+            if main_run:
+                lab, command = main_run
+                runs.append(make_entry("prometheus", lab, command, command["image"], {"url": "http://localhost:9090/-/ready", "expect": "Prometheus"}))
             else:
-                unresolved.append("No unsuffixed Prometheus run command with a published host port 9090 was found.")
+                unresolved.append("Searched every content/repos/prometheus/lab*.html; lab05.html should run workshop-prometheus:v3.13 on port 9090, but no such parsed run was found.")
+            service_run = choose(track, commands, lambda lab, item: item["type"] == "run" and item.get("image") == "prometheus_services_demo:v1" and any(port.endswith(":8080") for port in item.get("ports", [])), ("lab03-podman.html", "lab03.html", "lab07-podman.html", "lab07.html"))
+            if service_run:
+                lab, command = service_run
+                build_sources = build_provenance(track, command["image"], commands)
+                adaptations = []
+                if any("--load" in source["raw"] for source in build_sources):
+                    adaptations.append("The alternate Rancher build source uses buildx-only --load; strip it for Podman, which loads locally by default.")
+                runs.append(make_entry("prometheus-services-demo", lab, command, command["image"], {"type": "running", "reason": "The lab documents the container port mapping but does not give a stable response substring for this service."}, source_extra={"build_sources": build_sources}, adaptations=adaptations))
+            else:
+                unresolved.append("Searched content/repos/prometheus/lab03*.html and lab07*.html; the Buildfile tag prometheus_services_demo:v1 is shown, but no parsed run publishing its service port was found.")
 
         elif track == "fluentbit":
-            match = first_match(track, commands, lambda item: any(len(parts := port.rsplit(":", 2)) >= 2 and parts[-2] == "2020" for port in item.get("ports", [])))
-            if match and "2020" in docs:
-                runs.append(make_entry("fluentbit", *match, {"url": "http://localhost:2020/api/v1/metrics/prometheus", "expect": "fluentbit"}))
+            match = choose(track, commands, lambda lab, item: item["type"] == "run" and item.get("image") == "workshop-fb:v7" and bool(item.get("ports")), ("lab04.html",))
+            if match:
+                lab, command = match
+                runs.append(make_entry("fluentbit", lab, command, command["image"], {"type": "running", "reason": "The lab run publishes host port 9999 but does not document a stable HTTP response substring for this container."}))
+                notes.append("No container run publishes host port 2020; lab04.html runs workshop-fb:v7 with `-p 9999:9999`, so the curated check is container-running rather than an invented metrics URL.")
             else:
-                unresolved.append("No unsuffixed Fluent Bit run command publishes host port 2020, and the mirrored docs do not establish that check; no port flag was invented.")
+                unresolved.append("Searched every content/repos/fluentbit/lab*.html; no Fluent Bit run command publishing a host port was parsed.")
 
         elif track == "perses":
-            match = first_match(track, commands, lambda item: "persesdev/perses" in (item.get("image") or ""))
-            if match:
-                unresolved.append("Perses is run only in lab02-podman.html, not an unsuffixed docker-path lab; the requested path filter excludes it.")
+            perses_run = choose(track, commands, lambda lab, item: item["type"] == "run" and "persesdev/perses" in (item.get("image") or ""), ("lab02-podman.html",))
+            if perses_run:
+                lab, command = perses_run
+                archive = archives[track]
+                prep = ["Run the lab's pod creation command before its container commands if the shared datasource pod is needed."]
+                if archive:
+                    prep.append(f"Lab archive link: {archive[0]}")
+                runs.append(make_entry("perses", lab, command, command["image"], check_for(text, "http://localhost:8080", "Perses", "The docs confirm Perses on port 8080; page text is used because the UI may be an SPA."), prep=prep))
             else:
-                alternate = any("persesdev/perses" in (command.get("image") or "") for lab in commands[track]["labs"] for command in lab["commands"])
-                if alternate:
-                    unresolved.append("Perses is run only in a suffixed path, not an unsuffixed docker-path lab; the requested path filter excludes it.")
-                else:
-                    unresolved.append("No Perses container run command was found in the current labs.")
-            if "localhost:8080" in docs and "perses" in docs:
-                notes.append("The mirrored docs use Perses on port 8080, not the expected port 3000; the docs take precedence.")
-            if "9100" in docs and "node-exporter" in docs:
-                notes.append("The mirrored docs place node-exporter on port 9100, but its run command is in lab05-podman.html and excluded by the requested path filter.")
+                unresolved.append("Searched all content/repos/perses/lab*.html; lab02-podman.html contains the Perses run, but no parsed persesdev/perses command was found.")
+
+            pod_create = choose(track, commands, lambda lab, item: "podman pod create --name workshop-datasource" in item.get("raw", ""), ("lab05-podman.html",))
+            pod_create_raw = pod_create[1]["raw"] if pod_create else None
+            prometheus_run = choose(track, commands, lambda lab, item: item["type"] == "run" and item.get("image") == "docker.io/prom/prometheus:v3.13.1" and item.get("pod") == "workshop-datasource", ("lab05-podman.html",))
+            if prometheus_run:
+                lab, command = prometheus_run
+                pod_ports = pod_create[1].get("ports", []) if pod_create else []
+                ports = [port for port in pod_ports if port.endswith(":9090")]
+                prep = ["Ensure support/workshop-prometheus.yml exists; the exact source run mounts this lab-provided configuration read-only."]
+                if archives[track]:
+                    prep.append(f"Lab archive link: {archives[track][0]}")
+                runs.append(make_entry("prometheus", lab, command, command["image"], check_for(text, "http://localhost:9090/-/ready", "Prometheus", "The docs show the Prometheus server ready message on port 9090."), ports=ports, prep=prep, source_extra={"pod_create_raw": pod_create_raw} if pod_create_raw else None))
+            else:
+                unresolved.append("Searched content/repos/perses/lab05-podman.html; it documents a Prometheus run in workshop-datasource, but no parsed run command was found.")
+
+            node_run = choose(track, commands, lambda lab, item: item["type"] == "run" and item.get("image") == "quay.io/prometheus/node-exporter:v1.12.1" and item.get("pod") == "workshop-datasource", ("lab05-podman.html",))
+            if node_run:
+                lab, command = node_run
+                pod_ports = pod_create[1].get("ports", []) if pod_create else []
+                ports = [port for port in pod_ports if port.endswith(":9100")]
+                runs.append(make_entry("node-exporter", lab, command, command["image"], check_for(text, "http://localhost:9100/metrics", "node_", "The mirrored lab documents node-exporter on port 9100, but its specific metric text is not present in the copied docs."), ports=ports, adaptations=["Host port 9100 is published by the source pod-create command; the container command itself joins that pod."], source_extra={"pod_create_raw": pod_create_raw} if pod_create_raw else None))
+            else:
+                unresolved.append("Searched content/repos/perses/lab05-podman.html; the node-exporter run command is documented, but no parsed quay.io/prometheus/node-exporter command was found.")
 
         curated[track] = {"runs": runs, "unresolved": unresolved, "notes": notes}
 

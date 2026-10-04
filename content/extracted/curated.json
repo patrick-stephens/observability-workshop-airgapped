@@ -1,8 +1,40 @@
 {
   "opentelemetry": {
-    "runs": [],
+    "runs": [
+      {
+        "name": "jaeger",
+        "exec": "docker",
+        "image": "docker.io/jaegertracing/all-in-one:1.76.0",
+        "ports": [
+          "16686:16686"
+        ],
+        "env": {},
+        "volumes": [],
+        "cmd": [],
+        "check": {
+          "url": "http://localhost:16686",
+          "expect": "Jaeger"
+        },
+        "exec_adaptations": [
+          "Preserve the source podman play-kube operation through the rootful Podman runtime; this manifest start is not rewritten as docker run."
+        ],
+        "source": {
+          "file": "lab04.html",
+          "path_type": "docker",
+          "engine": "podman",
+          "raw": "$ podman play kube programmatic/app_pod.yaml",
+          "cwd": ".",
+          "manifest": "programmatic/app_pod.yaml",
+          "manifest_present_in_repo": false
+        },
+        "verify_time_prep": [
+          "programmatic/app_pod.yaml is not present in the captured repository and must be supplied from the workshop project archive before this manifest launch.",
+          "Archive URL linked by the lab: https://gitlab.com/o11y-workshops/intro-to-instrumentation/-/archive/v1.4/intro-to-instrumentation-v1.4.zip"
+        ]
+      }
+    ],
     "unresolved": [
-      "The unsuffixed lab path contains no Jaeger container run command; no flags were inferred from another workshop."
+      "Searched all content/repos/opentelemetry/lab*.html; lab04.html has `$ podman play kube programmatic/app_pod.yaml` and the docs show localhost:16686, but the referenced manifest is absent from the captured tree. The entry needs the linked archive at verify time."
     ],
     "notes": []
   },
@@ -10,7 +42,7 @@
     "runs": [
       {
         "name": "jaeger",
-        "engine": "docker",
+        "exec": "docker",
         "image": "jaegertracing/all-in-one:1.76.0",
         "ports": [
           "16686:16686",
@@ -26,24 +58,28 @@
           "url": "http://localhost:16686",
           "expect": "Jaeger"
         },
+        "exec_adaptations": [
+          "Use the docker shim for the source Podman command; both resolve to the same rootful Podman image store.",
+          "-d added so the service remains available for verification.",
+          "Interactive/TTY flags removed because verification has no interactive terminal."
+        ],
         "source": {
           "file": "lab03.html",
           "path_type": "docker",
           "engine": "podman",
-          "raw": "$ podman run --rm -it --name jaeger \\\n-p 16686:16686 \\\n-p 4317:4317 \\\n-p 4318:4318 \\\n-e COLLECTOR_OTLP_ENABLED=true \\\njaegertracing/all-in-one:1.76.0"
+          "raw": "$ podman run --rm -it --name jaeger \\\n-p 16686:16686 \\\n-p 4317:4317 \\\n-p 4318:4318 \\\n-e COLLECTOR_OTLP_ENABLED=true \\\njaegertracing/all-in-one:1.76.0",
+          "cwd": "."
         }
       }
     ],
     "unresolved": [],
-    "notes": [
-      "The unsuffixed docker-path file invokes Podman; source.engine records the actual binary while engine follows the requested path label."
-    ]
+    "notes": []
   },
   "prometheus": {
     "runs": [
       {
         "name": "prometheus",
-        "engine": "docker",
+        "exec": "docker",
         "image": "workshop-prometheus:v3.13",
         "ports": [
           "9090:9090"
@@ -57,35 +93,229 @@
           "url": "http://localhost:9090/-/ready",
           "expect": "Prometheus"
         },
+        "exec_adaptations": [
+          "Use the docker shim for the source Podman command; both resolve to the same rootful Podman image store.",
+          "-d added so the service remains available for verification."
+        ],
         "source": {
           "file": "lab05.html",
           "path_type": "docker",
           "engine": "podman",
-          "raw": "$ podman run -p 9090:9090 workshop-prometheus:v3.13 --config.file=/etc/prometheus/workshop-prometheus.yml"
+          "raw": "$ podman run -p 9090:9090 workshop-prometheus:v3.13 --config.file=/etc/prometheus/workshop-prometheus.yml",
+          "cwd": "."
+        }
+      },
+      {
+        "name": "prometheus-services-demo",
+        "exec": "docker",
+        "image": "prometheus_services_demo:v1",
+        "ports": [
+          "8080:8080"
+        ],
+        "env": {},
+        "volumes": [],
+        "cmd": [],
+        "check": {
+          "type": "running",
+          "reason": "The lab documents the container port mapping but does not give a stable response substring for this service."
+        },
+        "exec_adaptations": [
+          "Use the docker shim for the source Podman command; both resolve to the same rootful Podman image store.",
+          "-d added so the service remains available for verification."
+        ],
+        "source": {
+          "file": "lab03-podman.html",
+          "path_type": "podman",
+          "engine": "podman",
+          "raw": "$ podman run -p 8080:8080 prometheus_services_demo:v1",
+          "cwd": ".",
+          "build_sources": [
+            {
+              "file": "lab03-podman.html",
+              "path_type": "podman",
+              "engine": "podman",
+              "cwd": ".",
+              "context": ".",
+              "dockerfile": "installs/demo/Buildfile",
+              "dockerfile_arg": "installs/demo/Buildfile",
+              "runtime_download": false,
+              "runtime_download_sources": [],
+              "raw": "$ podman build -t prometheus_services_demo:v1 -f installs/demo/Buildfile"
+            },
+            {
+              "file": "lab03-rancher.html",
+              "path_type": "rancher",
+              "engine": "docker",
+              "cwd": ".",
+              "context": "installs/demo",
+              "dockerfile": "installs/demo/Buildfile",
+              "dockerfile_arg": "installs/demo/Buildfile",
+              "runtime_download": true,
+              "runtime_download_sources": [
+                "https://gitlab.com/o11y-workshops/prometheus-service-demo-installer/-/archive/v1.0/prometheus-service-demo-installer-v1.0.zip"
+              ],
+              "raw": "$ docker build  -t prometheus_services_demo:v1 -f installs/demo/Buildfile installs/demo"
+            },
+            {
+              "file": "lab07-podman.html",
+              "path_type": "podman",
+              "engine": "podman",
+              "cwd": ".",
+              "context": ".",
+              "dockerfile": "installs/demo/Buildfile",
+              "dockerfile_arg": "installs/demo/Buildfile",
+              "runtime_download": false,
+              "runtime_download_sources": [],
+              "raw": "$ podman build -t prometheus_services_demo:v1 -f installs/demo/Buildfile"
+            },
+            {
+              "file": "lab07-rancher.html",
+              "path_type": "rancher",
+              "engine": "docker",
+              "cwd": ".",
+              "context": "installs/demo",
+              "dockerfile": "installs/demo/Buildfile",
+              "dockerfile_arg": "installs/demo/Buildfile",
+              "runtime_download": true,
+              "runtime_download_sources": [
+                "https://gitlab.com/o11y-workshops/prometheus-service-demo-installer/-/archive/v1.0/prometheus-service-demo-installer-v1.0.zip"
+              ],
+              "raw": "$ docker build  -t prometheus_services_demo:v1 -f installs/demo/Buildfile installs/demo"
+            }
+          ]
+        }
+      }
+    ],
+    "unresolved": [],
+    "notes": []
+  },
+  "fluentbit": {
+    "runs": [
+      {
+        "name": "fluentbit",
+        "exec": "docker",
+        "image": "workshop-fb:v7",
+        "ports": [
+          "9999:9999"
+        ],
+        "env": {},
+        "volumes": [],
+        "cmd": [],
+        "check": {
+          "type": "running",
+          "reason": "The lab run publishes host port 9999 but does not document a stable HTTP response substring for this container."
+        },
+        "exec_adaptations": [
+          "Use the docker shim for the source Podman command; both resolve to the same rootful Podman image store.",
+          "-d added so the service remains available for verification."
+        ],
+        "source": {
+          "file": "lab04.html",
+          "path_type": "docker",
+          "engine": "podman",
+          "raw": "$ podman run --rm -p 9999:9999 workshop-fb:v7",
+          "cwd": "."
         }
       }
     ],
     "unresolved": [],
     "notes": [
-      "The unsuffixed docker-path file invokes Podman; source.engine records the actual binary while engine follows the requested path label.",
-      "The docs confirm Prometheus on port 9090 but do not mention /-/ready; the requested readiness URL is retained."
+      "No container run publishes host port 2020; lab04.html runs workshop-fb:v7 with `-p 9999:9999`, so the curated check is container-running rather than an invented metrics URL."
     ]
-  },
-  "fluentbit": {
-    "runs": [],
-    "unresolved": [
-      "No unsuffixed Fluent Bit run command publishes host port 2020, and the mirrored docs do not establish that check; no port flag was invented."
-    ],
-    "notes": []
   },
   "perses": {
-    "runs": [],
-    "unresolved": [
-      "Perses is run only in a suffixed path, not an unsuffixed docker-path lab; the requested path filter excludes it."
+    "runs": [
+      {
+        "name": "perses",
+        "exec": "docker",
+        "image": "persesdev/perses:v0.54.0",
+        "ports": [
+          "127.0.0.1:8080:8080"
+        ],
+        "env": {},
+        "volumes": [],
+        "cmd": [],
+        "check": {
+          "url": "http://localhost:8080",
+          "expect": "Perses"
+        },
+        "exec_adaptations": [
+          "Use the docker shim for the source Podman command; both resolve to the same rootful Podman image store.",
+          "-d added so the service remains available for verification."
+        ],
+        "source": {
+          "file": "lab02-podman.html",
+          "path_type": "podman",
+          "engine": "podman",
+          "raw": "$ podman run --name perses --rm -p 127.0.0.1:8080:8080 persesdev/perses:v0.54.0",
+          "cwd": "."
+        },
+        "verify_time_prep": [
+          "Run the lab's pod creation command before its container commands if the shared datasource pod is needed.",
+          "Lab archive link: https://gitlab.com/o11y-workshops/perses-install-demo/-/archive/v1.10/perses-install-demo-v1.10.zip"
+        ]
+      },
+      {
+        "name": "prometheus",
+        "exec": "docker",
+        "image": "docker.io/prom/prometheus:v3.13.1",
+        "ports": [
+          "127.0.0.1:9090:9090"
+        ],
+        "env": {},
+        "volumes": [
+          "$(pwd)/support/workshop-prometheus.yml:/etc/prometheus/prometheus.yml:ro,Z"
+        ],
+        "cmd": [],
+        "check": {
+          "url": "http://localhost:9090/-/ready",
+          "expect": "Prometheus"
+        },
+        "exec_adaptations": [
+          "Use the docker shim for the source Podman command; both resolve to the same rootful Podman image store."
+        ],
+        "source": {
+          "file": "lab05-podman.html",
+          "path_type": "podman",
+          "engine": "podman",
+          "raw": "$ podman run -d --pod workshop-datasource --name prometheus \\\n-v \"$(pwd)/support/workshop-prometheus.yml:/etc/prometheus/prometheus.yml:ro,Z\" \\\ndocker.io/prom/prometheus:v3.13.1",
+          "cwd": ".",
+          "pod_create_raw": "$ podman pod create --name workshop-datasource \\\n-p 127.0.0.1:9090:9090 \\\n-p 127.0.0.1:9100:9100"
+        },
+        "verify_time_prep": [
+          "Ensure support/workshop-prometheus.yml exists; the exact source run mounts this lab-provided configuration read-only.",
+          "Lab archive link: https://gitlab.com/o11y-workshops/perses-install-demo/-/archive/v1.10/perses-install-demo-v1.10.zip"
+        ]
+      },
+      {
+        "name": "node-exporter",
+        "exec": "docker",
+        "image": "quay.io/prometheus/node-exporter:v1.12.1",
+        "ports": [
+          "127.0.0.1:9100:9100"
+        ],
+        "env": {},
+        "volumes": [],
+        "cmd": [],
+        "check": {
+          "url": "http://localhost:9100/metrics",
+          "expect": "node_"
+        },
+        "exec_adaptations": [
+          "Use the docker shim for the source Podman command; both resolve to the same rootful Podman image store.",
+          "Host port 9100 is published by the source pod-create command; the container command itself joins that pod."
+        ],
+        "source": {
+          "file": "lab05-podman.html",
+          "path_type": "podman",
+          "engine": "podman",
+          "raw": "$ podman run -d --pod workshop-datasource --name node-exporter \\\nquay.io/prometheus/node-exporter:v1.12.1",
+          "cwd": ".",
+          "pod_create_raw": "$ podman pod create --name workshop-datasource \\\n-p 127.0.0.1:9090:9090 \\\n-p 127.0.0.1:9100:9100"
+        }
+      }
     ],
-    "notes": [
-      "The mirrored docs use Perses on port 8080, not the expected port 3000; the docs take precedence.",
-      "The mirrored docs place node-exporter on port 9100, but its run command is in lab05-podman.html and excluded by the requested path filter."
-    ]
+    "unresolved": [],
+    "notes": []
   }
 }

@@ -27,6 +27,8 @@
 	</script>
 
 	<body>
+<div class="offline-lab-banner">OFFLINE LAB VM — all images are preloaded. Skip docker pull steps (marked PRELOADED). Supported paths: docker and podman — both use the same image store on this VM. For Rancher Desktop labs, follow the docker commands and skip the Rancher install steps.</div>
+
 		<div class="reveal">
 			<div class="slides">
 				<section>
@@ -149,7 +151,8 @@
 							<code data-trim data-noescape>
 								# Container engine set to dockerd (moby) - k3s reads the docker image store directly.
 								#
-								$ docker build --load -t basic-java-metrics -f Buildfile .
+								$ docker build  -t basic-java-metrics -f Buildfile .
+# --load removed: buildx-only flag; podman loads by default
 
 								# Container engine set to containerd - build into the k8s namespace.
 								#
@@ -548,7 +551,8 @@
 					<div style="height: 200px; font-size: xx-large;">
 						<pre>
 							<code data-trim data-noescape>
-								$ docker build --load -t basic-java-metrics -f Buildfile .
+								$ docker build  -t basic-java-metrics -f Buildfile .
+# --load removed: buildx-only flag; podman loads by default
 
 								# or on containerd:
 								$ nerdctl --namespace k8s.io build -t basic-java-metrics -f Buildfile .
@@ -632,7 +636,8 @@
 
 								# Rebuild the image into the cluster's image store
 								#
-								$ docker build --load -t basic-java-metrics -f Buildfile .
+								$ docker build  -t basic-java-metrics -f Buildfile .
+# --load removed: buildx-only flag; podman loads by default
 
 								# Roll the deployment to pick up the new image
 								#
@@ -808,7 +813,8 @@
 
 								# Rebuild the image into the cluster's image store
 								#
-								$ docker build --load -t basic-java-metrics -f Buildfile .
+								$ docker build  -t basic-java-metrics -f Buildfile .
+# --load removed: buildx-only flag; podman loads by default
 
 								# Roll the deployment to pick up the new image
 								#
@@ -990,7 +996,8 @@
 
 								# Rebuild the image into the cluster's image store
 								#
-								$ docker build --load -t basic-java-metrics -f Buildfile .
+								$ docker build  -t basic-java-metrics -f Buildfile .
+# --load removed: buildx-only flag; podman loads by default
 
 								# Roll the deployment to pick up the new image
 								#
@@ -1159,7 +1166,8 @@
 
 								# Rebuild the image into the cluster's image store
 								#
-								$ docker build --load -t basic-java-metrics -f Buildfile .
+								$ docker build  -t basic-java-metrics -f Buildfile .
+# --load removed: buildx-only flag; podman loads by default
 
 								# Roll the deployment to pick up the new image
 								#
@@ -1337,7 +1345,8 @@
 
 								# Rebuild the image into the cluster's image store
 								#
-								$ docker build --load -t basic-java-metrics -f Buildfile .
+								$ docker build  -t basic-java-metrics -f Buildfile .
+# --load removed: buildx-only flag; podman loads by default
 
 								# Roll the deployment to pick up the new image
 								#
@@ -1526,7 +1535,8 @@
 
 								# Rebuild the image into the cluster's image store
 								#
-								$ docker build --load -t basic-java-metrics -f Buildfile .
+								$ docker build  -t basic-java-metrics -f Buildfile .
+# --load removed: buildx-only flag; podman loads by default
 
 								# Roll the deployment to pick up the new image
 								#

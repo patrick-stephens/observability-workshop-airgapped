@@ -125,7 +125,8 @@
 							<code data-trim data-noescape>
 								# Container engine set to dockerd (moby) - k3s reads the docker image store directly.
 								#
-								$ docker build --load -t prometheus_services_demo:v1 -f installs/demo/Buildfile <mark>installs/demo</mark>
+								$ docker build  -t prometheus_services_demo:v1 -f installs/demo/Buildfile <mark>installs/demo</mark>
+# --load removed: buildx-only flag; podman loads by default
 
 								# Container engine set to containerd - build into the k8s namespace.
 								#
