@@ -1,0 +1,5 @@
+opentelemetry: patched=12 html_pages=12
+otel-developers: patched=12 html_pages=12
+prometheus: patched=23 html_pages=23
+fluentbit: patched=19 html_pages=19
+perses: patched=16 html_pages=16
