@@ -1,0 +1,12 @@
+.venv/
+.idea/
+.vscode/
+.devcontainer/
+*.code-workspace
+pyvenv.cfg
+bin/
+lib/
+__pycache__/
+.run/
+.phcode.json
+target

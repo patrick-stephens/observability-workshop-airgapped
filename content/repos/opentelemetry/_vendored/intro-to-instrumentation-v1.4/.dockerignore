@@ -1,0 +1,9 @@
+.idea/
+.git/
+.venv/
+__pycache__/
+.gitignore
+Buildfile
+*.yml
+*.md
+.env

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # v2: Simulate lab working directories, resolve contexts, deduplicate commands, and scan every code block for base images.
 import collections
+import html
 import json
 import os
 import re
@@ -37,6 +38,14 @@ SYNTAX_PATTERNS = (
 PLACEHOLDER_RE = re.compile(r"\[[A-Z][A-Z0-9_-]*\]|\{[A-Z][A-Z0-9_-]*\}|(?<=[_-])[A-Z][A-Z0-9]*(?=/|$)|(?:(?<=/)|^)[A-Z][A-Z0-9_-]*(?=/|$)")
 COMMAND_START = re.compile(r"^(?:\$\s*)?(?:sudo\s+)?(?:docker|podman)(?:-compose)?\b|^(?:\$\s*)?podman-compose\b")
 DOCKERFILE_FROM = re.compile(r"^\s*FROM\s+(.*)$", re.IGNORECASE | re.MULTILINE)
+K8S_REFERENCE_RE = re.compile(
+    r"\b(?:kubectl|k3s|minikube|helm)\b|"
+    r"\bkind\s+(?:create|delete|get|load|export|version|build)\b|"
+    r"\bkubectl\s+(?:apply|run|create)\b|"
+    r"[\w./-]*(?:pod|deploy|manifest)[\w./-]*\.ya?ml\b",
+    re.IGNORECASE,
+)
+CONTAINER_ALT_RE = re.compile(r"(?m)^\s*(?:\$\s*)?(?:sudo\s+)?(?:podman|docker)\s+(?:run|play|build)\b")
 
 
 class CodeBlockParser(HTMLParser):
@@ -114,6 +123,75 @@ def path_type(path):
     if name.endswith("-rancher"):
         return "rancher"
     return "docker"
+
+
+def lab_variant_base(path):
+    stem = path.stem
+    for suffix in ("-podman", "-rancher"):
+        if stem.endswith(suffix):
+            return stem[:-len(suffix)]
+    return stem
+
+
+def k8s_audit(track, repo, lab_files):
+    references = []
+    classifications = []
+    contents = {}
+    for lab_path in lab_files:
+        try:
+            contents[lab_path] = lab_path.read_text(encoding="utf-8", errors="replace")
+        except OSError as error:
+            references.append(f"{track} | {lab_path.name} | {path_type(lab_path)} | unable to read file: {error}")
+            contents[lab_path] = ""
+    for lab_path in lab_files:
+        text = contents[lab_path]
+        snippets = []
+        for line in text.splitlines():
+            if K8S_REFERENCE_RE.search(line):
+                snippet = re.sub(r"<[^>]+>", " ", html.unescape(line))
+                snippet = re.sub(r"\s+", " ", snippet).strip()
+                if snippet and snippet not in snippets:
+                    snippets.append(snippet[:260])
+        for snippet in snippets:
+            references.append(f"{track} | {lab_path.name} | {path_type(lab_path)} | {snippet}")
+
+        has_k8s = bool(K8S_REFERENCE_RE.search(text))
+        has_alt = bool(CONTAINER_ALT_RE.search(text))
+        if path_type(lab_path) == "rancher" and not has_alt:
+            siblings = [
+                candidate for candidate in lab_files
+                if lab_variant_base(candidate) == lab_variant_base(lab_path)
+                and candidate != lab_path
+                and path_type(candidate) != "rancher"
+                and CONTAINER_ALT_RE.search(contents[candidate])
+            ]
+            has_alt = bool(siblings)
+        if has_k8s and not has_alt:
+            classification = "K8s-only (no Podman/Docker alternative in this file or its lab variants)"
+        elif has_alt:
+            classification = "Has Podman/Docker alternative"
+        else:
+            classification = "Neither"
+        classifications.append((lab_path.name, path_type(lab_path), classification))
+    return references, classifications
+
+
+def classify_otelo_lab(lab_path, text, siblings):
+    has_k8s = bool(K8S_REFERENCE_RE.search(text))
+    has_alternative = bool(CONTAINER_ALT_RE.search(text))
+    if not has_alternative and path_type(lab_path) == "rancher":
+        has_alternative = any(
+            candidate != lab_path
+            and lab_variant_base(candidate) == lab_variant_base(lab_path)
+            and path_type(candidate) != "rancher"
+            and CONTAINER_ALT_RE.search(siblings.get(candidate, ""))
+            for candidate in siblings
+        )
+    if has_k8s and not has_alternative:
+        return "K8s-only (no Podman/Docker alternative documented)"
+    if has_alternative:
+        return "Has Podman/Docker alternative"
+    return "Neither"
 
 
 def relative_path(repo, path):
@@ -517,6 +595,24 @@ def command_fields(command, repo, embedded_blocks, creators, warnings, track, la
     resolved_path = normalise_path(repo, repo.resolve(), resolved_context)
     file_value = files[-1] if files else "Dockerfile"
     dockerfile_path = resolve_dockerfile(repo, cwd_path, file_value)
+    if (dockerfile_path is None or not dockerfile_path.is_file()) and (repo / "_vendored").is_dir():
+        expected_suffix = Path(file_value).as_posix().lstrip("./")
+        vendored_candidates = [
+            candidate for candidate in (repo / "_vendored").rglob(Path(file_value).name)
+            if candidate.relative_to(repo / "_vendored").as_posix().endswith(expected_suffix)
+        ]
+        if len(vendored_candidates) == 1:
+            dockerfile_path = vendored_candidates[0]
+            archive_root = dockerfile_path
+            for _ in Path(expected_suffix).parts:
+                archive_root = archive_root.parent
+            resolved_context = relative_path(repo, archive_root)
+            resolved_path = archive_root
+            assumptions.append({
+                "type": "vendored-archive-context",
+                "source_path": relative_path(repo, dockerfile_path),
+                "context": resolved_context,
+            })
     dockerfile_text = ""
     if dockerfile_path and dockerfile_path.is_file():
         try:
@@ -606,6 +702,8 @@ def main():
     expected_skips = []
     syntax_risks = []
     runtime_downloads = []
+    k8s_references = []
+    opentelemetry_classifications = []
     pulls_by_track = collections.Counter()
     summary = {}
 
@@ -615,6 +713,19 @@ def main():
         creators_so_far = []
         tag_sources = collections.defaultdict(list)
         lab_files = sorted(repo.glob("lab*.html"), key=natural_key)
+        track_references, track_classifications = k8s_audit(track, repo, lab_files)
+        k8s_references.extend(track_references)
+        if track == "opentelemetry":
+            otel_contents = {}
+            for page in lab_files:
+                try:
+                    otel_contents[page] = page.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    otel_contents[page] = ""
+            opentelemetry_classifications = [
+                (page.name, path_type(page), classify_otelo_lab(page, otel_contents[page], otel_contents))
+                for page in lab_files
+            ]
         track_archive_urls = []
         for source_page in lab_files:
             link_parser = LinkParser()
@@ -700,6 +811,7 @@ def main():
     (EXTRACTED / "syntax-risk.txt").write_text("".join(f"{line}\n" for line in syntax_risks), encoding="utf-8")
     (EXTRACTED / "runtime-downloads.txt").write_text("".join(f"{line}\n" for line in runtime_downloads), encoding="utf-8")
     (EXTRACTED / "parse-warnings.txt").write_text("".join(f"{line}\n" for line in warnings), encoding="utf-8")
+    (EXTRACTED / "k8s-references.txt").write_text("".join(f"{line}\n" for line in k8s_references), encoding="utf-8")
 
     added_images = sorted(all_images - initial_images)
     print("track | unique build tags | unique run commands | pulls")
@@ -737,6 +849,10 @@ def main():
     for track, placeholder in sorted(unresolved_placeholders):
         print(f"{track}: {placeholder} -> unresolved (no matching captured directory or earlier creator command)")
     print(f"expected-skip count delta: {len(expected_skips) - 36:+d} ({len(expected_skips)} now; was 36)")
+    print("OpenTelemetry lab classification:")
+    for filename, file_path_type, classification in opentelemetry_classifications:
+        print(f"{filename} | {file_path_type} | {classification}")
+    print(f"K8s/tooling references recorded: {len(k8s_references)} -> {EXTRACTED / 'k8s-references.txt'}")
     if sum(pulls_by_track.values()) == 0:
         print("Pull check: no docker/podman pull commands exist in any lab HTML; podman auto-pulls on run, and preload makes those pulls a no-op.")
     else:

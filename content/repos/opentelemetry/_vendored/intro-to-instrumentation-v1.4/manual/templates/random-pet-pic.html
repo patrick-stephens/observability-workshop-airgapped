@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8">
+		<title>Pet Pic</title>
+	</head>
+	<body>
+		{% if error is not none %}
+			<p>Ruh-roh. {{error}} </p>
+		{% else %}
+			<img id="picture" src="{{ img_src }}"  alt="dog photo returned from API">
+			<h2>Breed: {{breed}} </h2>
+		{% endif %}
+		<form class="form-search" method="POST">
+            <label for="breed">
+                <input id=breed name="breed-search" type="search" placeholder="Search for Breed">
+            </label>
+            <button type="submit">Search</button>
+		</form>
+	</body>
+</html>

@@ -1,5 +1,3 @@
-opentelemetry/lab02.html: unresolved placeholder context workshop-opentelemetry/intro-to-instrument-[VERSION]; no earlier creator command matched
-opentelemetry/lab02-rancher.html: unresolved placeholder context workshop-opentelemetry/intro-to-instrument-VERSION; no earlier creator command matched
 opentelemetry: duplicate build tag workshop-prometheus:v3.13.1 from different commands: lab06.html: $ podman build -t workshop-prometheus:v3.13.1 -f ./metrics/prometheus/Buildfile-prom, lab06.html: $ podman build -t workshop-prometheus:v3.13.1 -f metrics/prometheus/Buildfile-prom, lab06-rancher.html: $ podman build -t workshop-prometheus:v3.13.1 -f ./metrics/prometheus/Buildfile-prom, lab06-rancher.html: $ podman build -t workshop-prometheus:v3.13.1 -f metrics/prometheus/Buildfile-prom
 otel-developers/lab05-rancher.html: no readable Dockerfile or embedded FROM block for context .
 prometheus/lab02-podman.html: missing context workshop-prometheus; no earlier creator command matched
@@ -10,4 +8,3 @@ prometheus/lab07-rancher.html: no readable Dockerfile or embedded FROM block for
 prometheus: duplicate build tag basic-java-metrics from different commands: lab08-podman.html: $ podman build -t basic-java-metrics -f Buildfile, lab08-rancher.html: $ docker build  -t basic-java-metrics -f Buildfile .
 prometheus: duplicate build tag prometheus_services_demo:v1 from different commands: lab03-podman.html: $ podman build -t prometheus_services_demo:v1 -f installs/demo/Buildfile, lab03-rancher.html: $ docker build  -t prometheus_services_demo:v1 -f installs/demo/Buildfile installs/demo, lab07-podman.html: $ podman build -t prometheus_services_demo:v1 -f installs/demo/Buildfile, lab07-rancher.html: $ docker build  -t prometheus_services_demo:v1 -f installs/demo/Buildfile installs/demo
 fluentbit/lab09.html: no readable Dockerfile or embedded FROM block for context .
-compose-vendor correction: invalid prior version v5.6.0 replaced with official Docker Compose v2.40.3 from https://github.com/docker/compose/releases/download/v2.40.3/docker-compose-linux-x86_64; SHA-256 dba9d98e1ba5bfe11d88c99b9bd32fc4a0624a30fafe68eea34d61a3e42fd372.

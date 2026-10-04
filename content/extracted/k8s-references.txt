@@ -1,0 +1,796 @@
+opentelemetry | lab02.html | docker | Podman as shown on the following slides, or deploy it to a local Rancher Desktop k3s cluster
+opentelemetry | lab02.html | docker | Continue to run using Kubernetes (k3s)
+opentelemetry | lab02-rancher.html | rancher | Auto-instrument - Rancher k3s prerequisites
+opentelemetry | lab02-rancher.html | rancher | This path swaps podman run for a local Rancher Desktop k3s cluster. Make sure
+opentelemetry | lab02-rancher.html | rancher | (k3s) engine enabled, and kubectl on your PATH.
+opentelemetry | lab02-rancher.html | rancher | In Preferences → Kubernetes , confirm "Enable Kubernetes" is checked (k3s)
+opentelemetry | lab02-rancher.html | rancher | Before diving in, confirm your cluster is actually up and kubectl is pointed at
+opentelemetry | lab02-rancher.html | rancher | $ kubectl config current-context
+opentelemetry | lab02-rancher.html | rancher | $ kubectl get nodes
+opentelemetry | lab02-rancher.html | rancher | Auto-instrument - Import the image into k3s
+opentelemetry | lab02-rancher.html | rancher | Podman built the image locally, but k3s runs inside Rancher Desktop's own VM with a separate
+opentelemetry | lab02-rancher.html | rancher | containerd image store - there's no k3s binary on your host, so use the
+opentelemetry | lab02-rancher.html | rancher | Auto-instrument - Run on k3s
+opentelemetry | lab02-rancher.html | rancher | local port 8001, this time with kubectl port-forward . Note the image name must
+opentelemetry | lab02-rancher.html | rancher | $ kubectl delete pod hello-otel --ignore-not-found
+opentelemetry | lab02-rancher.html | rancher | $ kubectl run hello-otel --image=localhost/hello-otel:base --image-pull-policy=Never \
+opentelemetry | lab02-rancher.html | rancher | $ kubectl port-forward pod/hello-otel 8001:8000
+opentelemetry | lab02-rancher.html | rancher | request - view them with kubectl logs in a second terminal (the first stays busy
+opentelemetry | lab02-rancher.html | rancher | $ kubectl logs -f pod/hello-otel
+opentelemetry | lab02-rancher.html | rancher | $ kubectl delete pod hello-otel
+opentelemetry | lab02-rancher.html | rancher | Auto-instrument - Import and run on k3s
+opentelemetry | lab02-rancher.html | rancher | $ kubectl delete pod hello-otel-auto --ignore-not-found
+opentelemetry | lab02-rancher.html | rancher | $ kubectl run hello-otel-auto --image=localhost/hello-otel:auto --image-pull-policy=Never \
+opentelemetry | lab02-rancher.html | rancher | $ kubectl port-forward pod/hello-otel-auto 8001:8000
+opentelemetry | lab02-rancher.html | rancher | In a second terminal, watch kubectl logs -f pod/hello-otel-auto and check for
+opentelemetry | lab02-rancher.html | rancher | $ kubectl delete pod hello-otel-auto
+opentelemetry | lab02-rancher.html | rancher | $ kubectl delete pod hello-otel-auto-manual --ignore-not-found
+opentelemetry | lab02-rancher.html | rancher | $ kubectl run hello-otel-auto-manual --image=localhost/hello-otel:auto-manual \
+opentelemetry | lab02-rancher.html | rancher | $ kubectl port-forward pod/hello-otel-auto-manual 8001:8000
+opentelemetry | lab02-rancher.html | rancher | browser. Watch kubectl logs -f pod/hello-otel-auto-manual for a span with "hits"
+opentelemetry | lab02-rancher.html | rancher | $ kubectl delete pod hello-otel-auto-manual
+opentelemetry | lab02-rancher.html | rancher | kubectl logs using the Python auto-instrumentation agent on a local Rancher k3s
+opentelemetry | lab03.html | docker | Desktop k3s cluster instead:
+opentelemetry | lab03.html | docker | Continue to run using Kubernetes (k3s)
+opentelemetry | lab03.html | docker | Next open the file programmatic/app_pod.yaml and review it. The application
+opentelemetry | lab03.html | docker | $ podman play kube programmatic/app_pod.yaml
+opentelemetry | lab03-rancher.html | rancher | Lab 3 - Programmatic Instrumentation (Rancher k3s)
+opentelemetry | lab03-rancher.html | rancher | Programmatic - Rancher k3s prerequisites
+opentelemetry | lab03-rancher.html | rancher | Desktop k3s cluster. Make sure you have Podman v5+
+opentelemetry | lab03-rancher.html | rancher | with the Kubernetes (k3s) engine enabled, and kubectl on your PATH.
+opentelemetry | lab03-rancher.html | rancher | In Preferences → Kubernetes , confirm "Enable Kubernetes" is checked (k3s)
+opentelemetry | lab03-rancher.html | rancher | Before diving in, confirm your cluster is actually up and kubectl is pointed at
+opentelemetry | lab03-rancher.html | rancher | $ kubectl config current-context
+opentelemetry | lab03-rancher.html | rancher | $ kubectl get nodes
+opentelemetry | lab03-rancher.html | rancher | Programmatic - Import the image into k3s
+opentelemetry | lab03-rancher.html | rancher | Podman built the image locally, but k3s runs inside Rancher Desktop's own VM with a separate
+opentelemetry | lab03-rancher.html | rancher | containerd image store - there's no k3s binary on your host, so use the
+opentelemetry | lab03-rancher.html | rancher | Programmatic - Run on k3s
+opentelemetry | lab03-rancher.html | rancher | local port 8001, this time with kubectl port-forward . Note the image name must
+opentelemetry | lab03-rancher.html | rancher | $ kubectl delete pod hello-otel --ignore-not-found
+opentelemetry | lab03-rancher.html | rancher | $ kubectl run hello-otel --image=localhost/hello-otel:prog --image-pull-policy=Never \
+opentelemetry | lab03-rancher.html | rancher | $ kubectl port-forward pod/hello-otel 8001:8000
+opentelemetry | lab03-rancher.html | rancher | kubectl logs -f pod/hello-otel and confirm spans are printed like below (scroll
+opentelemetry | lab03-rancher.html | rancher | $ kubectl delete pod hello-otel
+opentelemetry | lab03-rancher.html | rancher | Scrolling through spans in kubectl logs is overwhelming, let's add some
+opentelemetry | lab03-rancher.html | rancher | After saving the file, build the new image and import it into the cluster again - the k3s
+opentelemetry | lab03-rancher.html | rancher | Next open the file programmatic/app_pod.yaml and review it. It is plain
+opentelemetry | lab03-rancher.html | rancher | Kubernetes Pod YAML, so it applies to k3s unchanged. The application container exposes
+opentelemetry | lab03-rancher.html | rancher | Programmatic - Run the pod on k3s
+opentelemetry | lab03-rancher.html | rancher | $ kubectl delete -f programmatic/app_pod.yaml --ignore-not-found
+opentelemetry | lab03-rancher.html | rancher | $ kubectl apply -f programmatic/app_pod.yaml
+opentelemetry | lab03-rancher.html | rancher | $ kubectl get pod hello-otel
+opentelemetry | lab03-rancher.html | rancher | $ kubectl port-forward pod/hello-otel 8001:5000 16686:16686
+opentelemetry | lab03-rancher.html | rancher | on a local Rancher k3s cluster, and successfully sent and viewed traces in Jaeger.
+opentelemetry | lab04.html | docker | Continue using Kubernetes (k3s)
+opentelemetry | lab04.html | docker | $ podman play kube programmatic/app_pod.yaml
+opentelemetry | lab04.html | docker | $ podman play kube programmatic/app_pod.yaml --down
+opentelemetry | lab04-rancher.html | rancher | Lab 4 - Exploring Jaeger UI (Rancher k3s)
+opentelemetry | lab04-rancher.html | rancher | Exploring Jaeger - Rancher k3s prerequisites
+opentelemetry | lab04-rancher.html | rancher | Rancher Desktop k3s cluster, with
+opentelemetry | lab04-rancher.html | rancher | kubectl on your PATH. Apply the hello-otel pod and wait for it to be
+opentelemetry | lab04-rancher.html | rancher | $ kubectl apply -f programmatic/app_pod.yaml
+opentelemetry | lab04-rancher.html | rancher | $ kubectl wait --for=condition=Ready pod/hello-otel --timeout=180s
+opentelemetry | lab04-rancher.html | rancher | $ kubectl get pod hello-otel
+opentelemetry | lab04-rancher.html | rancher | $ kubectl port-forward pod/hello-otel 8001:5000 16686:16686
+opentelemetry | lab04-rancher.html | rancher | $ kubectl delete -f programmatic/app_pod.yaml
+opentelemetry | lab05.html | docker | Continue using Kubernetes (k3s)
+opentelemetry | lab05.html | docker | $ podman play kube manual/app_pod.yaml
+opentelemetry | lab05.html | docker | $ podman play kube manual/app_pod.yaml --down
+opentelemetry | lab05-rancher.html | rancher | Lab 5 - Manual Instrumentation (Rancher k3s)
+opentelemetry | lab05-rancher.html | rancher | Manual - Rancher k3s prerequisites
+opentelemetry | lab05-rancher.html | rancher | Rancher Desktop k3s cluster, with
+opentelemetry | lab05-rancher.html | rancher | kubectl and nerdctl on your PATH. Start Rancher Desktop if it is not
+opentelemetry | lab05-rancher.html | rancher | In Preferences → Kubernetes , confirm "Enable Kubernetes" is checked (k3s)
+opentelemetry | lab05-rancher.html | rancher | Confirm the cluster is up and kubectl is pointed at it (versions shown might
+opentelemetry | lab05-rancher.html | rancher | $ kubectl config current-context
+opentelemetry | lab05-rancher.html | rancher | $ kubectl get nodes
+opentelemetry | lab05-rancher.html | rancher | Manual - Build image & run on k3s
+opentelemetry | lab05-rancher.html | rancher | Podman builds the image locally, but k3s runs inside Rancher Desktop's own VM with a separate
+opentelemetry | lab05-rancher.html | rancher | Jaeger image is pulled from the registry, so kubectl wait blocks until the pod is
+opentelemetry | lab05-rancher.html | rancher | $ kubectl delete -f manual/app_pod.yaml --ignore-not-found
+opentelemetry | lab05-rancher.html | rancher | $ kubectl apply -f manual/app_pod.yaml
+opentelemetry | lab05-rancher.html | rancher | $ kubectl wait --for=condition=Ready pod/hello-otel-manual --timeout=180s
+opentelemetry | lab05-rancher.html | rancher | $ kubectl port-forward pod/hello-otel-manual 8001:5000 16686:16686
+opentelemetry | lab05-rancher.html | rancher | $ kubectl delete -f manual/app_pod.yaml
+opentelemetry | lab05-rancher.html | rancher | Manual - Rebuild and run on k3s
+opentelemetry | lab06.html | docker | Continue using Kubernetes (k3s)
+opentelemetry | lab06.html | docker | $ podman play kube metrics/app-prom-pod.yml
+opentelemetry | lab06.html | docker | $ podman play kube metrics/app-prom-pod.yml --down
+opentelemetry | lab06-rancher.html | rancher | Lab 6 - Traces & Metrics (Rancher k3s)
+opentelemetry | lab06-rancher.html | rancher | Traces & metrics - Rancher k3s prerequisites
+opentelemetry | lab06-rancher.html | rancher | them on a local Rancher Desktop k3s
+opentelemetry | lab06-rancher.html | rancher | cluster, with kubectl and nerdctl on your PATH. Start Rancher Desktop
+opentelemetry | lab06-rancher.html | rancher | In Preferences → Kubernetes , confirm "Enable Kubernetes" is checked (k3s)
+opentelemetry | lab06-rancher.html | rancher | Confirm the cluster is up and kubectl is pointed at it (versions shown might
+opentelemetry | lab06-rancher.html | rancher | $ kubectl config current-context
+opentelemetry | lab06-rancher.html | rancher | $ kubectl get nodes
+opentelemetry | lab06-rancher.html | rancher | This lab binds host ports 8001 , 9090 and 16686 . If kubectl get
+opentelemetry | lab06-rancher.html | rancher | pods lists a pod left over from other work, delete it first with kubectl delete
+opentelemetry | lab06-rancher.html | rancher | Traces & metrics - Building Prometheus for k3s
+opentelemetry | lab06-rancher.html | rancher | Podman builds the image locally, but k3s runs inside Rancher Desktop's own VM with a separate
+opentelemetry | lab06-rancher.html | rancher | Traces & metrics - Running Prometheus on k3s
+opentelemetry | lab06-rancher.html | rancher | $ kubectl run prometheus --image=localhost/workshop-prometheus:v3.13.1 \
+opentelemetry | lab06-rancher.html | rancher | $ kubectl wait --for=condition=Ready pod/prometheus --timeout=120s
+opentelemetry | lab06-rancher.html | rancher | $ kubectl port-forward pod/prometheus 9090:9090
+opentelemetry | lab06-rancher.html | rancher | $ kubectl delete pod prometheus
+opentelemetry | lab06-rancher.html | rancher | Traces & metrics - Building the app image for k3s
+opentelemetry | lab06-rancher.html | rancher | Traces & metrics - Run the pod on k3s
+opentelemetry | lab06-rancher.html | rancher | registry, so the pod sits Pending for a while - kubectl wait blocks until
+opentelemetry | lab06-rancher.html | rancher | $ kubectl delete -f metrics/app-prom-pod.yml --ignore-not-found
+opentelemetry | lab06-rancher.html | rancher | $ kubectl apply -f metrics/app-prom-pod.yml
+opentelemetry | lab06-rancher.html | rancher | $ kubectl wait --for=condition=Ready pod/hello-otel-metrics --timeout=180s
+opentelemetry | lab06-rancher.html | rancher | $ kubectl port-forward pod/hello-otel-metrics 8001:5000 9090:9090 16686:16686
+opentelemetry | lab06-rancher.html | rancher | $ kubectl delete -f metrics/app-prom-pod.yml
+opentelemetry | lab06-rancher.html | rancher | Traces & metrics - Rebuilding Prometheus for k3s
+opentelemetry | lab06-rancher.html | rancher | Traces & metrics - Rebuild the app image for k3s
+opentelemetry | lab06-rancher.html | rancher | Traces & metrics - Running the pod on k3s
+otel-developers | lab02.html | docker | Desktop k3s cluster instead:
+otel-developers | lab02.html | docker | Continue to run using Kubernetes (k3s)
+otel-developers | lab02-rancher.html | rancher | Lab 2 - Automatic Instrumentation (Rancher k3s)
+otel-developers | lab02-rancher.html | rancher | Auto-instrument - Rancher k3s prerequisites
+otel-developers | lab02-rancher.html | rancher | This path runs the demo application on a local Rancher Desktop k3s cluster instead of straight on your
+otel-developers | lab02-rancher.html | rancher | plus Rancher Desktop with the Kubernetes (k3s)
+otel-developers | lab02-rancher.html | rancher | engine enabled and kubectl on your PATH.
+otel-developers | lab02-rancher.html | rancher | In Preferences → Kubernetes , confirm "Enable Kubernetes" is checked (k3s)
+otel-developers | lab02-rancher.html | rancher | Check that kubectl is pointed at Rancher Desktop and the node is ready:
+otel-developers | lab02-rancher.html | rancher | $ kubectl config current-context
+otel-developers | lab02-rancher.html | rancher | $ kubectl get nodes
+otel-developers | lab02-rancher.html | rancher | This lab binds host port 9999 . If kubectl get pods lists a pod left over from other
+otel-developers | lab02-rancher.html | rancher | work, delete it first with kubectl delete pod - two pods cannot claim the same
+otel-developers | lab02-rancher.html | rancher | Package it into a container image and run it as a pod on your k3s cluster.
+otel-developers | lab02-rancher.html | rancher | Podman builds into its own local store, but k3s runs inside Rancher Desktop's VM with a separate
+otel-developers | lab02-rancher.html | rancher | containerd image store - there is no k3s binary on your host. Use
+otel-developers | lab02-rancher.html | rancher | Auto-instrument - Run without instrumentation on k3s
+otel-developers | lab02-rancher.html | rancher | $ kubectl delete pod java-demo-base --ignore-not-found
+otel-developers | lab02-rancher.html | rancher | $ kubectl run java-demo-base --image=localhost/java-demo:base \
+otel-developers | lab02-rancher.html | rancher | $ kubectl wait --for=condition=Ready pod/java-demo-base --timeout=180s
+otel-developers | lab02-rancher.html | rancher | $ kubectl get pod java-demo-base
+otel-developers | lab02-rancher.html | rancher | $ kubectl port-forward pod/java-demo-base 9999:9999
+otel-developers | lab02-rancher.html | rancher | The kubectl wait matters - without it the port-forward can fail with "unable to forward
+otel-developers | lab02-rancher.html | rancher | $ kubectl logs pod/java-demo-base
+otel-developers | lab02-rancher.html | rancher | $ kubectl delete pod java-demo-base
+otel-developers | lab02-rancher.html | rancher | Auto-instrument - Import the agent image into k3s
+otel-developers | lab02-rancher.html | rancher | Auto-instrument - Run with the Java Agent on k3s
+otel-developers | lab02-rancher.html | rancher | $ kubectl delete pod java-demo-auto --ignore-not-found
+otel-developers | lab02-rancher.html | rancher | $ kubectl run java-demo-auto --image=localhost/java-demo:auto \
+otel-developers | lab02-rancher.html | rancher | $ kubectl wait --for=condition=Ready pod/java-demo-auto --timeout=180s
+otel-developers | lab02-rancher.html | rancher | $ kubectl port-forward pod/java-demo-auto 9999:9999
+otel-developers | lab02-rancher.html | rancher | kubectl logs -f pod/java-demo-auto
+otel-developers | lab02-rancher.html | rancher | what kubectl logs shows you
+otel-developers | lab02-rancher.html | rancher | $ kubectl logs pod/java-demo-auto
+otel-developers | lab02-rancher.html | rancher | Auto-instrument - Run JAVA_TOOL_OPTIONS on k3s
+otel-developers | lab02-rancher.html | rancher | $ kubectl delete pod java-demo-java-tools --ignore-not-found
+otel-developers | lab02-rancher.html | rancher | $ kubectl run java-demo-java-tools --image=localhost/java-demo:java-tools \
+otel-developers | lab02-rancher.html | rancher | $ kubectl wait --for=condition=Ready pod/java-demo-java-tools --timeout=180s
+otel-developers | lab02-rancher.html | rancher | $ kubectl port-forward pod/java-demo-java-tools 9999:9999
+otel-developers | lab02-rancher.html | rancher | $ kubectl run java-demo-noagent --image=localhost/java-demo:java-tools \
+otel-developers | lab02-rancher.html | rancher | $ kubectl logs -f pod/java-demo-noagent
+otel-developers | lab02-rancher.html | rancher | Clean up with kubectl delete pod java-demo-noagent .
+otel-developers | lab02-rancher.html | rancher | $ kubectl run java-demo-otlp --image=localhost/java-demo:java-tools \
+otel-developers | lab02-rancher.html | rancher | one does not carry over to k3s.
+otel-developers | lab02-rancher.html | rancher | Auto-instrument - Rebuild and redeploy on k3s
+otel-developers | lab02-rancher.html | rancher | kubectl logs pod/java-demo-auto for the highlighted
+otel-developers | lab02-rancher.html | rancher | $ kubectl delete pod java-demo-noagent --ignore-not-found
+otel-developers | lab02-rancher.html | rancher | $ kubectl get pods
+otel-developers | lab02-rancher.html | rancher | We ran the demo application on a local Rancher k3s cluster, compared an uninstrumented pod against one
+otel-developers | lab02-rancher.html | rancher | kubectl logs .
+otel-developers | lab02-rancher.html | rancher | $ kubectl logs pod/java-demo-auto | tail -3
+otel-developers | lab03.html | docker | with Podman as shown on the following slides, or run it on a local Rancher Desktop k3s
+otel-developers | lab03.html | docker | Continue to run using Kubernetes (k3s)
+otel-developers | lab03-rancher.html | rancher | Lab 3 - Programmatic Instrumentation (Rancher k3s)
+otel-developers | lab03-rancher.html | rancher | Programmatic - Rancher k3s prerequisites
+otel-developers | lab03-rancher.html | rancher | This path runs Jaeger on a local Rancher Desktop k3s cluster instead of under Podman. You still need
+otel-developers | lab03-rancher.html | rancher | Kubernetes (k3s) engine enabled, and kubectl on your PATH.
+otel-developers | lab03-rancher.html | rancher | In Preferences → Kubernetes , confirm "Enable Kubernetes" is checked (k3s)
+otel-developers | lab03-rancher.html | rancher | Check that kubectl is pointed at Rancher Desktop and the node is ready:
+otel-developers | lab03-rancher.html | rancher | $ kubectl config current-context
+otel-developers | lab03-rancher.html | rancher | $ kubectl get nodes
+otel-developers | lab03-rancher.html | rancher | Programmatic - Start Jaeger on k3s
+otel-developers | lab03-rancher.html | rancher | Jaeger comes from a public registry, so k3s pulls it for you - there is nothing to side-load here and
+otel-developers | lab03-rancher.html | rancher | $ kubectl delete pod jaeger --ignore-not-found
+otel-developers | lab03-rancher.html | rancher | $ kubectl run jaeger --image=jaegertracing/all-in-one:1.76.0 \
+otel-developers | lab03-rancher.html | rancher | $ kubectl wait --for=condition=Ready pod/jaeger --timeout=180s
+otel-developers | lab03-rancher.html | rancher | The kubectl wait matters: without it the next step can fail with "unable to forward port
+otel-developers | lab03-rancher.html | rancher | $ kubectl port-forward pod/jaeger 16686:16686 4317:4317
+otel-developers | lab03-rancher.html | rancher | $ kubectl delete pod jaeger
+otel-developers | lab04.html | docker | you can reach it from a local Rancher Desktop k3s cluster instead:
+otel-developers | lab04.html | docker | Continue to run using Kubernetes (k3s)
+otel-developers | lab04-rancher.html | rancher | Lab 4 - Exploring Jaeger UI (Rancher k3s)
+otel-developers | lab04-rancher.html | rancher | Exploring Jaeger - Rancher k3s prerequisites
+otel-developers | lab04-rancher.html | rancher | Rancher Desktop with the Kubernetes (k3s)
+otel-developers | lab04-rancher.html | rancher | engine enabled and kubectl on your PATH. If Rancher Desktop is not already running from
+otel-developers | lab04-rancher.html | rancher | Exploring Jaeger - Start Jaeger on k3s
+otel-developers | lab04-rancher.html | rancher | Jaeger comes from a public registry, so k3s pulls it for you - there is nothing to side-load here and
+otel-developers | lab04-rancher.html | rancher | $ kubectl delete pod jaeger --ignore-not-found
+otel-developers | lab04-rancher.html | rancher | $ kubectl run jaeger --image=jaegertracing/all-in-one:1.76.0 \
+otel-developers | lab04-rancher.html | rancher | $ kubectl wait --for=condition=Ready pod/jaeger --timeout=180s
+otel-developers | lab04-rancher.html | rancher | The kubectl wait matters: without it the next step can fail with "unable to forward port
+otel-developers | lab04-rancher.html | rancher | $ kubectl port-forward pod/jaeger 16686:16686 4317:4317
+otel-developers | lab04-rancher.html | rancher | $ kubectl delete pod jaeger
+otel-developers | lab05.html | docker | from lab 3, or you can run it on a local Rancher Desktop k3s cluster instead:
+otel-developers | lab05.html | docker | Continue to run using Kubernetes (k3s)
+otel-developers | lab05-rancher.html | rancher | Lab 5 - Manual Instrumentation (Rancher k3s)
+otel-developers | lab05-rancher.html | rancher | Manual - Rancher k3s prerequisites
+otel-developers | lab05-rancher.html | rancher | On this path the application and Jaeger run together in a single pod on a local Rancher Desktop k3s
+otel-developers | lab05-rancher.html | rancher | Rancher Desktop with the Kubernetes (k3s)
+otel-developers | lab05-rancher.html | rancher | engine enabled and kubectl on your PATH.
+otel-developers | lab05-rancher.html | rancher | kubectl delete pod jaeger - two pods cannot claim the same host port on a single
+otel-developers | lab05-rancher.html | rancher | In Preferences → Kubernetes , confirm "Enable Kubernetes" is checked (k3s)
+otel-developers | lab05-rancher.html | rancher | Check that kubectl is pointed at Rancher Desktop and the node is ready:
+otel-developers | lab05-rancher.html | rancher | $ kubectl config current-context
+otel-developers | lab05-rancher.html | rancher | $ kubectl get nodes
+otel-developers | lab05-rancher.html | rancher | Open k8s/manual-pod.yaml . The application and Jaeger are two containers in one
+otel-developers | lab05-rancher.html | rancher | Manual - Build and deploy on k3s
+otel-developers | lab05-rancher.html | rancher | $ kubectl delete -f k8s/manual-pod.yaml --ignore-not-found
+otel-developers | lab05-rancher.html | rancher | $ kubectl apply -f k8s/manual-pod.yaml
+otel-developers | lab05-rancher.html | rancher | $ kubectl wait --for=condition=Ready pod/java-demo-manual --timeout=180s
+otel-developers | lab05-rancher.html | rancher | $ kubectl port-forward pod/java-demo-manual 9999:9999 16686:16686
+otel-developers | lab05-rancher.html | rancher | kubectl wait matters - without it port-forward fails with "unable to
+otel-developers | lab05-rancher.html | rancher | $ kubectl delete -f k8s/manual-pod.yaml
+otel-developers | lab05-rancher.html | rancher | $ kubectl get pods
+otel-developers | lab05-rancher.html | rancher | Jaeger running together as a single pod on a local Rancher k3s cluster.
+otel-developers | lab06.html | docker | following slides, or deploy them together into a single pod on a local Rancher Desktop k3s
+otel-developers | lab06.html | docker | Continue to run using Kubernetes (k3s)
+otel-developers | lab06.html | docker | ADD prometheus-k3s.yml /etc/prometheus
+otel-developers | lab06-rancher.html | rancher | Lab 6 - Traces & Metrics (Rancher k3s)
+otel-developers | lab06-rancher.html | rancher | Traces & Metrics - Rancher k3s prerequisites
+otel-developers | lab06-rancher.html | rancher | This path runs the application and Prometheus together in one pod on a local Rancher Desktop k3s
+otel-developers | lab06-rancher.html | rancher | Rancher Desktop with the Kubernetes (k3s)
+otel-developers | lab06-rancher.html | rancher | engine enabled and kubectl on your PATH. If Rancher Desktop is not already running,
+otel-developers | lab06-rancher.html | rancher | Check that kubectl is pointed at Rancher Desktop and the node is ready:
+otel-developers | lab06-rancher.html | rancher | $ kubectl config current-context
+otel-developers | lab06-rancher.html | rancher | $ kubectl get nodes
+otel-developers | lab06-rancher.html | rancher | Note: This lab binds host ports 9999 and 9090 . If kubectl get pods lists a pod left over from other
+otel-developers | lab06-rancher.html | rancher | work, delete it first with kubectl delete pod - two pods cannot claim the
+otel-developers | lab06-rancher.html | rancher | host.containers.internal:9464 . That name does not resolve from inside a k3s pod, and the
+otel-developers | lab06-rancher.html | rancher | ADD prometheus-k3s.yml /etc/prometheus
+otel-developers | lab06-rancher.html | rancher | Open k8s/metrics-pod.yaml . Both containers sit in one pod, so Prometheus reaches
+otel-developers | lab06-rancher.html | rancher | args to pick the k3s scrape config baked into the image alongside the default one:
+otel-developers | lab06-rancher.html | rancher | - "--config.file=/etc/prometheus/prometheus-k3s.yml"
+otel-developers | lab06-rancher.html | rancher | Traces & Metrics - Import both images into k3s
+otel-developers | lab06-rancher.html | rancher | Podman builds into its own local store, but k3s runs inside Rancher Desktop's VM with a separate
+otel-developers | lab06-rancher.html | rancher | Traces & Metrics - Run the pod on k3s
+otel-developers | lab06-rancher.html | rancher | $ kubectl delete -f k8s/metrics-pod.yaml --ignore-not-found
+otel-developers | lab06-rancher.html | rancher | $ kubectl apply -f k8s/metrics-pod.yaml
+otel-developers | lab06-rancher.html | rancher | $ kubectl wait --for=condition=Ready pod/java-demo-metrics --timeout=180s
+otel-developers | lab06-rancher.html | rancher | $ kubectl get pod java-demo-metrics
+otel-developers | lab06-rancher.html | rancher | $ kubectl port-forward pod/java-demo-metrics 9999:9999 9090:9090 9464:9464
+otel-developers | lab06-rancher.html | rancher | $ kubectl delete -f k8s/metrics-pod.yaml
+prometheus | lab02.html | docker | Installing on Kubernetes (k3s) with Helm
+prometheus | lab02-rancher.html | rancher | This lab guides you through installing Prometheus on a local Kubernetes (k3s) cluster
+prometheus | lab02-rancher.html | rancher | using Helm, configuring, and running it to start gathering metrics.
+prometheus | lab02-rancher.html | rancher | desktop application that ships a lightweight Kubernetes distribution (k3s) and works on Mac
+prometheus | lab02-rancher.html | rancher | Install the Helm command line tooling
+prometheus | lab02-rancher.html | rancher | local Kubernetes cluster works here (minikube, kind, Docker Desktop), but we leave you to sort
+prometheus | lab02-rancher.html | rancher | $ kubectl config current-context
+prometheus | lab02-rancher.html | rancher | $ kubectl get nodes
+prometheus | lab02-rancher.html | rancher | $ helm version
+prometheus | lab02-rancher.html | rancher | Installation - Adding the Helm repository
+prometheus | lab02-rancher.html | rancher | The Prometheus community maintains a Helm chart that packages everything needed to run
+prometheus | lab02-rancher.html | rancher | $ helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+prometheus | lab02-rancher.html | rancher | $ helm repo update
+prometheus | lab02-rancher.html | rancher | $ helm search repo prometheus-community/prometheus --version 29.20.0
+prometheus | lab02-rancher.html | rancher | how you hand your own configuration to the Helm chart. Start with the server settings and switch
+prometheus | lab02-rancher.html | rancher | Installation - Deploying the Helm chart
+prometheus | lab02-rancher.html | rancher | helm upgrade --install instead of helm install so that
+prometheus | lab02-rancher.html | rancher | $ helm upgrade --install workshop-prometheus prometheus-community/prometheus \
+prometheus | lab02-rancher.html | rancher | $ kubectl config set-context --current --namespace=prometheus
+prometheus | lab02-rancher.html | rancher | $ kubectl get pods -n prometheus
+prometheus | lab02-rancher.html | rancher | $ kubectl get svc -n prometheus
+prometheus | lab02-rancher.html | rancher | $ kubectl port-forward -n prometheus svc/workshop-prometheus-server 9090:9090
+prometheus | lab02-rancher.html | rancher | $ kubectl logs -n prometheus -f deploy/workshop-prometheus-server -c prometheus-server
+prometheus | lab02-rancher.html | rancher | same helm upgrade --install command again. The
+prometheus | lab02-rancher.html | rancher | this time Helm upgrades the existing release instead of creating it:
+prometheus | lab02-rancher.html | rancher | file the Helm chart rendered from your values into a ConfigMap.
+prometheus | lab03.html | docker | Installing on Kubernetes (k3s) with Helm
+prometheus | lab03-rancher.html | rancher | This lab guides you through running the services demo on your local Kubernetes (k3s)
+prometheus | lab03-rancher.html | rancher | workshop-prometheus Helm release running in the
+prometheus | lab03-rancher.html | rancher | here when done. Leave the kubectl port-forward for port 9090 from that lab
+prometheus | lab03-rancher.html | rancher | # Container engine set to dockerd (moby) - k3s reads the docker image store directly.
+prometheus | lab03-rancher.html | rancher | containerd the --namespace k8s.io is not optional, k3s only looks in that
+prometheus | lab03-rancher.html | rancher | $ kubectl apply -f services-demo.yaml -n prometheus
+prometheus | lab03-rancher.html | rancher | $ kubectl get pods,svc -n prometheus
+prometheus | lab03-rancher.html | rancher | kubectl port-forward -n prometheus svc/services-demo 8080:8080
+prometheus | lab03-rancher.html | rancher | helm upgrade --install command from lab 2 and the
+prometheus | lab03-rancher.html | rancher | $ helm upgrade --install workshop-prometheus prometheus-community/prometheus \
+prometheus | lab03-rancher.html | rancher | $ kubectl logs -n prometheus deploy/workshop-prometheus-server -c prometheus-server
+prometheus | lab03-rancher.html | rancher | Be patient, this is not instant. Helm updates the ConfigMap the moment the command
+prometheus | lab03-rancher.html | rancher | successful helm upgrade and Prometheus actually using your change is
+prometheus | lab03-rancher.html | rancher | $ kubectl port-forward -n prometheus svc/workshop-prometheus-server 9090:9090
+prometheus | lab03-rancher.html | rancher | $ kubectl apply -f services-demo-2.yaml -n prometheus
+prometheus | lab03-rancher.html | rancher | $ kubectl port-forward -n prometheus svc/services-demo-2 8081:8080
+prometheus | lab03-rancher.html | rancher | kubectl logs -n prometheus deploy/workshop-prometheus-server -c
+prometheus | lab03-rancher.html | rancher | $ kubectl delete -f services-demo-2.yaml -n prometheus
+prometheus | lab04.html | docker | which was a restart, a fresh container run, or a helm upgrade , depending on
+prometheus | lab04.html | docker | already bound to those ports and there is nothing to do here. On the Kubernetes (k3s) path
+prometheus | lab04.html | docker | $ kubectl port-forward -n prometheus svc/workshop-prometheus-server 9090:9090
+prometheus | lab04.html | docker | $ kubectl port-forward -n prometheus svc/services-demo 8080:8080
+prometheus | lab04.html | docker | Kubernetes (k3s): instance="services-demo:8080"
+prometheus | lab05.html | docker | # Kubernetes (k3s) install.
+prometheus | lab05.html | docker | $ kubectl apply -f services-demo-2.yaml -n prometheus
+prometheus | lab05.html | docker | $ kubectl port-forward -n prometheus svc/services-demo-2 8081:8080
+prometheus | lab05.html | docker | signal to send, you re-run the same helm upgrade --install command and the
+prometheus | lab05.html | docker | $ helm upgrade --install workshop-prometheus prometheus-community/prometheus \
+prometheus | lab05.html | docker | $ kubectl scale deploy/services-demo-2 --replicas=0 -n prometheus
+prometheus | lab06.html | docker | path, so on the source and Kubernetes (k3s) paths your instance label values
+prometheus | lab06.html | docker | localhost:PORT_NUMBER for all configuration targets. For Kubernetes (k3s)
+prometheus | lab06.html | docker | # Kubernetes (k3s) install.
+prometheus | lab06.html | docker | $ kubectl apply -f services-demo.yaml -n prometheus
+prometheus | lab06.html | docker | $ kubectl port-forward -n prometheus svc/services-demo 8080:8080
+prometheus | lab06.html | docker | $ kubectl apply -f services-demo-2.yaml -n prometheus
+prometheus | lab06.html | docker | $ kubectl port-forward -n prometheus svc/services-demo-2 8081:8080
+prometheus | lab06.html | docker | $ helm upgrade --install workshop-prometheus prometheus-community/prometheus \
+prometheus | lab06.html | docker | $ kubectl port-forward -n prometheus svc/workshop-prometheus-server 9090:9090
+prometheus | lab06.html | docker | On the Kubernetes (k3s) path there is no workshop-prometheus.yml . Everything
+prometheus | lab06.html | docker | unchanged. To apply a change, re-run the same helm upgrade --install
+prometheus | lab06.html | docker | helm upgrade --install command on Kubernetes:
+prometheus | lab06.html | docker | (rebuild and restart on source/container, re-run the helm upgrade on Kubernetes):
+prometheus | lab06.html | docker | changes (rebuild and restart on source/container, re-run the helm upgrade on Kubernetes):
+prometheus | lab06.html | docker | verify: rebuild and restart on source/container, re-run the helm upgrade on Kubernetes):
+prometheus | lab06.html | docker | rebuild and restart on source/container, re-run the helm upgrade on Kubernetes):
+prometheus | lab06.html | docker | source/container, re-run the helm upgrade on Kubernetes):
+prometheus | lab06.html | docker | (reload to verify: rebuild and restart on source/container, re-run the helm upgrade on
+prometheus | lab06.html | docker | rule (reload to verify: rebuild and restart on source/container, re-run the helm upgrade on
+prometheus | lab06.html | docker | and restart on source/container, re-run the helm upgrade on Kubernetes):
+prometheus | lab07.html | docker | Setup using Kubernetes (k3s) with Helm
+prometheus | lab07-rancher.html | rancher | its own kubectl port-forward . In-cluster, Prometheus reaches them by their
+prometheus | lab07-rancher.html | rancher | already got a running k3s cluster with Helm, and the prometheus namespace
+prometheus | lab07-rancher.html | rancher | # Container engine set to dockerd (moby) - k3s reads the docker image store directly.
+prometheus | lab07-rancher.html | rancher | --namespace k8s.io is not optional, k3s only looks in that namespace, and on
+prometheus | lab07-rancher.html | rancher | $ kubectl create namespace prometheus --dry-run=client -o yaml | kubectl apply -f -
+prometheus | lab07-rancher.html | rancher | $ kubectl apply -f services-demo-prod1.yaml -n prometheus
+prometheus | lab07-rancher.html | rancher | $ kubectl port-forward -n prometheus svc/services-demo-prod1 11111:8080
+prometheus | lab07-rancher.html | rancher | $ kubectl apply -f services-demo-prod2.yaml -n prometheus
+prometheus | lab07-rancher.html | rancher | $ kubectl port-forward -n prometheus svc/services-demo-prod2 22222:8080
+prometheus | lab07-rancher.html | rancher | $ kubectl apply -f services-demo-dev.yaml -n prometheus
+prometheus | lab07-rancher.html | rancher | $ kubectl port-forward -n prometheus svc/services-demo-dev 44444:8080
+prometheus | lab07-rancher.html | rancher | to install Prometheus on Kubernetes (k3s) with
+prometheus | lab07-rancher.html | rancher | Helm , but if not then we'll revisit this now.
+prometheus | lab07-rancher.html | rancher | $ helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+prometheus | lab07-rancher.html | rancher | $ helm repo update
+prometheus | lab07-rancher.html | rancher | $ helm upgrade --install workshop-prometheus prometheus-community/prometheus \
+prometheus | lab07-rancher.html | rancher | If nothing changed, Helm reports it as up to date and does nothing, no harm in running it.
+prometheus | lab07b.html | docker | $ kubectl create configmap prometheus-targets --from-file=targets.yml -n prometheus
+prometheus | lab07b.html | docker | We will re-run the helm upgrade to apply soon, so stand-by.
+prometheus | lab07b.html | docker | # Start Prometheus on Kubernetes (k3s), applying the mount and job you just added.
+prometheus | lab07b.html | docker | $ helm upgrade --install workshop-prometheus prometheus-community/prometheus \
+prometheus | lab07b.html | docker | first: kubectl port-forward -n prometheus svc/workshop-prometheus-server 9090:9090 )
+prometheus | lab07b.html | docker | this workshop, this needs no helm upgrade , Prometheus watches the
+prometheus | lab07b.html | docker | $ kubectl create configmap prometheus-targets --from-file=targets.yml \
+prometheus | lab07b.html | docker | -n prometheus --dry-run=client -o yaml | kubectl apply -f -
+prometheus | lab07b.html | docker | helm upgrade needed:
+prometheus | lab07b.html | docker | the namespace removes the Helm release, the Prometheus server, the
+prometheus | lab07b.html | docker | $ kubectl delete namespace prometheus
+prometheus | lab08.html | docker | Instrumenting on Kubernetes (k3s) with Helm
+prometheus | lab08-rancher.html | rancher | For the rest of this lab you've chosen to run your instrumenting experience on Kubernetes (k3s)
+prometheus | lab08-rancher.html | rancher | We'll assume you've already got a running k3s cluster with Helm, and the
+prometheus | lab08-rancher.html | rancher | # Container engine set to dockerd (moby) - k3s reads the docker image store directly.
+prometheus | lab08-rancher.html | rancher | $ kubectl get nodes
+prometheus | lab08-rancher.html | rancher | the k3s API server isn't up yet. Start (or wait for) Rancher Desktop with
+prometheus | lab08-rancher.html | rancher | $ kubectl create namespace prometheus --dry-run=client -o yaml | kubectl apply -f -
+prometheus | lab08-rancher.html | rancher | $ kubectl apply -f basic-java-metrics.yaml -n prometheus
+prometheus | lab08-rancher.html | rancher | $ kubectl port-forward -n prometheus svc/basic-java-metrics 7777:7777
+prometheus | lab08-rancher.html | rancher | Apply the updated values with Helm. If nothing changed since your last install, Helm reports it
+prometheus | lab08-rancher.html | rancher | $ helm upgrade --install workshop-prometheus prometheus-community/prometheus \
+prometheus | lab08-rancher.html | rancher | $ kubectl port-forward -n prometheus svc/workshop-prometheus-server 9090:9090
+prometheus | lab08-rancher.html | rancher | $ kubectl port-forward -n prometheus svc/basic-java-metrics 9999:9999
+prometheus | lab08-rancher.html | rancher | $ kubectl rollout restart deployment/basic-java-metrics -n prometheus
+fluentbit | lab02.html | docker | using a container image, or deploying onto a Kubernetes (k3s) cluster with Rancher Desktop.
+fluentbit | lab02.html | docker | Installing on Kubernetes (k3s) using Rancher Desktop
+fluentbit | lab02-rancher.html | rancher | Lab 2 – Installing Fluent Bit on Kubernetes (k3s)
+fluentbit | lab02-rancher.html | rancher | To deploy Fluent Bit onto a Rancher Desktop Kubernetes (k3s) cluster running on your
+fluentbit | lab02-rancher.html | rancher | provides a local single node Kubernetes (k3s) cluster. It's assumed you have already installed
+fluentbit | lab02-rancher.html | rancher | kubectl , and helm , so the Rancher Desktop UI never
+fluentbit | lab02-rancher.html | rancher | ( rdctl , Helm v3+, and kubectl v1.32+) for you.
+fluentbit | lab02-rancher.html | rancher | onto the cluster via the official Helm chart:
+fluentbit | lab02-rancher.html | rancher | [INFO] Deploying onto Rancher Desktop k3s cluster...
+fluentbit | lab02-rancher.html | rancher | [INFO] Deploying Fluent Bit version 5.1.1 onto the Rancher Desktop k3s cluster...
+fluentbit | lab02-rancher.html | rancher | [INFO] Checking if Helm is installed...
+fluentbit | lab02-rancher.html | rancher | [INFO] Checking for Helm version...
+fluentbit | lab02-rancher.html | rancher | [INFO] installed Helm version is v4...
+fluentbit | lab02-rancher.html | rancher | [INFO] Checking if kubectl is installed...
+fluentbit | lab02-rancher.html | rancher | [INFO] Adding Fluent Bit Helm chart to our local repo...
+fluentbit | lab02-rancher.html | rancher | [INFO] = Desktop Kubernetes (k3s) cluster, alongside a log generating workload. =
+fluentbit | lab02-rancher.html | rancher | [INFO] = kubectl --context rancher-desktop -n logging get pods =
+fluentbit | lab02-rancher.html | rancher | [INFO] = kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f =
+fluentbit | lab02-rancher.html | rancher | [INFO] = helm --kube-context rancher-desktop uninstall fluent-bit -n logging && =
+fluentbit | lab02-rancher.html | rancher | [INFO] = kubectl --context rancher-desktop delete namespace logging =
+fluentbit | lab02-rancher.html | rancher | $ kubectl --context rancher-desktop -n logging get pods
+fluentbit | lab02-rancher.html | rancher | $ helm --kube-context rancher-desktop uninstall fluent-bit -n logging && \
+fluentbit | lab02-rancher.html | rancher | kubectl --context rancher-desktop delete namespace logging
+fluentbit | lab03.html | docker | -rw-r--r--@ 1 erics staff 1.7K Jul 21 18:34 workshop-fb-helm.yaml
+fluentbit | lab03.html | docker | First pipelines – Updating running pipeline (k3s)
+fluentbit | lab03.html | docker | If you deployed onto Kubernetes (k3s) with Rancher Desktop, Fluent Bit is already running, configured
+fluentbit | lab03.html | docker | by the Helm chart values file support/fluent-bit-helm.yaml . We need to update the
+fluentbit | lab03.html | docker | running configuration by editing creating a new pipeline config file workshop-fb-helm.yaml
+fluentbit | lab03.html | docker | to hold our first pipeline, then roll it out with a helm upgrade , so create the file
+fluentbit | lab03.html | docker | First pipelines – Why the HTTP server matters (k3s)
+fluentbit | lab03.html | docker | Those last three lines are not optional on Kubernetes. The Helm chart configures a
+fluentbit | lab03.html | docker | First pipelines – Updating running pipeline (k3s) cont.
+fluentbit | lab03.html | docker | First pipelines – Rolling out new configuration (k3s)
+fluentbit | lab03.html | docker | Apply the updated configuration by running a helm upgrade from the
+fluentbit | lab03.html | docker | $ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+fluentbit | lab03.html | docker | --values workshop-fb-helm.yaml
+fluentbit | lab03.html | docker | export POD_NAME=$(kubectl get pods --namespace logging -l "app.kubernetes.io/name=fluent-bit,app.kubernetes.io/instance=fluent-bit" -o jsonpath="{.items[0].metadata.name}")
+fluentbit | lab03.html | docker | kubectl --namespace logging port-forward $POD_NAME 2020:2020
+fluentbit | lab03.html | docker | First pipelines – Console output first pipeline (k3s)
+fluentbit | lab03.html | docker | $ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+fluentbit | lab03.html | docker | First pipelines – Adding file outputs (k3s)
+fluentbit | lab03.html | docker | outputs to the outputs section of our workshop-fb-helm.yaml
+fluentbit | lab03.html | docker | (keep the existing stdout ), then roll it out with a helm upgrade :
+fluentbit | lab03.html | docker | First pipelines – Rolling out second pipeline (k3s)
+fluentbit | lab03.html | docker | Apply the updated configuration with another helm upgrade from the
+fluentbit | lab03.html | docker | First pipelines – File output second pipeline (k3s)
+fluentbit | lab03.html | docker | tar , so kubectl exec ... -- cat and kubectl cp
+fluentbit | lab03.html | docker | $ POD=$(kubectl --context rancher-desktop -n logging get pod \
+fluentbit | lab03.html | docker | $ kubectl --context rancher-desktop -n logging debug $POD \
+fluentbit | lab03.html | docker | First pipelines - Adding filtering (k3s)
+fluentbit | lab03.html | docker | Open our Helm values file workshop-fb-helm.yaml and add a
+fluentbit | lab03.html | docker | First pipelines – Rolling out the third pipeline (k3s)
+fluentbit | lab03.html | docker | First pipelines – Console output third pipeline (k3s)
+fluentbit | lab03.html | docker | $ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit --tail=6
+fluentbit | lab03.html | docker | First pipelines – File output third pipeline (k3s)
+fluentbit | lab03.html | docker | previously, or k3s (helm updating) we run our conditionally filtered pipeline and our console
+fluentbit | lab04.html | docker | -rw-r--r--@ 1 erics staff 2.1K Jul 22 17:13 workshop-fb-helm.yaml
+fluentbit | lab04.html | docker | More pipelines – Updating running pipeline (k3s)
+fluentbit | lab04.html | docker | If you deployed onto Kubernetes (k3s) with Rancher Desktop back in lab 3, Fluent Bit is already
+fluentbit | lab04.html | docker | running, configured by the Helm values file workshop-fb-helm.yaml . Rather than
+fluentbit | lab04.html | docker | helm upgrade . Replace the extraFiles block, starting with the
+fluentbit | lab04.html | docker | More pipelines – Updating running pipeline (k3s) cont.
+fluentbit | lab04.html | docker | More pipelines – Rolling out this pipeline (k3s)
+fluentbit | lab04.html | docker | Apply the updated configuration by running a helm upgrade from the
+fluentbit | lab04.html | docker | $ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+fluentbit | lab04.html | docker | --values workshop-fb-helm.yaml
+fluentbit | lab04.html | docker | More pipelines – Console output this pipeline (k3s)
+fluentbit | lab04.html | docker | $ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+fluentbit | lab04.html | docker | More pipelines – Verify filtering solution (k3s)
+fluentbit | lab04.html | docker | On Kubernetes we apply the same filter to the running pipeline. Open our Helm values file
+fluentbit | lab04.html | docker | workshop-fb-helm.yaml and add a filters section between
+fluentbit | lab04.html | docker | More pipelines – Rolling out filtering (k3s)
+fluentbit | lab04.html | docker | Apply the updated configuration with another helm upgrade from the
+fluentbit | lab04.html | docker | More pipelines – Console output filtering (k3s)
+fluentbit | lab04.html | docker | More pipelines - Verify filtering errors (k3s)
+fluentbit | lab04.html | docker | On Kubernetes we add the same second filter to the running pipeline. Open our Helm values file
+fluentbit | lab04.html | docker | workshop-fb-helm.yaml and add another modify entry to the
+fluentbit | lab04.html | docker | More pipelines – Rolling out error filtering (k3s)
+fluentbit | lab04.html | docker | More pipelines - Console output filtering errors (k3s)
+fluentbit | lab04.html | docker | More pipelines – Adding metrics pipeline (k3s)
+fluentbit | lab04.html | docker | On Kubernetes we add the same metrics collection to the running pipeline. Open our Helm values
+fluentbit | lab04.html | docker | file workshop-fb-helm.yaml and add the fluentbit_metrics
+fluentbit | lab04.html | docker | More pipelines - Rolling out metrics pipeline (k3s)
+fluentbit | lab04.html | docker | More pipelines – Verifying metrics pipeline (k3s)
+fluentbit | lab05.html | docker | -rw-r--r--@ 1 erics staff 787B Jul 23 14:10 workshop-fb-helm.yaml
+fluentbit | lab05.html | docker | Kubernetes (k3s) using Rancher Desktop
+fluentbit | lab05-rancher.html | rancher | Lab 5 - Understanding backpressure (k3s)
+fluentbit | lab05-rancher.html | rancher | this time running on Kubernetes (k3s) with Rancher Desktop.
+fluentbit | lab05-rancher.html | rancher | Exit Code: 137 (128 + SIGKILL). We assume you deployed Fluent Bit onto k3s
+fluentbit | lab05-rancher.html | rancher | with Rancher Desktop back in lab 3, so it is already running from the Helm values file
+fluentbit | lab05-rancher.html | rancher | workshop-fb-helm.yaml .
+fluentbit | lab05-rancher.html | rancher | Backpressure - Configuration OOM inputs (k3s)
+fluentbit | lab05-rancher.html | rancher | extraFiles block in workshop-fb-helm.yaml , keeping the
+fluentbit | lab05-rancher.html | rancher | Backpressure - Configuring OOM outputs (k3s)
+fluentbit | lab05-rancher.html | rancher | same workshop-fb-helm.yaml values file, giving the container a tight limit
+fluentbit | lab05-rancher.html | rancher | Backpressure - Rolling out this pipeline (k3s)
+fluentbit | lab05-rancher.html | rancher | Apply the updated configuration with a helm upgrade from the
+fluentbit | lab05-rancher.html | rancher | $ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+fluentbit | lab05-rancher.html | rancher | --values workshop-fb-helm.yaml
+fluentbit | lab05-rancher.html | rancher | Backpressure - Watching the pod fail (k3s)
+fluentbit | lab05-rancher.html | rancher | and Kubernetes kills it. Unlike the one-shot Podman container, a Helm-managed pod restarts,
+fluentbit | lab05-rancher.html | rancher | $ kubectl --context rancher-desktop -n logging get pods -w
+fluentbit | lab05-rancher.html | rancher | Backpressure - Validating backpressure OOM (k3s)
+fluentbit | lab05-rancher.html | rancher | $ kubectl --context rancher-desktop -n logging describe pod -l app.kubernetes.io/name=fluent-bit
+fluentbit | lab05-rancher.html | rancher | Backpressure - Confirming the OOM (k3s)
+fluentbit | lab05-rancher.html | rancher | $ kubectl --context rancher-desktop -n logging get pod \
+fluentbit | lab05-rancher.html | rancher | Backpressure - Rolling out limited pipeline (k3s)
+fluentbit | lab05-rancher.html | rancher | memory, so the pod survives. Give it a touch more headroom in workshop-fb-helm.yaml
+fluentbit | lab05-rancher.html | rancher | Backpressure - Console output limited pipeline (k3s)
+fluentbit | lab05-rancher.html | rancher | $ kubectl --context rancher-desktop -n logging get pods
+fluentbit | lab05-rancher.html | rancher | $ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+fluentbit | lab06.html | docker | -rw-r--r--@ 1 erics staff 886B Jul 24 11:10 workshop-fb-helm.yaml
+fluentbit | lab06.html | docker | Kubernetes (k3s) using Rancher Desktop
+fluentbit | lab06-rancher.html | rancher | Lab 6 - Avoiding telemetry data loss (k3s)
+fluentbit | lab06-rancher.html | rancher | Fluent Bit, this time running on Kubernetes (k3s) with Rancher Desktop.
+fluentbit | lab06-rancher.html | rancher | We again assume you deployed Fluent Bit onto k3s with Rancher Desktop back in labs 3 - 5, so it is
+fluentbit | lab06-rancher.html | rancher | already running from the Helm values file workshop-fb-helm.yaml . If not, make sure
+fluentbit | lab06-rancher.html | rancher | Data loss - Configuration inputs (k3s)
+fluentbit | lab06-rancher.html | rancher | workshop-fb-helm.yaml , keeping the http_server lines so
+fluentbit | lab06-rancher.html | rancher | Data loss - Configuring outputs (k3s)
+fluentbit | lab06-rancher.html | rancher | same workshop-fb-helm.yaml values file, giving the container a tight limit
+fluentbit | lab06-rancher.html | rancher | Data loss - Rolling out stressed pipeline (k3s)
+fluentbit | lab06-rancher.html | rancher | Apply the updated configuration with a helm upgrade from the
+fluentbit | lab06-rancher.html | rancher | $ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+fluentbit | lab06-rancher.html | rancher | --values workshop-fb-helm.yaml
+fluentbit | lab06-rancher.html | rancher | Data loss - Watching the pod fail (k3s)
+fluentbit | lab06-rancher.html | rancher | and Kubernetes kills it. Unlike the one-shot Podman container, a Helm-managed pod restarts,
+fluentbit | lab06-rancher.html | rancher | $ kubectl --context rancher-desktop -n logging get pods -w
+fluentbit | lab06-rancher.html | rancher | Data loss - Validating stressed == OOM (k3s)
+fluentbit | lab06-rancher.html | rancher | $ kubectl --context rancher-desktop -n logging describe pod -l app.kubernetes.io/name=fluent-bit
+fluentbit | lab06-rancher.html | rancher | Data loss - Confirming the OOM (k3s)
+fluentbit | lab06-rancher.html | rancher | $ kubectl --context rancher-desktop -n logging get pod \
+fluentbit | lab06-rancher.html | rancher | Data loss - Filesystem buffering (k3s)
+fluentbit | lab06-rancher.html | rancher | Data loss - Rolling out filesystem pipeline (k3s)
+fluentbit | lab06-rancher.html | rancher | overrunning memory. Adjust to give it a touch more headroom in workshop-fb-helm.yaml
+fluentbit | lab06-rancher.html | rancher | Data loss - Console output filesystem pipeline (k3s)
+fluentbit | lab06-rancher.html | rancher | $ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+fluentbit | lab06-rancher.html | rancher | Data loss - Validating filesystem buffering (k3s)
+fluentbit | lab06-rancher.html | rancher | $ kubectl --context rancher-desktop -n logging get --raw \
+fluentbit | lab07.html | docker | OTel integration – Updating running pipeline (k3s)
+fluentbit | lab07.html | docker | If you deployed onto Kubernetes (k3s) with Rancher Desktop back in lab 3, Fluent Bit is already
+fluentbit | lab07.html | docker | running, configured by the Helm values file workshop-fb-helm.yaml . Rather than
+fluentbit | lab07.html | docker | helm upgrade . Replace the extraFiles block, starting with the
+fluentbit | lab07.html | docker | OTel integration – Updating running pipeline (k3s) cont.
+fluentbit | lab07.html | docker | OTel integration – Rolling out initial pipeline (k3s)
+fluentbit | lab07.html | docker | Apply the updated configuration by running a helm upgrade from the
+fluentbit | lab07.html | docker | $ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+fluentbit | lab07.html | docker | --values workshop-fb-helm.yaml
+fluentbit | lab07.html | docker | OTel integration – Console output initial pipeline (k3s)
+fluentbit | lab07.html | docker | $ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+fluentbit | lab07.html | docker | OTel integration – Adding the envelope (k3s)
+fluentbit | lab07.html | docker | On Kubernetes we apply the same processor to the running pipeline. Open our Helm values file
+fluentbit | lab07.html | docker | workshop-fb-helm.yaml and add a processors section to the
+fluentbit | lab07.html | docker | OTel integration – Rolling out envelope pipeline (k3s)
+fluentbit | lab07.html | docker | Apply the updated configuration with another helm upgrade from the
+fluentbit | lab07.html | docker | OTel integration – Console output envelope pipeline (k3s)
+fluentbit | lab07.html | docker | installations, or a Kubernetes (k3s) installation of the OTel Collector, so please click on the
+fluentbit | lab07.html | docker | Kubernetes (k3s) using Rancher Desktop
+fluentbit | lab07-rancher.html | rancher | OTel integration - Configuring the collector (k3s)
+fluentbit | lab07-rancher.html | rancher | shown below. On Kubernetes we install the collector with Helm, just like Fluent Bit previously:
+fluentbit | lab07-rancher.html | rancher | OTel integration - Adding the collector chart (k3s)
+fluentbit | lab07-rancher.html | rancher | The OpenTelemetry project publishes a Helm chart for the collector. Add the repository and
+fluentbit | lab07-rancher.html | rancher | $ helm repo add open-telemetry \
+fluentbit | lab07-rancher.html | rancher | https://open-telemetry.github.io/opentelemetry-helm-charts
+fluentbit | lab07-rancher.html | rancher | $ helm repo update
+fluentbit | lab07-rancher.html | rancher | OTel integration - Configuring the collector values (k3s)
+fluentbit | lab07-rancher.html | rancher | Create a new Helm values file workshop-otel-helm.yaml , starting with how the
+fluentbit | lab07-rancher.html | rancher | # This file is our workshop OpenTelemetry Helm configuration.
+fluentbit | lab07-rancher.html | rancher | OTel integration - Configuring the receivers (k3s)
+fluentbit | lab07-rancher.html | rancher | OTel integration - Configuring the receivers (k3s) cont.
+fluentbit | lab07-rancher.html | rancher | OTel integration - Configuring the exporters (k3s)
+fluentbit | lab07-rancher.html | rancher | Now expand workshop-otel-helm.yaml with an exporters
+fluentbit | lab07-rancher.html | rancher | OTel integration - Configuring the processing (k3s)
+fluentbit | lab07-rancher.html | rancher | OTel integration - Installing the collector (k3s)
+fluentbit | lab07-rancher.html | rancher | $ helm --kube-context rancher-desktop upgrade --install otel-collector \
+fluentbit | lab07-rancher.html | rancher | --values workshop-otel-helm.yaml
+fluentbit | lab07-rancher.html | rancher | OTel integration - Verifying the collector (k3s)
+fluentbit | lab07-rancher.html | rancher | $ kubectl --context rancher-desktop -n logging get pods,svc \
+fluentbit | lab07-rancher.html | rancher | OTel integration - Console output pipeline (k3s)
+fluentbit | lab07-rancher.html | rancher | $ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+fluentbit | lab07-rancher.html | rancher | OTel integration - Console output collector (k3s)
+fluentbit | lab07-rancher.html | rancher | $ kubectl --context rancher-desktop -n logging logs \
+fluentbit | lab07-rancher.html | rancher | OTel integration - Adding pipeline outputs (k3s)
+fluentbit | lab07-rancher.html | rancher | existing outputs section in workshop-fb-helm.yaml . Where the container path
+fluentbit | lab07-rancher.html | rancher | OTel integration - Rolling out collector pipeline (k3s)
+fluentbit | lab07-rancher.html | rancher | Apply the updated configuration with another helm upgrade from the
+fluentbit | lab07-rancher.html | rancher | $ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+fluentbit | lab07-rancher.html | rancher | --values workshop-fb-helm.yaml
+fluentbit | lab07-rancher.html | rancher | OTel integration - Console output collector pipeline (k3s)
+fluentbit | lab07-rancher.html | rancher | OTel integration - Configuring collector file exporter (k3s)
+fluentbit | lab07-rancher.html | rancher | Open workshop-otel-helm.yaml and add a file exporter
+fluentbit | lab07-rancher.html | rancher | OTel integration - Adding a file viewer (k3s)
+fluentbit | lab07-rancher.html | rancher | kubectl exec on the collector container itself. Add a small sidecar
+fluentbit | lab07-rancher.html | rancher | file with. Add this to the end of workshop-otel-helm.yaml :
+fluentbit | lab07-rancher.html | rancher | OTel integration - Rolling out file exporter (k3s)
+fluentbit | lab07-rancher.html | rancher | Apply the updated collector configuration with another helm upgrade , then
+fluentbit | lab07-rancher.html | rancher | $ kubectl --context rancher-desktop -n logging get pods \
+fluentbit | lab07-rancher.html | rancher | OTel integration - Verifying the file exporter (k3s)
+fluentbit | lab07-rancher.html | rancher | $ kubectl --context rancher-desktop -n logging get cm \
+fluentbit | lab07-rancher.html | rancher | OTel integration - Verifying logs to collector to file (k3s)
+fluentbit | lab07-rancher.html | rancher | $ kubectl --context rancher-desktop -n logging exec \
+fluentbit | lab07-rancher.html | rancher | OTel integration - Pretty file output (k3s)
+fluentbit | lab07-rancher.html | rancher | $ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=opentelemetry-collector -f
+fluentbit | lab07-rancher.html | rancher | $ kubectl --context rancher-desktop -n logging exec deploy/otel-collector-opentelemetry-collector \
+fluentbit | lab08.html | docker | init-rancher.sh — a single-node Kubernetes (k3s) cluster on Rancher Desktop .
+fluentbit | lab08.html | docker | Test installation by running a few kubectl checks.
+fluentbit | lab08.html | docker | We'll walk through the Kind install first, then the k3s alternative. Either one lands at the same Fluent Bit pipeline, so pick the cluster you prefer and follow that path through the rest of the lab...
+fluentbit | lab08.html | docker | inflating: logs-control-easy-install-[VERSION]/support/fluent-bit-helm.yaml
+fluentbit | lab08.html | docker | inflating: logs-control-easy-install-[VERSION]/support/log-generator-deployment.yaml
+fluentbit | lab08.html | docker | [INFO] Checking for Kind version...
+fluentbit | lab08.html | docker | [INFO] installed Kind version is v0.27...
+fluentbit | lab08.html | docker | [INFO] Checking if Helm is installed...
+fluentbit | lab08.html | docker | [INFO] Checking for Helm version...
+fluentbit | lab08.html | docker | [INFO] installed Helm version is v3...
+fluentbit | lab08.html | docker | [INFO] Checking if kubectl is installed...
+fluentbit | lab08.html | docker | [INFO] Checking for kubectl version...
+fluentbit | lab08.html | docker | [INFO] installed kubectl version is v1.32...
+fluentbit | lab08.html | docker | Set kubectl context to "kind-logdemo"
+fluentbit | lab08.html | docker | kubectl cluster-info --context kind-logdemo
+fluentbit | lab08.html | docker | [INFO] Adding Fluent Bit Helm chart to our local repo...
+fluentbit | lab08.html | docker | There are a few things we need to do to connect to our cluster; set the kubectl
+fluentbit | lab08.html | docker | $ kubectl --kubeconfig target/logdemoconfig.yaml config use-context kind-logdemo
+fluentbit | lab08.html | docker | # setup alias for kubectl --kubeconfig target/logdemoconfig.yaml command.
+fluentbit | lab08.html | docker | alias kctl='kubectl --kubeconfig target/logdemoconfig.yaml'
+fluentbit | lab08.html | docker | Logs control – Installing on Kubernetes (k3s)
+fluentbit | lab08.html | docker | Kubernetes (k3s) cluster instead of Kind. It's assumed you have already installed Rancher Desktop
+fluentbit | lab08.html | docker | entirely through rdctl , kubectl , and helm ,
+fluentbit | lab08.html | docker | Logs control – Running installation script (k3s)
+fluentbit | lab08.html | docker | Logs control – What install is doing (k3s)
+fluentbit | lab08.html | docker | official Helm chart:
+fluentbit | lab08.html | docker | Logs control – Cluster installation completes (k3s)
+fluentbit | lab08.html | docker | [INFO] = Desktop Kubernetes (k3s) cluster generating logs. =
+fluentbit | lab08.html | docker | [INFO] = kubectl --context rancher-desktop -n logging get pods =
+fluentbit | lab08.html | docker | Logs control – Validating our cluster (k3s)
+fluentbit | lab08.html | docker | On k3s there is no kubeconfig file to juggle, everything runs against the
+fluentbit | lab08.html | docker | $ kubectl --context rancher-desktop -n logging get pods
+fluentbit | lab08.html | docker | at support/fluent-bit-helm.yaml as shown below:
+fluentbit | lab08.html | docker | $ cat support/fluent-bit-helm.yaml
+fluentbit | lab08.html | docker | # still using the kubectl alias to display container logs.
+fluentbit | lab08.html | docker | Logs control – Viewing all container logs (k3s)
+fluentbit | lab08.html | docker | On the k3s cluster the same flood of logs is one command away. There is no
+fluentbit | lab08.html | docker | $ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit
+fluentbit | lab08.html | docker | the file support/fluent-bit-helm.yaml :
+fluentbit | lab08.html | docker | myfluent-bit-helm.yaml file and change the default path to select only logs
+fluentbit | lab08.html | docker | The next step is to update our Fluent Bit pipeline by using the helm update
+fluentbit | lab08.html | docker | command and our new configuration file myfluent-bit-helm.yaml as follows:
+fluentbit | lab08.html | docker | $ helm upgrade --kubeconfig target/logdemoconfig.yaml \
+fluentbit | lab08.html | docker | --values=myfluent-bit-helm.yaml
+fluentbit | lab08.html | docker | # still using our kubectl alias here and finding the new
+fluentbit | lab08.html | docker | # using the kubectl alias to display container logs.
+fluentbit | lab08.html | docker | Logs control – Updating pipeline config (app logs, k3s)
+fluentbit | lab08.html | docker | On k3s we roll out the very same focused configuration with a helm upgrade
+fluentbit | lab08.html | docker | # apply the same myfluent-bit-helm.yaml against the k3s cluster.
+fluentbit | lab08.html | docker | $ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+fluentbit | lab08.html | docker | --values myfluent-bit-helm.yaml
+fluentbit | lab08.html | docker | $ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+fluentbit | lab08.html | docker | We update our Fluent Bit pipeline to apply these changes by using the helm update
+fluentbit | lab08.html | docker | Logs control – Updating pipeline output (app logs, k3s)
+fluentbit | lab08.html | docker | Roll out the standardized output on k3s the same way. The events are now emitted as concise, more
+fluentbit | lab08.html | docker | Logs control – Updating for only errors (app logs, k3s)
+fluentbit | lab08.html | docker | Roll out the grep filter on k3s. The standard output events are gone, leaving only the standard
+fluentbit | lab08.html | docker | Logs control – Updating enriching errors (app logs, k3s)
+fluentbit | lab08.html | docker | Finally, roll out the enriching modify filter on k3s. Every standard error line
+fluentbit | lab09.html | docker | either Podman containers or Kubernetes (k3s) with Helm, configuring Fluent Bit to send telemetry
+fluentbit | lab09.html | docker | On Kubernetes (k3s) the same three components run as pods in the logging
+fluentbit | lab09.html | docker | If you have been following the Kubernetes (k3s) path with Rancher Desktop instead, the slides
+fluentbit | lab09.html | docker | marked (k3s) further on cover the same install using Helm, so you can skip
+fluentbit | lab09.html | docker | Data visualization – Installing on Kubernetes (k3s)
+fluentbit | lab09.html | docker | If you deployed onto Kubernetes (k3s) with Rancher Desktop in previous labs, Fluent Bit is already
+fluentbit | lab09.html | docker | running in the logging namespace, configured by the Helm values file
+fluentbit | lab09.html | docker | workshop-fb-helm.yaml . Rather than podman containers, we add OpenSearch and
+fluentbit | lab09.html | docker | OpenSearch Dashboard as two more Helm releases in that same namespace.
+fluentbit | lab09.html | docker | Let's start by looking at the workshop-fb-helm.yaml file this lab builds on.
+fluentbit | lab09.html | docker | Data visualization – Our starting pipeline (k3s)
+fluentbit | lab09.html | docker | This is the Helm values file workshop-fb-helm.yaml we start this lab from. It
+fluentbit | lab09.html | docker | is the k3s equivalent of the fluent-bit.yaml the podman path creates, with the
+fluentbit | lab09.html | docker | # This file is our workshop Fluent Bit Helm configuration.
+fluentbit | lab09.html | docker | Data visualization – Fluent Bit config (k3s)
+fluentbit | lab09.html | docker | Data visualization – Applying our starting config (k3s)
+fluentbit | lab09.html | docker | $ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+fluentbit | lab09.html | docker | --values workshop-fb-helm.yaml
+fluentbit | lab09.html | docker | Data visualization – Adding the OpenSearch charts (k3s)
+fluentbit | lab09.html | docker | The OpenSearch project publishes Helm charts for both the backend and the Dashboard. Add the
+fluentbit | lab09.html | docker | $ helm repo add opensearch \
+fluentbit | lab09.html | docker | https://opensearch-project.github.io/helm-charts/
+fluentbit | lab09.html | docker | $ helm repo update
+fluentbit | lab09.html | docker | Data visualization – Configuring the OpenSearch backend (k3s)
+fluentbit | lab09.html | docker | Create a new Helm values file workshop-opensearch-helm.yaml . The
+fluentbit | lab09.html | docker | # This file is our workshop OpenSearch Helm configuration.
+fluentbit | lab09.html | docker | Data visualization – Deploying the OpenSearch backend (k3s)
+fluentbit | lab09.html | docker | $ helm --kube-context rancher-desktop upgrade --install opensearch \
+fluentbit | lab09.html | docker | --values workshop-opensearch-helm.yaml
+fluentbit | lab09.html | docker | Data visualization – Configuring the OpenSearch Dashboard (k3s)
+fluentbit | lab09.html | docker | Create a second values file workshop-osd-helm.yaml . It carries the very same
+fluentbit | lab09.html | docker | # This file is our workshop OpenSearch Dashboard Helm configuration.
+fluentbit | lab09.html | docker | Data visualization – Deploying the OpenSearch Dashboard (k3s)
+fluentbit | lab09.html | docker | Using the workshop-osd-helm.yaml values file we just created, install the
+fluentbit | lab09.html | docker | $ helm --kube-context rancher-desktop upgrade --install opensearch-dashboards \
+fluentbit | lab09.html | docker | --values workshop-osd-helm.yaml
+fluentbit | lab09.html | docker | Data visualization – Verifying the deployments (k3s)
+fluentbit | lab09.html | docker | $ kubectl --context rancher-desktop -n logging get pods,svc
+fluentbit | lab09.html | docker | Data visualization – Validating OpenSearch backend (k3s)
+fluentbit | lab09.html | docker | This is the k3s equivalent of the earlier curl check. We run it from inside
+fluentbit | lab09.html | docker | $ kubectl --context rancher-desktop -n logging exec opensearch-cluster-master-0 -- \
+fluentbit | lab09.html | docker | Data visualization – Accessing the Dashboard (k3s)
+fluentbit | lab09.html | docker | $ kubectl --context rancher-desktop -n logging \
+fluentbit | lab09.html | docker | $ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=opensearch-dashboards
+fluentbit | lab09.html | docker | Data visualization – Adding the OpenSearch output (k3s)
+fluentbit | lab09.html | docker | to the workshop-fb-helm.yaml file we started this lab from and add the
+fluentbit | lab09.html | docker | with a helm upgrade . The port and index stay the same:
+fluentbit | lab09.html | docker | Data visualization – Rolling out this pipeline (k3s)
+fluentbit | lab09.html | docker | Apply the updated configuration by running a helm upgrade from the
+fluentbit | lab09.html | docker | Data visualization – Console output this pipeline (k3s)
+fluentbit | lab09.html | docker | $ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+fluentbit | lab09.html | docker | OpenSearch Dashboard. Go to http://localhost:5601 (on k3s this is
+fluentbit | lab09.html | docker | Data visualization – Cleaning up (k3s)
+fluentbit | lab09.html | docker | On the k3s path, stop the port-forward with CTRL-C and remove the two OpenSearch releases. Note
+fluentbit | lab09.html | docker | $ helm --kube-context rancher-desktop -n logging \
+fluentbit | lab09.html | docker | OpenSearch Helm charts
+fluentbit | lab10.html | docker | -rw-r--r--@ 1 erics staff 1.7K Jul 29 16:57 combined-routing-helm.yaml
+fluentbit | lab10.html | docker | -rw-r--r--@ 1 erics staff 1.9K Jul 29 16:43 conditional-routing-helm.yaml
+fluentbit | lab10.html | docker | -rw-r--r--@ 1 erics staff 987B Jul 29 13:07 routing-fb-helm.yaml
+fluentbit | lab10.html | docker | the Kubernetes (k3s) versions. Notice that only frontend events appear in the output, because the
+fluentbit | lab10.html | docker | Tag-based routing - Basic tag matching (k3s)
+fluentbit | lab10.html | docker | If you deployed onto Kubernetes (k3s) with Rancher Desktop in previous labs, Fluent Bit is already
+fluentbit | lab10.html | docker | create a new Helm values file routing-fb-helm.yaml for this lab's routing
+fluentbit | lab10.html | docker | Tag-based routing - Rolling out basic matching (k3s)
+fluentbit | lab10.html | docker | Apply the updated configuration by running a helm upgrade from the
+fluentbit | lab10.html | docker | $ helm --kube-context rancher-desktop upgrade --install fluent-bit fluent/fluent-bit \
+fluentbit | lab10.html | docker | --values routing-fb-helm.yaml
+fluentbit | lab10.html | docker | Tag-based routing - Console output basic matching (k3s)
+fluentbit | lab10.html | docker | $ kubectl --context rancher-desktop -n logging logs -l app.kubernetes.io/name=fluent-bit -f
+fluentbit | lab10.html | docker | Tag-based routing - Adding wildcard routing (k3s)
+fluentbit | lab10.html | docker | On Kubernetes we apply the same wildcard routing to the running pipeline. Open our Helm values file
+fluentbit | lab10.html | docker | routing-fb-helm.yaml and replace the outputs section,
+fluentbit | lab10.html | docker | Tag-based routing - Rolling out wildcard routing (k3s)
+fluentbit | lab10.html | docker | Apply the updated configuration with another helm upgrade from the
+fluentbit | lab10.html | docker | Tag-based routing - Verifying wildcard routing (k3s)
+fluentbit | lab10.html | docker | Tag-based routing - Reading the routed files (k3s)
+fluentbit | lab10.html | docker | routed file destinations. That means both kubectl exec ... -- cat and
+fluentbit | lab10.html | docker | kubectl cp fail. Instead, we attach a temporary busybox
+fluentbit | lab10.html | docker | container to the running pod with kubectl debug . This lets us reach its filesystem
+fluentbit | lab10.html | docker | $ kubectl --context rancher-desktop -n logging get pods
+fluentbit | lab10.html | docker | $ kubectl --context rancher-desktop -n logging debug -i fluent-bit-vlzcf \
+fluentbit | lab10.html | docker | but the next helm upgrade replaces the pod and clears them.
+fluentbit | lab10.html | docker | Tag-based routing - Adding regex matching (k3s)
+fluentbit | lab10.html | docker | On Kubernetes we swap the same inputs and output into the running pipeline. Open our Helm values
+fluentbit | lab10.html | docker | file routing-fb-helm.yaml and replace the pipeline, keeping the indentation
+fluentbit | lab10.html | docker | Tag-based routing - Rolling out regex matching (k3s)
+fluentbit | lab10.html | docker | Tag-based routing - Console output regex matching (k3s)
+fluentbit | lab10.html | docker | Conditional routing - Adding conditional routes (k3s)
+fluentbit | lab10.html | docker | On Kubernetes we move the same routes into the running pipeline. Create a Helm values file
+fluentbit | lab10.html | docker | conditional-routing-helm.yaml , starting with the service section and the first
+fluentbit | lab10.html | docker | Conditional routing - Adding more routes (k3s)
+fluentbit | lab10.html | docker | Conditional routing - Adding the outputs (k3s)
+fluentbit | lab10.html | docker | Conditional routing - Rolling out conditional routing (k3s)
+fluentbit | lab10.html | docker | Apply the updated configuration with another helm upgrade , rolling out
+fluentbit | lab10.html | docker | --values conditional-routing-helm.yaml
+fluentbit | lab10.html | docker | Conditional routing - Verifying conditional routing (k3s)
+fluentbit | lab10.html | docker | file back out of the pod with the kubectl debug trick we used for the
+fluentbit | lab10.html | docker | $ kubectl --context rancher-desktop -n logging debug -i fluent-bit-kcmwj \
+fluentbit | lab10.html | docker | Advanced routing - Combining approaches (k3s)
+fluentbit | lab10.html | docker | On Kubernetes we combine both mechanisms in one pipeline. Create a Helm values file
+fluentbit | lab10.html | docker | combined-routing-helm.yaml , starting with the service section and the frontend
+fluentbit | lab10.html | docker | Advanced routing - Adding backend input (k3s)
+fluentbit | lab10.html | docker | Advanced routing - Rolling out combined routing (k3s)
+fluentbit | lab10.html | docker | Apply the updated configuration with a final helm upgrade from the
+fluentbit | lab10.html | docker | --values combined-routing-helm.yaml
+fluentbit | lab10.html | docker | Advanced routing - Verifying combined routing (k3s)
+fluentbit | lab10.html | docker | out of the pod with the kubectl debug trick:
+fluentbit | lab10.html | docker | $ kubectl --context rancher-desktop -n logging debug -i fluent-bit-wh7p9 \
+fluentbit | lab10.html | docker | $ kubectl --context rancher-desktop delete namespace logging
+fluentbit | lab10.html | docker | # Spin down the Rancher Desktop k3s.
+fluentbit | lab10.html | docker | Note: deleting the namespace also removes the Helm release metadata stored in it, so there are
+fluentbit | lab10.html | docker | no orphaned releases left behind and no need to run helm uninstall first.
+fluentbit | lab10.html | docker | Kubernetes (k3s) output:
+perses | lab02.html | docker | Installing on Kubernetes (k3s) with Helm
+perses | lab02-rancher.html | rancher | desktop application that ships a lightweight Kubernetes distribution (k3s) and works on Mac
+perses | lab02-rancher.html | rancher | Install the Helm command line tooling
+perses | lab02-rancher.html | rancher | local Kubernetes cluster works here (minikube, kind, Docker Desktop), but we leave you to sort
+perses | lab02-rancher.html | rancher | $ kubectl config current-context
+perses | lab02-rancher.html | rancher | $ kubectl get nodes
+perses | lab02-rancher.html | rancher | $ helm version
+perses | lab02-rancher.html | rancher | Setup - Adding the Helm repository
+perses | lab02-rancher.html | rancher | The Perses project publishes an official Helm chart. Add the repository, refresh it, and
+perses | lab02-rancher.html | rancher | $ helm repo add perses https://perses.github.io/helm-charts
+perses | lab02-rancher.html | rancher | $ helm repo update
+perses | lab02-rancher.html | rancher | $ helm search repo perses/perses --version 0.23.2
+perses | lab02-rancher.html | rancher | perses/perses 0.23.2 v0.54.0 Perses helm chart
+perses | lab02-rancher.html | rancher | Installation - Deploying the Helm chart
+perses | lab02-rancher.html | rancher | helm upgrade --install instead of helm install so that
+perses | lab02-rancher.html | rancher | $ helm upgrade --install workshop-perses perses/perses \
+perses | lab02-rancher.html | rancher | $ kubectl config set-context --current --namespace=perses
+perses | lab02-rancher.html | rancher | $ kubectl get pods -n perses
+perses | lab02-rancher.html | rancher | $ kubectl get svc -n perses
+perses | lab02-rancher.html | rancher | $ kubectl port-forward -n perses svc/workshop-perses 8080:8080
+perses | lab02-rancher.html | rancher | the Helm and kubectl commands by hand, stop your port-forward, delete the namespace, and let
+perses | lab02-rancher.html | rancher | $ kubectl delete namespace perses
+perses | lab02-rancher.html | rancher | port-forward and deleting the namespace removes the Helm release, the Perses server, and
+perses | lab02-rancher.html | rancher | Perses Helm charts repository
+perses | lab05.html | docker | Installing on Kubernetes (k3s) with Helm
+perses | lab05-rancher.html | rancher | community Helm chart, and forward Prometheus to
+perses | lab05-rancher.html | rancher | Setup - Adding the Helm repository
+perses | lab05-rancher.html | rancher | $ helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+perses | lab05-rancher.html | rancher | $ helm repo update
+perses | lab05-rancher.html | rancher | $ helm search repo prometheus-community/prometheus --version 29.20.0
+perses | lab05-rancher.html | rancher | Installation - Deploying the Helm chart
+perses | lab05-rancher.html | rancher | $ helm upgrade --install workshop-perses-prometheus prometheus-community/prometheus \
+perses | lab05-rancher.html | rancher | $ kubectl get pods -n perses
+perses | lab05-rancher.html | rancher | $ kubectl get svc -n perses
+perses | lab05-rancher.html | rancher | Your configuration lives in workshop-values.yaml , Helm renders it into the
+perses | lab05-rancher.html | rancher | helm upgrade --install command. Give it up to a minute, ConfigMap updates
+perses | lab05-rancher.html | rancher | $ kubectl port-forward -n perses svc/workshop-perses-prometheus-server 9090:9090
+perses | lab05-rancher.html | rancher | $ kubectl logs -n perses -f \
+perses | lab05-rancher.html | rancher | The -c prometheus-server matters, without it kubectl has to guess which of
+perses | lab05-rancher.html | rancher | labels: block in your values file and re-run the helm upgrade.
+perses | lab05-rancher.html | rancher | and deleting the namespace removes both Helm releases, Perses, Prometheus, the node exporter,
+perses | lab05-rancher.html | rancher | $ kubectl delete namespace perses

@@ -26,12 +26,14 @@
             "volumes": [],
             "pod": null,
             "tag": "hello-otel:base",
-            "context": "workshop-opentelemetry/intro-to-instrument-[VERSION]",
-            "dockerfile": "workshop-opentelemetry/intro-to-instrument-[VERSION]/Buildfile",
+            "context": "_vendored/intro-to-instrumentation-v1.4",
+            "dockerfile": "_vendored/intro-to-instrumentation-v1.4/Buildfile",
             "dockerfile_arg": "Buildfile",
-            "interactive_context": true,
+            "interactive_context": false,
             "runtime_download": false,
-            "base_images": []
+            "base_images": [
+              "python:3.13-bullseye"
+            ]
           },
           {
             "type": "run",
@@ -71,12 +73,14 @@
             "volumes": [],
             "pod": null,
             "tag": "hello-otel:auto",
-            "context": "workshop-opentelemetry/intro-to-instrument-[VERSION]",
-            "dockerfile": "workshop-opentelemetry/intro-to-instrument-[VERSION]/automatic/Buildfile-auto",
+            "context": "_vendored/intro-to-instrumentation-v1.4",
+            "dockerfile": "_vendored/intro-to-instrumentation-v1.4/automatic/Buildfile-auto",
             "dockerfile_arg": "automatic/Buildfile-auto",
-            "interactive_context": true,
+            "interactive_context": false,
             "runtime_download": false,
-            "base_images": []
+            "base_images": [
+              "python:3.13-bullseye"
+            ]
           },
           {
             "type": "run",
@@ -127,12 +131,14 @@
             "volumes": [],
             "pod": null,
             "tag": "hello-otel:auto-manual",
-            "context": "workshop-opentelemetry/intro-to-instrument-[VERSION]",
-            "dockerfile": "workshop-opentelemetry/intro-to-instrument-[VERSION]/automatic/Buildfile-auto",
+            "context": "_vendored/intro-to-instrumentation-v1.4",
+            "dockerfile": "_vendored/intro-to-instrumentation-v1.4/automatic/Buildfile-auto",
             "dockerfile_arg": "automatic/Buildfile-auto",
-            "interactive_context": true,
+            "interactive_context": false,
             "runtime_download": false,
-            "base_images": []
+            "base_images": [
+              "python:3.13-bullseye"
+            ]
           },
           {
             "type": "run",
@@ -206,12 +212,14 @@
             "volumes": [],
             "pod": null,
             "tag": "hello-otel:base",
-            "context": "workshop-opentelemetry/intro-to-instrument-VERSION",
-            "dockerfile": "workshop-opentelemetry/intro-to-instrument-VERSION/Buildfile",
+            "context": "_vendored/intro-to-instrumentation-v1.4",
+            "dockerfile": "_vendored/intro-to-instrumentation-v1.4/Buildfile",
             "dockerfile_arg": "Buildfile",
-            "interactive_context": true,
+            "interactive_context": false,
             "runtime_download": false,
-            "base_images": []
+            "base_images": [
+              "python:3.13-bullseye"
+            ]
           },
           {
             "type": "other",
@@ -261,12 +269,14 @@
             "volumes": [],
             "pod": null,
             "tag": "hello-otel:auto",
-            "context": "workshop-opentelemetry/intro-to-instrument-VERSION",
-            "dockerfile": "workshop-opentelemetry/intro-to-instrument-VERSION/automatic/Buildfile-auto",
+            "context": "_vendored/intro-to-instrumentation-v1.4",
+            "dockerfile": "_vendored/intro-to-instrumentation-v1.4/automatic/Buildfile-auto",
             "dockerfile_arg": "automatic/Buildfile-auto",
-            "interactive_context": true,
+            "interactive_context": false,
             "runtime_download": false,
-            "base_images": []
+            "base_images": [
+              "python:3.13-bullseye"
+            ]
           },
           {
             "type": "other",
@@ -300,12 +310,14 @@
             "volumes": [],
             "pod": null,
             "tag": "hello-otel:auto-manual",
-            "context": "workshop-opentelemetry/intro-to-instrument-VERSION",
-            "dockerfile": "workshop-opentelemetry/intro-to-instrument-VERSION/automatic/Buildfile-auto",
+            "context": "_vendored/intro-to-instrumentation-v1.4",
+            "dockerfile": "_vendored/intro-to-instrumentation-v1.4/automatic/Buildfile-auto",
             "dockerfile_arg": "automatic/Buildfile-auto",
-            "interactive_context": true,
+            "interactive_context": false,
             "runtime_download": false,
-            "base_images": []
+            "base_images": [
+              "python:3.13-bullseye"
+            ]
           },
           {
             "type": "other",
@@ -367,13 +379,12 @@
             "volumes": [],
             "pod": null,
             "tag": "hello-otel:prog",
-            "context": ".",
-            "dockerfile": "programmatic/Buildfile-prog",
+            "context": "_vendored/intro-to-instrumentation-v1.4",
+            "dockerfile": "_vendored/intro-to-instrumentation-v1.4/programmatic/Buildfile-prog",
             "dockerfile_arg": "programmatic/Buildfile-prog",
             "interactive_context": false,
             "runtime_download": false,
             "base_images": [
-              "python:3.13-bullseye",
               "python:3.13-bullseye"
             ],
             "cwd_occurrences": [
@@ -381,8 +392,8 @@
               "."
             ],
             "context_occurrences": [
-              ".",
-              "."
+              "_vendored/intro-to-instrumentation-v1.4",
+              "_vendored/intro-to-instrumentation-v1.4"
             ]
           },
           {
@@ -500,13 +511,12 @@
             "volumes": [],
             "pod": null,
             "tag": "hello-otel:prog",
-            "context": ".",
-            "dockerfile": "programmatic/Buildfile-prog",
+            "context": "_vendored/intro-to-instrumentation-v1.4",
+            "dockerfile": "_vendored/intro-to-instrumentation-v1.4/programmatic/Buildfile-prog",
             "dockerfile_arg": "programmatic/Buildfile-prog",
             "interactive_context": false,
             "runtime_download": false,
             "base_images": [
-              "python:3.13-bullseye",
               "python:3.13-bullseye"
             ],
             "cwd_occurrences": [
@@ -514,8 +524,8 @@
               "."
             ],
             "context_occurrences": [
-              ".",
-              "."
+              "_vendored/intro-to-instrumentation-v1.4",
+              "_vendored/intro-to-instrumentation-v1.4"
             ]
           },
           {
@@ -651,12 +661,14 @@
             "volumes": [],
             "pod": null,
             "tag": "hello-otel:manual",
-            "context": ".",
-            "dockerfile": "manual/Buildfile-manual",
+            "context": "_vendored/intro-to-instrumentation-v1.4",
+            "dockerfile": "_vendored/intro-to-instrumentation-v1.4/manual/Buildfile-manual",
             "dockerfile_arg": "manual/Buildfile-manual",
             "interactive_context": false,
             "runtime_download": false,
-            "base_images": [],
+            "base_images": [
+              "python:3.13-bullseye"
+            ],
             "cwd_occurrences": [
               ".",
               ".",
@@ -664,10 +676,10 @@
               "."
             ],
             "context_occurrences": [
-              ".",
-              ".",
-              ".",
-              "."
+              "_vendored/intro-to-instrumentation-v1.4",
+              "_vendored/intro-to-instrumentation-v1.4",
+              "_vendored/intro-to-instrumentation-v1.4",
+              "_vendored/intro-to-instrumentation-v1.4"
             ]
           },
           {
@@ -735,12 +747,14 @@
             "volumes": [],
             "pod": null,
             "tag": "hello-otel:manual",
-            "context": ".",
-            "dockerfile": "manual/Buildfile-manual",
+            "context": "_vendored/intro-to-instrumentation-v1.4",
+            "dockerfile": "_vendored/intro-to-instrumentation-v1.4/manual/Buildfile-manual",
             "dockerfile_arg": "manual/Buildfile-manual",
             "interactive_context": false,
             "runtime_download": false,
-            "base_images": [],
+            "base_images": [
+              "python:3.13-bullseye"
+            ],
             "cwd_occurrences": [
               ".",
               ".",
@@ -748,10 +762,10 @@
               "."
             ],
             "context_occurrences": [
-              ".",
-              ".",
-              ".",
-              "."
+              "_vendored/intro-to-instrumentation-v1.4",
+              "_vendored/intro-to-instrumentation-v1.4",
+              "_vendored/intro-to-instrumentation-v1.4",
+              "_vendored/intro-to-instrumentation-v1.4"
             ]
           },
           {
@@ -814,15 +828,13 @@
             "volumes": [],
             "pod": null,
             "tag": "workshop-prometheus:v3.13.1",
-            "context": ".",
-            "dockerfile": "metrics/prometheus/Buildfile-prom",
+            "context": "_vendored/intro-to-instrumentation-v1.4",
+            "dockerfile": "_vendored/intro-to-instrumentation-v1.4/metrics/prometheus/Buildfile-prom",
             "dockerfile_arg": "./metrics/prometheus/Buildfile-prom",
             "interactive_context": false,
             "runtime_download": false,
             "base_images": [
-              "python:3.13-bullseye",
-              "prom/prometheus:v3.13.1",
-              "python:3.13-bullseye"
+              "prom/prometheus:v3.13.1"
             ]
           },
           {
@@ -863,14 +875,12 @@
             "volumes": [],
             "pod": null,
             "tag": "hello-otel:metrics",
-            "context": ".",
-            "dockerfile": "metrics/Buildfile-metrics",
+            "context": "_vendored/intro-to-instrumentation-v1.4",
+            "dockerfile": "_vendored/intro-to-instrumentation-v1.4/metrics/Buildfile-metrics",
             "dockerfile_arg": "metrics/Buildfile-metrics",
             "interactive_context": false,
             "runtime_download": false,
             "base_images": [
-              "python:3.13-bullseye",
-              "prom/prometheus:v3.13.1",
               "python:3.13-bullseye"
             ],
             "cwd_occurrences": [
@@ -878,8 +888,8 @@
               "."
             ],
             "context_occurrences": [
-              ".",
-              "."
+              "_vendored/intro-to-instrumentation-v1.4",
+              "_vendored/intro-to-instrumentation-v1.4"
             ]
           },
           {
@@ -938,15 +948,13 @@
             "volumes": [],
             "pod": null,
             "tag": "workshop-prometheus:v3.13.1",
-            "context": ".",
-            "dockerfile": "metrics/prometheus/Buildfile-prom",
+            "context": "_vendored/intro-to-instrumentation-v1.4",
+            "dockerfile": "_vendored/intro-to-instrumentation-v1.4/metrics/prometheus/Buildfile-prom",
             "dockerfile_arg": "metrics/prometheus/Buildfile-prom",
             "interactive_context": false,
             "runtime_download": false,
             "base_images": [
-              "python:3.13-bullseye",
-              "prom/prometheus:v3.13.1",
-              "python:3.13-bullseye"
+              "prom/prometheus:v3.13.1"
             ]
           }
         ]
@@ -971,15 +979,13 @@
             "volumes": [],
             "pod": null,
             "tag": "workshop-prometheus:v3.13.1",
-            "context": ".",
-            "dockerfile": "metrics/prometheus/Buildfile-prom",
+            "context": "_vendored/intro-to-instrumentation-v1.4",
+            "dockerfile": "_vendored/intro-to-instrumentation-v1.4/metrics/prometheus/Buildfile-prom",
             "dockerfile_arg": "./metrics/prometheus/Buildfile-prom",
             "interactive_context": false,
             "runtime_download": false,
             "base_images": [
-              "python:3.13-bullseye",
-              "prom/prometheus:v3.13.1",
-              "python:3.13-bullseye"
+              "prom/prometheus:v3.13.1"
             ]
           },
           {
@@ -1034,14 +1040,12 @@
             "volumes": [],
             "pod": null,
             "tag": "hello-otel:metrics",
-            "context": ".",
-            "dockerfile": "metrics/Buildfile-metrics",
+            "context": "_vendored/intro-to-instrumentation-v1.4",
+            "dockerfile": "_vendored/intro-to-instrumentation-v1.4/metrics/Buildfile-metrics",
             "dockerfile_arg": "metrics/Buildfile-metrics",
             "interactive_context": false,
             "runtime_download": false,
             "base_images": [
-              "python:3.13-bullseye",
-              "prom/prometheus:v3.13.1",
               "python:3.13-bullseye"
             ],
             "cwd_occurrences": [
@@ -1049,8 +1053,8 @@
               "."
             ],
             "context_occurrences": [
-              ".",
-              "."
+              "_vendored/intro-to-instrumentation-v1.4",
+              "_vendored/intro-to-instrumentation-v1.4"
             ]
           },
           {
@@ -1089,15 +1093,13 @@
             "volumes": [],
             "pod": null,
             "tag": "workshop-prometheus:v3.13.1",
-            "context": ".",
-            "dockerfile": "metrics/prometheus/Buildfile-prom",
+            "context": "_vendored/intro-to-instrumentation-v1.4",
+            "dockerfile": "_vendored/intro-to-instrumentation-v1.4/metrics/prometheus/Buildfile-prom",
             "dockerfile_arg": "metrics/prometheus/Buildfile-prom",
             "interactive_context": false,
             "runtime_download": false,
             "base_images": [
-              "python:3.13-bullseye",
-              "prom/prometheus:v3.13.1",
-              "python:3.13-bullseye"
+              "prom/prometheus:v3.13.1"
             ]
           }
         ]

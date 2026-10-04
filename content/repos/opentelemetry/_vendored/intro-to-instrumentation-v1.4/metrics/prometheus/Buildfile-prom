@@ -1,0 +1,7 @@
+FROM prom/prometheus:v3.13.1
+
+ADD prometheus.yml /etc/prometheus
+
+ENTRYPOINT [ "prometheus" ]
+
+CMD [ "--config.file=/etc/prometheus/prometheus.yml", "--enable-feature=exemplar-storage" ]

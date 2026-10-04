@@ -41,6 +41,7 @@ repos:
     rev: v1.38.0
     hooks:
       - id: yamllint
+        exclude: ^content/
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.4.0
     hooks:

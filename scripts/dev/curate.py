@@ -146,16 +146,26 @@ def main():
             match = choose(track, commands, lambda lab, item: "play kube" in item.get("raw", "") and "app_pod.yaml" in item.get("raw", ""), ("lab04.html", "lab03.html", "lab04-rancher.html"))
             if match:
                 lab, command = match
-                archive = next((link for link in archives[track] if "intro-to-instrument" in link), None)
-                prep = ["programmatic/app_pod.yaml is not present in the captured repository and must be supplied from the workshop project archive before this manifest launch."]
-                if archive:
-                    prep.append(f"Archive URL linked by the lab: {archive}")
+                manifest_path = ROOT / "content/repos/opentelemetry/_vendored/app_pod.yaml"
+                manifest_text = manifest_path.read_text(encoding="utf-8", errors="replace") if manifest_path.is_file() else ""
+                manifest_is_pod = re.search(r"(?m)^kind:\s*Pod\s*$", manifest_text) is not None
+                manifest_sha = None
+                if manifest_path.is_file():
+                    import hashlib
+                    manifest_sha = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
                 source_extra = {
-                    "manifest": "programmatic/app_pod.yaml",
-                    "manifest_present_in_repo": (ROOT / "content/repos/opentelemetry/programmatic/app_pod.yaml").is_file(),
+                    "manifest": "content/repos/opentelemetry/_vendored/app_pod.yaml",
+                    "manifest_present_in_repo": manifest_path.is_file(),
+                    "manifest_kind": "Podman-native Pod" if manifest_is_pod else "unverified",
+                    "manifest_source": "https://gitlab.com/o11y-workshops/intro-to-instrumentation/-/archive/v1.4/intro-to-instrumentation-v1.4.zip",
+                    "manifest_sha256": manifest_sha,
                 }
-                runs.append(make_entry("jaeger", lab, command, JAEGER_IMAGE, check_for(text, "http://localhost:16686", "Jaeger", "The lab documents the Jaeger UI at localhost:16686."), ports=["16686:16686"], prep=prep, source_extra=source_extra, cmd=[]))
-                unresolved.append("Searched all content/repos/opentelemetry/lab*.html; lab04.html has `$ podman play kube programmatic/app_pod.yaml` and the docs show localhost:16686, but the referenced manifest is absent from the captured tree. The entry needs the linked archive at verify time.")
+                prep = ["Run `podman play kube content/repos/opentelemetry/_vendored/app_pod.yaml`; its kind: Pod resource is handled by Podman and does not require k3s.", "The manifest starts localhost/hello-otel:prog plus jaegertracing/all-in-one:1.76.0; the app image is built by the earlier lab command."]
+                jaeger_entry = make_entry("jaeger", lab, command, JAEGER_IMAGE, check_for(text, "http://localhost:16686", "Jaeger", "The mirrored lab documents the Jaeger UI at localhost:16686."), ports=["16686:16686"], prep=prep, source_extra=source_extra, adaptations=["Use the verified vendored Podman Pod manifest path instead of the source-relative programmatic/app_pod.yaml path.", "This is `podman play kube` for kind: Pod; it is not a kubectl/k3s workflow."], cmd=[])
+                jaeger_entry["images"] = ["localhost/hello-otel:prog", JAEGER_IMAGE]
+                runs.append(jaeger_entry)
+                if not manifest_is_pod:
+                    unresolved.append("Searched content/repos/opentelemetry/lab*.html and the linked v1.4 archive; the vendored file is not confirmed as kind: Pod, so Podman-only compatibility remains unverified.")
             else:
                 unresolved.append("Searched all content/repos/opentelemetry/lab*.html; no Jaeger run or play-kube command was extracted.")
 

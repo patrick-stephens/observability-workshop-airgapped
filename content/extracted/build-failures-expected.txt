@@ -1,8 +1,2 @@
-opentelemetry/lab02.html: context=workshop-opentelemetry/intro-to-instrument-[VERSION] cwd=workshop-opentelemetry/intro-to-instrument-[VERSION] command=$ podman build -t hello-otel:base -f Buildfile
-opentelemetry/lab02.html: context=workshop-opentelemetry/intro-to-instrument-[VERSION] cwd=workshop-opentelemetry/intro-to-instrument-[VERSION] command=$ podman build -t hello-otel:auto -f automatic/Buildfile-auto
-opentelemetry/lab02.html: context=workshop-opentelemetry/intro-to-instrument-[VERSION] cwd=workshop-opentelemetry/intro-to-instrument-[VERSION] command=$ podman build -t hello-otel:auto-manual -f automatic/Buildfile-auto
-opentelemetry/lab02-rancher.html: context=workshop-opentelemetry/intro-to-instrument-VERSION cwd=workshop-opentelemetry/intro-to-instrument-VERSION command=$ podman build -t hello-otel:base -f Buildfile
-opentelemetry/lab02-rancher.html: context=workshop-opentelemetry/intro-to-instrument-VERSION cwd=workshop-opentelemetry/intro-to-instrument-VERSION command=$ podman build -t hello-otel:auto -f automatic/Buildfile-auto
-opentelemetry/lab02-rancher.html: context=workshop-opentelemetry/intro-to-instrument-VERSION cwd=workshop-opentelemetry/intro-to-instrument-VERSION command=$ podman build -t hello-otel:auto-manual -f automatic/Buildfile-auto
 prometheus/lab02-podman.html: context=workshop-prometheus cwd=workshop-prometheus command=$ podman build -t workshop-prometheus:v3.13 -f Buildfile
 prometheus/lab02-podman.html: context=workshop-prometheus cwd=workshop-prometheus command=$ podman build -t workshop-prometheus:bad-target -f Buildfile

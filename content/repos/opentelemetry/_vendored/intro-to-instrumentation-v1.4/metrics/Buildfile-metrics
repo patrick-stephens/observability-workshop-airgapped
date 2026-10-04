@@ -1,0 +1,19 @@
+FROM python:3.13-bullseye
+
+WORKDIR /app
+
+COPY requirements.txt requirements.txt
+
+RUN pip install -r requirements.txt
+
+RUN pip install opentelemetry-api==1.44.0 \
+  opentelemetry-sdk==1.44.0 \
+  opentelemetry-exporter-otlp==1.44.0 \
+  opentelemetry-instrumentation-flask==0.65b0 \
+  opentelemetry-instrumentation-jinja2==0.65b0 \
+  opentelemetry-instrumentation-requests==0.65b0 \
+  prometheus-flask-exporter
+
+COPY . .
+
+CMD [ "flask", "run", "--host=0.0.0.0"]

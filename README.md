@@ -47,7 +47,7 @@ For offline use on another node, transfer the pre-commit cache from `$HOME/.cach
 Before completing a change, run `pre-commit run --all-files` and confirm it passes.
 This runs all applicable file hooks; the Conventional Commits hook is run for commit messages when a commit is created.
 The generic JSON key sorter excludes the npm-generated `slides/package-lock.json` to preserve npm's lockfile serialization; JSON syntax and other file checks still run.
-Byte-rewriting hooks, source-mode/name checks, and the generic large-file threshold exclude `content/` so upstream snapshots and generated outputs remain intact; gitleaks, JSON checks, and other applicable validation still run, while the vendored Compose binary is verified by its SHA-256 file.
+Byte-rewriting hooks, source-mode/name checks, YAML style checks, and the generic large-file threshold exclude `content/` so upstream snapshots and generated outputs remain intact; gitleaks, JSON checks, and other applicable validation still run, while the vendored Compose binary is verified by its SHA-256 file.
 
 ## Host Prerequisites
 
@@ -184,9 +184,11 @@ The full replay procedure is in `bundle/README.md`.
 
 ## Learner Workshop Content Capture
 
-On the connected online machine, run `scripts/dev/import-content.sh` to clone or reuse the five public workshop repositories, mirror their documentation, and download the latest stable Linux x86_64 Docker Compose v2 binary.
+On the connected online machine, run `scripts/dev/import-content.sh` to clone or reuse the five public workshop repositories, mirror their documentation, and download the pinned official Linux x86_64 Docker Compose v2.40.3 binary.
 The script records source SHAs, mirror dates, and the Compose source and checksum in `versions.lock`; use `--refresh` to replace the captured sources and documentation.
-Run `python3 scripts/dev/parse-labs.py` to extract every Docker and Podman command path into `content/extracted/`, then run `python3 scripts/dev/patch-docs.py` and `python3 scripts/dev/curate.py` to prepare the offline documentation and curated service run sets.
+Run `python3 scripts/dev/parse-labs.py` to extract every Docker and Podman command path, cwd, base image, and runtime download into `content/extracted/`.
+Run `python3 scripts/dev/patch-docs.py` to patch both mirrored documentation and repository lab pages, `python3 scripts/dev/curate.py` to generate the curated service run set, and `python3 scripts/dev/check-docs.py` to verify local page and asset references.
+`check-docs.py` retries missing `otel-developers` mirror assets once and records any remaining gaps in `content/extracted/docs-gaps.txt`.
 The complete `content/` tree is an online-produced committed artifact for the learner VM; these development scripts are not provisioning scripts and must not be run on the airgapped VM.
 
 ## Enterprise Mirrors and Proxies
