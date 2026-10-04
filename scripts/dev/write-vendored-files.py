@@ -39,7 +39,7 @@ def classify(path):
         return "https://gitlab.com/o11y-workshops/intro-to-instrumentation/-/archive/v1.4/intro-to-instrumentation-v1.4.zip", "Vendored project build context required for the Podman-only hello-otel:prog run."
     if relative.endswith("node_modules/reveal.js-menu/menu.js"):
         return "https://registry.npmjs.org/reveal.js-menu/-/reveal.js-menu-2.1.0.tgz", "Repairs the missing reveal.js-menu v2.1.0 script referenced by otel-developers pages."
-    if len(parts) >= 3 and parts[0] == "extracted":
+    if len(parts) >= 2 and parts[0] == "extracted":
         return "n/a (generated)", "Generated online-side extraction, review, or integrity report."
     if path.name == ".source-sha" and len(parts) >= 3 and parts[0] == "repos":
         return f"GitLab workshop repo HEAD {gitlab_sha(parts[1])}", "Records the source repository revision for the copied working tree."

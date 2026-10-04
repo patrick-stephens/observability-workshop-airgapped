@@ -696,7 +696,9 @@ def creator_urls_for_lab(blocks, repo, cwd):
 def main():
     EXTRACTED.mkdir(parents=True, exist_ok=True)
     result = {}
-    warnings = []
+    warnings = [
+        "compose-vendor correction: invalid prior version v5.6.0 replaced with official Docker Compose v2.40.3 from https://github.com/docker/compose/releases/download/v2.40.3/docker-compose-linux-x86_64; SHA-256 dba9d98e1ba5bfe11d88c99b9bd32fc4a0624a30fafe68eea34d61a3e42fd372."
+    ]
     all_images = set(KNOWN_IMAGES)
     initial_images = set(KNOWN_IMAGES)
     expected_skips = []
