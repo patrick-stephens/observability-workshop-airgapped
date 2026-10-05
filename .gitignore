@@ -3,6 +3,7 @@
 !/bundle/README.md
 /app/bin/
 /dist/
+/scripts/dev/__pycache__/
 /content/vendor/k3s/payload-stage/
 /content/vendor/k3s/k3s
 /content/vendor/k3s/k3s-airgap-images-amd64.tar.zst

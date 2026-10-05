@@ -26,6 +26,9 @@ sudo install -D -o root -g root -m 0600 /var/tmp/o11y-lab-vm-transfer/payload/k3
 
 Run the second command only when the optional tarball was packaged.
 Detailed transfer commands and provisioning order are in [learner-vm/README-FIRST.md](../../learner-vm/README-FIRST.md).
+The complete human-readable artifact table and fallback image guidance are in [MANUAL-FETCH.md](MANUAL-FETCH.md); `manual-fetch.json` is its generated machine-readable companion.
+On the learner VM, manual artifacts are staged under `MANUAL_FETCH_DIR` from `learner-vm/lab-vm.conf`.
+The intended provisioning contract is to check and verify staged files before attempting Artifactory or official-source network access, then name the exact MANUAL-FETCH section and staging path in a fatal fix hint if both routes fail.
 
 During provisioning, k3s obtains its system images from the configured Artifactory registry mirror while the registry is reachable.
 The k3s `registries.yaml` mirror applies to containerd CRI pulls, including kubelet pulls and `k3s crictl pull`; `k3s ctr` is not the pull path for testing mirrors.

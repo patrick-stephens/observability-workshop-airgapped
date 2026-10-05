@@ -34,6 +34,10 @@ sha256sum /var/tmp/o11y-lab-vm-transfer/payload/k3s/k3s
 sudo install -o root -g root -m 0700 /var/tmp/o11y-lab-vm-transfer/payload/k3s/k3s /usr/local/bin/k3s
 ```
 
+## Manual Fetch Recovery
+
+See [content/vendor/MANUAL-FETCH.md](../content/vendor/MANUAL-FETCH.md) when a network-dependent fetch fails: first look at the artifact's `$MANUAL_FETCH_DIR` staging path, verify and use it if present, otherwise try its documented network source, and if that fails stop with FATAL and use the exact staging path named in the fix hint; for example, if planned script 45 reports a missing k3s binary, fetch the pinned URL from Section B on a connected machine, verify its SHA-256, transfer it to `$MANUAL_FETCH_DIR/k3s/k3s`, then rerun script 45.
+
 The optional airgap tarball is included only when the connected operator used `--include-k3s-airgap-tarball`.
 If present, verify its hash against the `OPTIONAL` row in `payload/payload-manifest.txt`, then copy it before the first k3s start:
 

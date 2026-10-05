@@ -15,6 +15,10 @@ INCLUDE_AIRGAP=false
 NO_CLEAN=false
 CLEAN_ONLY=false
 REFRESH=false
+MANUAL_BUNDLE_DIR=''
+MANUAL_INSTRUCTIONS_REQUESTED=false
+MANUAL_INSTRUCTIONS_PATH=''
+LIST_MANUAL=false
 
 usage() {
 	cat <<'EOF'
@@ -25,6 +29,9 @@ Usage: scripts/dev/package-vm-transfer.sh [options]
   --clean-obsolete-only          fetch/verify required payload, then clean
   --refresh                      re-fetch pinned payloads and verify hashes
   --out DIR                      output directory (default: dist/o11y-lab-vm-transfer)
+	--manual-bundle DIR            create DIR/manual-payload.tar.gz with payload artifacts
+	--manual-instructions [PATH]   write Section B instructions (default under dist/)
+	--list-manual                  print the generated manual-fetch entry table and exit
 EOF
 }
 
@@ -35,6 +42,19 @@ while (($#)); do
 		--no-clean) NO_CLEAN=true ;;
 		--clean-obsolete-only) CLEAN_ONLY=true ;;
 		--refresh) REFRESH=true ;;
+		--manual-bundle)
+			(($# >= 2)) || { usage >&2; exit 2; }
+			MANUAL_BUNDLE_DIR="$2"
+			shift
+			;;
+		--manual-instructions)
+			MANUAL_INSTRUCTIONS_REQUESTED=true
+			if (($# >= 2)) && [[ "$2" != --* ]]; then
+				MANUAL_INSTRUCTIONS_PATH="$2"
+				shift
+			fi
+			;;
+		--list-manual) LIST_MANUAL=true ;;
 		--out)
 			(($# >= 2)) || { usage >&2; exit 2; }
 			OUT_DIR="$2"
@@ -50,8 +70,20 @@ if [[ "$CLEAN_ONLY" == true && "$NO_CLEAN" == true ]]; then
 	printf '%s --clean-obsolete-only cannot be combined with --no-clean\n' "$LOG_PREFIX" >&2
 	exit 2
 fi
+if [[ "$CLEAN_ONLY" == true && ( -n "$MANUAL_BUNDLE_DIR" || "$MANUAL_INSTRUCTIONS_REQUESTED" ) ]]; then
+	printf '%s --clean-obsolete-only cannot be combined with manual bundle or instruction generation\n' "$LOG_PREFIX" >&2
+	exit 2
+fi
 
 if [[ "$OUT_DIR" != /* ]]; then OUT_DIR="$ROOT_DIR/$OUT_DIR"; fi
+if [[ "$LIST_MANUAL" == true ]]; then
+	exec python3 -B "$ROOT_DIR/scripts/dev/generate-manual-fetch.py" --list
+fi
+if [[ "$MANUAL_INSTRUCTIONS_REQUESTED" == true && -z "$MANUAL_INSTRUCTIONS_PATH" ]]; then
+	MANUAL_INSTRUCTIONS_PATH="$OUT_DIR/MANUAL-FETCH-payload.txt"
+fi
+if [[ -n "$MANUAL_BUNDLE_DIR" && "$MANUAL_BUNDLE_DIR" != /* ]]; then MANUAL_BUNDLE_DIR="$ROOT_DIR/$MANUAL_BUNDLE_DIR"; fi
+if [[ -n "$MANUAL_INSTRUCTIONS_PATH" && "$MANUAL_INSTRUCTIONS_PATH" != /* ]]; then MANUAL_INSTRUCTIONS_PATH="$ROOT_DIR/$MANUAL_INSTRUCTIONS_PATH"; fi
 
 trim() {
 	local value="$1"
@@ -66,10 +98,10 @@ die() {
 }
 
 head_file_size() {
-	local path="$1" size pointer declared
-	size=$(git cat-file -s "HEAD:$path")
+	local ref="$1" path="$2" size pointer declared
+	size=$(git cat-file -s "$ref:$path")
 	if ((size < 256)); then
-		pointer=$(git show "HEAD:$path")
+		pointer=$(git show "$ref:$path")
 		if [[ "$pointer" == version\ https://git-lfs.github.com/spec/v1* ]]; then
 			declared=$(awk '$1 == "size" { print $2; exit }' <<< "$pointer")
 			if [[ "$declared" =~ ^[0-9]+$ ]]; then size="$declared"; fi
@@ -109,9 +141,13 @@ while IFS='|' read -r raw_path raw_reason raw_replacement || [[ -n "${raw_path:-
 		action='REMOVE'
 		TOTAL_BYTES=$((TOTAL_BYTES + bytes))
 	elif git diff --cached --name-only --diff-filter=D -- "$path" | grep -Fxq -- "$path" && git cat-file -e "HEAD:$path" 2>/dev/null; then
-		bytes=$(head_file_size "$path")
+		bytes=$(head_file_size HEAD "$path")
 		TOTAL_BYTES=$((TOTAL_BYTES + bytes))
 		action='ALREADY STAGED FOR REMOVAL'
+	elif ! git cat-file -e "HEAD:$path" 2>/dev/null && git cat-file -e "workshop-lvm-prep-v2:$path" 2>/dev/null; then
+		bytes=$(head_file_size workshop-lvm-prep-v2 "$path")
+		TOTAL_BYTES=$((TOTAL_BYTES + bytes))
+		action='ALREADY REMOVED IN CURRENT HEAD (freeze tag verified)'
 	else
 		die "$path is missing or not tracked; fix $MANIFEST before cleanup"
 	fi
@@ -164,6 +200,25 @@ K3S_TARBALL_SHA=$(lock_value learner-k3s-airgap-images-amd64.tar.zst sha256 | se
 K3S_TARBALL_URL=$(lock_value learner-k3s-airgap-images-amd64.tar.zst source)
 [[ "$K3S_VERSION" == v1.37.1+k3s1 ]] || die "unexpected or missing pinned k3s version: ${K3S_VERSION:-<empty>}"
 [[ "$K3S_BINARY_SHA" =~ ^[0-9a-f]{64}$ && "$K3S_TARBALL_SHA" =~ ^[0-9a-f]{64}$ ]] || die 'invalid k3s SHA-256 in versions.lock'
+python3 - "$ROOT_DIR/content/vendor/manual-fetch.json" "$K3S_BINARY_URL" "$K3S_BINARY_SHA" "$K3S_TARBALL_URL" "$K3S_TARBALL_SHA" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+payload = [entry for entry in document if entry["category"] == "payload"]
+expected = {
+	"k3s/k3s": (sys.argv[2], sys.argv[3], True),
+	"k3s/k3s-airgap-images-amd64.tar.zst": (sys.argv[4], sys.argv[5], False),
+}
+actual = {entry["name"]: entry for entry in payload}
+if set(actual) != set(expected):
+	raise SystemExit(f"manual-fetch.json payload entries differ from pinned package inputs: {sorted(actual)}")
+for name, (url, digest, required) in expected.items():
+	entry = actual[name]
+	if (entry["source"], entry["sha256"], entry["required"]) != (url, digest, required):
+		raise SystemExit(f"manual-fetch.json payload pin mismatch for {name}")
+PY
 
 BINARY_CACHE="$ROOT_DIR/$STAGING_DIR/k3s"
 TARBALL_CACHE="$ROOT_DIR/$STAGING_DIR/k3s-airgap-images-amd64.tar.zst"
@@ -279,10 +334,73 @@ else
 	printf '%s PHASE C — PACKAGE skipped by --clean-obsolete-only; verified payload remains in the ignored staging cache.\n' "$LOG_PREFIX"
 fi
 
+if [[ -n "$MANUAL_BUNDLE_DIR" || "$MANUAL_INSTRUCTIONS_REQUESTED" == true ]]; then
+	if [[ "$DRY_RUN" == true ]]; then
+		if [[ -n "$MANUAL_BUNDLE_DIR" ]]; then
+			printf '%s MANUAL BUNDLE DRY-RUN\n' "$LOG_PREFIX"
+			python3 - "$ROOT_DIR/content/vendor/manual-fetch.json" "$MANUAL_BUNDLE_DIR" "$INCLUDE_AIRGAP" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+output_dir, include_optional = sys.argv[2], sys.argv[3] == "true"
+for entry in document:
+    if entry["category"] != "payload":
+        continue
+    if not entry["required"] and not include_optional:
+        print(f'Would omit OPTIONAL {entry["name"]}; pass --include-k3s-airgap-tarball to include it.')
+        continue
+    print(f'Would fetch/reuse {"REQUIRED" if entry["required"] else "OPTIONAL"} {entry["name"]} from {entry["source"]}; verify SHA-256 {entry["sha256"]}; stage as {entry["staging"]}.')
+print(f'Would write {output_dir}/manual-payload.tar.gz and matching .sha256; archive paths are k3s/<filename>.')
+PY
+		fi
+		if [[ "$MANUAL_INSTRUCTIONS_REQUESTED" == true ]]; then
+			printf '%s MANUAL INSTRUCTIONS DRY-RUN\n' "$LOG_PREFIX"
+			python3 - "$ROOT_DIR/content/vendor/manual-fetch.json" "$MANUAL_INSTRUCTIONS_PATH" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+for entry in document:
+    if entry["category"] == "payload":
+        status = "REQUIRED" if entry["required"] else "OPTIONAL"
+        print(f'{status} {entry["name"]} | {entry["source"]} | sha256={entry["sha256"]} | staging={entry["staging"]}')
+print(f'Would write payload-only manual fetch instructions to {sys.argv[2]}.')
+PY
+		fi
+	else
+		if [[ -n "$MANUAL_BUNDLE_DIR" ]]; then
+			command -v tar >/dev/null 2>&1 || die 'tar is required for --manual-bundle'
+			manual_stage=$(mktemp -d "${TMPDIR:-/tmp}/manual-payload.XXXXXX")
+			trap 'rm -rf -- "$manual_stage"' EXIT
+			mkdir -p "$manual_stage/k3s" "$MANUAL_BUNDLE_DIR"
+			install -m 0755 "$BINARY_CACHE" "$manual_stage/k3s/k3s"
+			if [[ "$INCLUDE_AIRGAP" == true ]]; then install -m 0644 "$TARBALL_CACHE" "$manual_stage/k3s/k3s-airgap-images-amd64.tar.zst"; fi
+			manual_archive="$MANUAL_BUNDLE_DIR/manual-payload.tar.gz"
+			manual_archive_sum="$manual_archive.sha256"
+			rm -f -- "$manual_archive" "$manual_archive_sum"
+			(cd "$manual_stage" && tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner -czf "$manual_archive" k3s)
+			(cd "$MANUAL_BUNDLE_DIR" && sha256sum "$(basename "$manual_archive")" > "$(basename "$manual_archive").sha256" && sha256sum -c "$(basename "$manual_archive").sha256")
+			rm -rf -- "$manual_stage"
+			trap - EXIT
+		fi
+		if [[ "$MANUAL_INSTRUCTIONS_REQUESTED" == true ]]; then
+			python3 -B "$ROOT_DIR/scripts/dev/generate-manual-fetch.py" --instructions "$MANUAL_INSTRUCTIONS_PATH"
+		fi
+	fi
+fi
+
 printf '%s PHASE D — REMOVE OBSOLETE FILES\n' "$LOG_PREFIX"
 if [[ "$DRY_RUN" == true ]]; then
 	for index in "${!OBSOLETE_PATHS[@]}"; do
-		printf 'Would git rm -- %s (%s)\n' "${OBSOLETE_PATHS[$index]}" "${OBSOLETE_REPLACEMENTS[$index]}"
+		path="${OBSOLETE_PATHS[$index]}"
+		if [[ -e "$path" ]]; then
+			printf 'Would git rm -- %s (%s)\n' "$path" "${OBSOLETE_REPLACEMENTS[$index]}"
+		else
+			printf 'No removal needed; already absent from HEAD: %s\n' "$path"
+		fi
 	done
 	printf 'Would add exact ignore entries for dist/, payload staging, and the four obsolete paths.\n'
 	printf 'Would report: git diff --cached --stat -- <manifest paths>\n'
@@ -322,7 +440,7 @@ if [[ "$NO_CLEAN" == false ]]; then
 	for path in "${OBSOLETE_PATHS[@]}"; do
 		if [[ ! -e "$path" ]] && git diff --cached --name-only --diff-filter=D -- "$path" | grep -Fxq -- "$path"; then
 			((removed_count += 1))
-			removed_bytes=$((removed_bytes + $(head_file_size "$path")))
+			removed_bytes=$((removed_bytes + $(head_file_size HEAD "$path")))
 		fi
 	done
 else
@@ -331,7 +449,7 @@ else
 	for path in "${OBSOLETE_PATHS[@]}"; do
 		if [[ ! -e "$path" ]] && git diff --cached --name-only --diff-filter=D -- "$path" | grep -Fxq -- "$path"; then
 			((removed_count += 1))
-			removed_bytes=$((removed_bytes + $(head_file_size "$path")))
+			removed_bytes=$((removed_bytes + $(head_file_size HEAD "$path")))
 		fi
 	done
 fi

@@ -1,0 +1,263 @@
+[
+  {
+    "_generated": "generated; see MANUAL-FETCH.md for the human-readable version",
+    "name": "docker.io/jaegertracing/all-in-one:1.76.0",
+    "category": "image",
+    "source": "docker://docker.io/jaegertracing/all-in-one:1.76.0",
+    "sha256": null,
+    "staging": "$MANUAL_FETCH_DIR/images/",
+    "required": false,
+    "used_by": "script 60 (Podman) and script 62 (k3s containerd)",
+    "purpose": "FALLBACK image bundle; stores=k3s,podman; digest is resolved and recorded by make-image-bundles.sh when generated.",
+    "stores": [
+      "k3s",
+      "podman"
+    ],
+    "expected_size": null
+  },
+  {
+    "name": "docker.io/library/busybox:1.36",
+    "category": "image",
+    "source": "docker://docker.io/library/busybox:1.36",
+    "sha256": null,
+    "staging": "$MANUAL_FETCH_DIR/images/",
+    "required": false,
+    "used_by": "script 60 (Podman)",
+    "purpose": "FALLBACK image bundle; stores=podman; digest is resolved and recorded by make-image-bundles.sh when generated.",
+    "stores": [
+      "podman"
+    ],
+    "expected_size": null
+  },
+  {
+    "name": "docker.io/library/eclipse-temurin:21",
+    "category": "image",
+    "source": "docker://docker.io/library/eclipse-temurin:21",
+    "sha256": null,
+    "staging": "$MANUAL_FETCH_DIR/images/",
+    "required": false,
+    "used_by": "script 60 (Podman)",
+    "purpose": "FALLBACK image bundle; stores=podman; digest is resolved and recorded by make-image-bundles.sh when generated.",
+    "stores": [
+      "podman"
+    ],
+    "expected_size": null
+  },
+  {
+    "name": "docker.io/library/python:3.13-bullseye",
+    "category": "image",
+    "source": "docker://docker.io/library/python:3.13-bullseye",
+    "sha256": null,
+    "staging": "$MANUAL_FETCH_DIR/images/",
+    "required": false,
+    "used_by": "script 60 (Podman)",
+    "purpose": "FALLBACK image bundle; stores=podman; digest is resolved and recorded by make-image-bundles.sh when generated.",
+    "stores": [
+      "podman"
+    ],
+    "expected_size": null
+  },
+  {
+    "name": "docker.io/opensearchproject/opensearch-dashboards:3.3.0",
+    "category": "image",
+    "source": "docker://docker.io/opensearchproject/opensearch-dashboards:3.3.0",
+    "sha256": null,
+    "staging": "$MANUAL_FETCH_DIR/images/",
+    "required": false,
+    "used_by": "script 60 (Podman)",
+    "purpose": "FALLBACK image bundle; stores=podman; digest is resolved and recorded by make-image-bundles.sh when generated.",
+    "stores": [
+      "podman"
+    ],
+    "expected_size": null
+  },
+  {
+    "name": "docker.io/opensearchproject/opensearch:3.3.1",
+    "category": "image",
+    "source": "docker://docker.io/opensearchproject/opensearch:3.3.1",
+    "sha256": null,
+    "staging": "$MANUAL_FETCH_DIR/images/",
+    "required": false,
+    "used_by": "script 60 (Podman)",
+    "purpose": "FALLBACK image bundle; stores=podman; digest is resolved and recorded by make-image-bundles.sh when generated.",
+    "stores": [
+      "podman"
+    ],
+    "expected_size": null
+  },
+  {
+    "name": "docker.io/otel/opentelemetry-collector-contrib:0.159.0",
+    "category": "image",
+    "source": "docker://docker.io/otel/opentelemetry-collector-contrib:0.159.0",
+    "sha256": null,
+    "staging": "$MANUAL_FETCH_DIR/images/",
+    "required": false,
+    "used_by": "script 60 (Podman)",
+    "purpose": "FALLBACK image bundle; stores=podman; digest is resolved and recorded by make-image-bundles.sh when generated.",
+    "stores": [
+      "podman"
+    ],
+    "expected_size": null
+  },
+  {
+    "name": "docker.io/persesdev/perses:v0.54.0",
+    "category": "image",
+    "source": "docker://docker.io/persesdev/perses:v0.54.0",
+    "sha256": null,
+    "staging": "$MANUAL_FETCH_DIR/images/",
+    "required": false,
+    "used_by": "script 60 (Podman)",
+    "purpose": "FALLBACK image bundle; stores=podman; digest is resolved and recorded by make-image-bundles.sh when generated.",
+    "stores": [
+      "podman"
+    ],
+    "expected_size": null
+  },
+  {
+    "name": "docker.io/prom/prometheus:v3.13.1",
+    "category": "image",
+    "source": "docker://docker.io/prom/prometheus:v3.13.1",
+    "sha256": null,
+    "staging": "$MANUAL_FETCH_DIR/images/",
+    "required": false,
+    "used_by": "script 60 (Podman)",
+    "purpose": "FALLBACK image bundle; stores=podman; digest is resolved and recorded by make-image-bundles.sh when generated.",
+    "stores": [
+      "podman"
+    ],
+    "expected_size": null
+  },
+  {
+    "name": "ghcr.io/fluent/fluent-bit:5.1.1",
+    "category": "image",
+    "source": "docker://ghcr.io/fluent/fluent-bit:5.1.1",
+    "sha256": null,
+    "staging": "$MANUAL_FETCH_DIR/images/",
+    "required": false,
+    "used_by": "script 60 (Podman)",
+    "purpose": "FALLBACK image bundle; stores=podman; digest is resolved and recorded by make-image-bundles.sh when generated.",
+    "stores": [
+      "podman"
+    ],
+    "expected_size": null
+  },
+  {
+    "name": "localhost/hello-otel:prog",
+    "category": "image",
+    "source": "in-repo",
+    "sha256": null,
+    "staging": "$MANUAL_FETCH_DIR/images/",
+    "required": false,
+    "used_by": "script 60 (Podman) and script 62 (k3s containerd)",
+    "purpose": "FALLBACK image bundle; stores=k3s,podman; digest is resolved and recorded by make-image-bundles.sh when generated.",
+    "stores": [
+      "k3s",
+      "podman"
+    ],
+    "expected_size": null
+  },
+  {
+    "name": "quay.io/prometheus/node-exporter:v1.12.1",
+    "category": "image",
+    "source": "docker://quay.io/prometheus/node-exporter:v1.12.1",
+    "sha256": null,
+    "staging": "$MANUAL_FETCH_DIR/images/",
+    "required": false,
+    "used_by": "script 60 (Podman)",
+    "purpose": "FALLBACK image bundle; stores=podman; digest is resolved and recorded by make-image-bundles.sh when generated.",
+    "stores": [
+      "podman"
+    ],
+    "expected_size": null
+  },
+  {
+    "name": "k3s/k3s",
+    "category": "payload",
+    "source": "https://github.com/k3s-io/k3s/releases/download/v1.37.1%2Bk3s1/k3s",
+    "sha256": "92b94582eb7b34a8cf532e6006842b9ed215a6783cf56a3dd6271fd35243b2c0",
+    "staging": "$MANUAL_FETCH_DIR/k3s/k3s",
+    "required": true,
+    "used_by": "script 45 (planned)",
+    "purpose": "Required k3s release artifact; install or copy to /usr/local/bin/k3s as documented in Section B."
+  },
+  {
+    "name": "k3s/k3s-airgap-images-amd64.tar.zst",
+    "category": "payload",
+    "source": "https://github.com/k3s-io/k3s/releases/download/v1.37.1%2Bk3s1/k3s-airgap-images-amd64.tar.zst",
+    "sha256": "865b2a63ad7a63fc0db17b7fc2985bf4ae11d5ae93ca1472be6218d20aeb6b23",
+    "staging": "$MANUAL_FETCH_DIR/k3s/k3s-airgap-images-amd64.tar.zst",
+    "required": false,
+    "used_by": "script 45 (planned)",
+    "purpose": "Optional fallback k3s release artifact; install or copy to /var/lib/rancher/k3s/agent/images/k3s-airgap-images-amd64.tar.zst as documented in Section B."
+  },
+  {
+    "name": "Artifactory registry CA certificate",
+    "category": "repo",
+    "source": "base-image",
+    "sha256": null,
+    "staging": "/etc/pki/ca-trust/source/anchors/airgap-ca.crt",
+    "required": true,
+    "used_by": "script 30 (planned)",
+    "purpose": "Already present at the configured base-image path; no separate fetch is needed."
+  },
+  {
+    "name": "content/vendor/downloads/otel-developers/opentelemetry-java-tracing-demo-v1.1.zip",
+    "category": "repo",
+    "source": "in-repo",
+    "sha256": "86518c7cbc1d1966a4356b40a8e7ace3a5fba6d7360b1d09a7314345e967bb30",
+    "staging": "content/vendor/downloads/otel-developers/opentelemetry-java-tracing-demo-v1.1.zip",
+    "required": true,
+    "used_by": "script 60 (planned)",
+    "purpose": "Runtime build-context archive already included in the repository ZIP; original source URL: https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo/-/archive/v1.1/opentelemetry-java-tracing-demo-v1.1.zip."
+  },
+  {
+    "name": "content/vendor/downloads/prometheus/prometheus-java-metrics-demo-v0.5.zip",
+    "category": "repo",
+    "source": "in-repo",
+    "sha256": "806746b3b2565d3a8cd3bc02611814b27b2a87a22bde652d33eb60ac4fb5c302",
+    "staging": "content/vendor/downloads/prometheus/prometheus-java-metrics-demo-v0.5.zip",
+    "required": true,
+    "used_by": "script 60 (planned)",
+    "purpose": "Runtime build-context archive already included in the repository ZIP; original source URL: https://gitlab.com/o11y-workshops/prometheus-java-metrics-demo/-/archive/v0.5/prometheus-java-metrics-demo-v0.5.zip."
+  },
+  {
+    "name": "content/vendor/downloads/prometheus/prometheus-service-demo-installer-v1.0.zip",
+    "category": "repo",
+    "source": "in-repo",
+    "sha256": "a8098f487d651997ec8cf3a5322a8b70b3a3ac60d9edee4c740bf8b2351b0af1",
+    "staging": "content/vendor/downloads/prometheus/prometheus-service-demo-installer-v1.0.zip",
+    "required": true,
+    "used_by": "script 60 (planned)",
+    "purpose": "Runtime build-context archive already included in the repository ZIP; original source URL: https://gitlab.com/o11y-workshops/prometheus-service-demo-installer/-/archive/v1.0/prometheus-service-demo-installer-v1.0.zip."
+  },
+  {
+    "name": "content/vendor/k3s/install.sh",
+    "category": "repo",
+    "source": "in-repo",
+    "sha256": "e5cc3b3d9dfc1662c2d9be6da5abc9a4cd317d6abc3a5ffc02e3dd3248207fee",
+    "staging": "content/vendor/k3s/install.sh",
+    "required": true,
+    "used_by": "script 45 (planned)",
+    "purpose": "Pinned small k3s installation input included in the repository ZIP; no separate fetch is needed."
+  },
+  {
+    "name": "content/vendor/k3s/k3s-images.txt",
+    "category": "repo",
+    "source": "in-repo",
+    "sha256": "377307d4039ccd04f0e27d2906595a8c7b7d49a79f7553c311f6f960ff3efb58",
+    "staging": "content/vendor/k3s/k3s-images.txt",
+    "required": true,
+    "used_by": "script 45 (planned)",
+    "purpose": "Pinned release system-image reference list included in the repository ZIP; no separate fetch is needed."
+  },
+  {
+    "name": "content/vendor/k3s/k3s-selinux-1.6-1.el8.noarch.rpm",
+    "category": "repo",
+    "source": "in-repo",
+    "sha256": "a1e24b0d82b1a6806cd420e2c0398a1796b055efe368fa4aebc8bb173850934f",
+    "staging": "content/vendor/k3s/k3s-selinux-1.6-1.el8.noarch.rpm",
+    "required": true,
+    "used_by": "script 45 (planned)",
+    "purpose": "Pinned RHEL SELinux policy package included in the repository ZIP; no separate fetch is needed."
+  }
+]

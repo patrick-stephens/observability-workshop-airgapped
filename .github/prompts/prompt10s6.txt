@@ -1,0 +1,191 @@
+Context
+-------
+Read .github/copilot-instructions.md and the newest feedback/
+airgap-run-*.md first. Connected upstream machine only. Do not access
+the learner VM.
+
+The goal: make every network-dependent provisioning step survivable by
+hand. If a fetch fails on the airgapped network, the operator must be
+able to look up the exact file, fetch it elsewhere, and place it at a
+known staging path — then re-run the script.
+
+Precedence rule (document this — it is the design):
+  1. Look for the file at its staging path.
+  2. If present: verify sha256, use it, done.
+  3. If absent: try the network path (Artifactory or official URL).
+  4. If that fails: FATAL, fix-hint names the MANUAL-FETCH section
+     and the exact staging path.
+
+Deliverables
+------------
+- content/vendor/MANUAL-FETCH.md             NEW
+- content/vendor/manual-fetch.json            NEW (machine-readable)
+- scripts/dev/package-vm-transfer.sh          extended: --manual-bundle
+- scripts/dev/make-image-bundles.sh           NEW (optional image tarballs)
+- lab-vm.conf                                 + MANUAL_FETCH_DIR variable
+- README-FIRST.md                             reference MANUAL-FETCH.md
+- content/extracted/vendored-files.txt        updated
+- versions.lock                               updated
+
+Task 1 — content/vendor/MANUAL-FETCH.md
+---------------------------------------
+A single document with three sections. Each entry, one row:
+  name | source URL (or "in repo" / "on base image") | SHA-256 |
+  staging path | REQUIRED|OPTIONAL|FALLBACK | used by script N |
+  purpose
+
+Section A — Repository files (no fetch needed)
+  Everything that travels inside the repository ZIP: install.sh,
+  k3s-selinux RPM, the three runtime-download archives, the CA cert
+  (base image). Purpose: state explicitly that these need no action,
+  so the operator does not hunt for them. List them; do not leave the
+  section empty.
+
+Section B — Payload artifacts
+  The k3s binary (REQUIRED) and the k3s airgap image tarball
+  (OPTIONAL). Source URLs from versions.lock. Staging path:
+  $MANUAL_FETCH_DIR/k3s/<filename>. Write the exact shell commands to
+  fetch each from an internet-connected machine:
+    curl -fL -o <filename> <url>
+    sha256sum <filename>
+  Include what to do with each on the VM:
+    k3s binary:   sudo install -m 755 <file> /usr/local/bin/k3s
+                  (script 45 also accepts it at $MANUAL_FETCH_DIR/k3s/k3s)
+    airgap tar:   sudo mkdir -p /var/lib/rancher/k3s/agent/images/
+                  sudo cp <file> /var/lib/rancher/k3s/agent/images/
+                  (copy BEFORE first k3s start; script 45 does this
+                   automatically when the file is at the staging path)
+
+Section C — Container images (FALLBACK; only if Artifactory fails)
+  A one-paragraph explanation: if Artifactory is unreachable from the
+  VM, script 60 (podman store) and script 62 (k3s containerd store)
+  cannot complete. The fallback is a pre-generated image bundle made
+  on an internet-connected machine, then transferred. Reference
+  scripts/dev/make-image-bundles.sh (Task 3).
+  Generate the list of images dynamically from
+  content/extracted/external-images.txt and the curate K8s manifest
+  images; do not hand-write the image list into the doc — write the
+  one-liner that regenerates it:
+    make-image-bundles.sh --list
+  Stage path: $MANUAL_FETCH_DIR/images/
+
+Closing section — "How to use this file"
+  The four-step precedence rule (above). One worked example: suppose
+  script 45 fails because the k3s binary is missing; here is the
+  exact exchange with the operator.
+
+Task 2 — content/vendor/manual-fetch.json
+-----------------------------------------
+Machine-readable version of the above. One array; one object per
+entry:
+  { "name", "category": "repo|payload|image",
+    "source": "url | in-repo | base-image",
+    "sha256": "...", "staging": "<path>",
+    "required": true|false,
+    "used_by": "<script NN>", "purpose": "..." }
+Sources for the values:
+  - k3s binary + tarball: versions.lock
+  - repo files: computed by walking content/ — a SHA-256 per file
+  - images: read from external-images.txt + curated K8s manifests
+Regenerate this file whenever the underlying sources change. Add a
+note at the top: "generated; see MANUAL-FETCH.md for the human-
+readable version".
+
+Task 3 — extend scripts/dev/package-vm-transfer.sh
+--------------------------------------------------
+Add three flags (existing flags unchanged):
+
+  --manual-bundle DIR
+      Produce a tarball containing every artifact in manual-fetch.json
+      with category in {payload}, laid out in the EXACT staging
+      directory structure the VM expects:
+        <bundle>/k3s/k3s
+        <bundle>/k3s/k3s-airgap-images-amd64.tar.zst  (if
+          --include-k3s-airgap-tarball was also passed)
+      Fetch any missing artifact from its source URL on THIS machine.
+      Verify every sha256 before packaging; refuse to package on
+      mismatch. Write <bundle>.sha256.
+      The bundle is a convenience for the operator — the VM scripts
+      work identically if the operator places the files by hand.
+
+  --manual-instructions PATH
+      Write a per-artifact "how to fetch this by hand" text file,
+      generated from manual-fetch.json, containing only Section B.
+      Default PATH: dist/o11y-lab-vm-transfer/MANUAL-FETCH-payload.txt.
+
+  --list-manual
+      Print the manual-fetch.json entries as a plain table and exit.
+
+The existing payload archive behaviour is UNCHANGED — --manual-bundle
+is additive.
+
+Task 4 — scripts/dev/make-image-bundles.sh (NEW)
+------------------------------------------------
+Produces optional fallback bundles for the case where the VM cannot
+reach Artifactory. Runs on THIS connected machine; pulls via the
+public registry the way an online host would, using skopeo.
+
+  --list
+      Print the image list (from external-images.txt + curated K8s
+      manifests), one per line, with expected sizes where known.
+  --out DIR
+      Default dist/o11y-lab-vm-transfer/images/
+  --podman-store
+      Produce images-podman.tar: a docker-style tarball of every
+      image in the podman-store set (everything except K8s-only
+      manifest images). Loadable on the VM with:
+        sudo podman load -i images-podman.tar
+  --k3s-store
+      Produce images-k3s-containerd.tar: a containerd-style tarball
+      for the k3s store. Loadable on the VM with:
+        sudo k3s ctr -n k8s.io images import images-k3s-containerd.tar
+  --both
+      Both of the above.
+  --source REGISTRY
+      Registry to pull from on THIS machine (default: Docker Hub /
+      upstream — the ONLY time this script contacts the public
+      internet; it exists precisely so the VM does not have to).
+Verification:
+  - each image sha256 recorded in a sidecar file alongside the
+    tarball, one line per image (repo-tag + manifest digest)
+  - a WRITE-mode check that opening the tarball recovers the same
+    digests
+Print the final summary: image count, tarball sizes, sha256 of each
+tarball, and the exact VM load commands.
+
+Task 5 — lab-vm.conf
+--------------------
+Add ONE variable with a comment:
+  MANUAL_FETCH_DIR="/var/tmp/o11y-lab-vm-manual"
+  # Staging area for hand-fetched artifacts. Scripts check this path
+  # BEFORE attempting any network fetch. See content/vendor/
+  # MANUAL-FETCH.md.
+Leave every other variable as-is.
+
+Task 6 — README-FIRST.md update
+-------------------------------
+Add a short section pointing at MANUAL-FETCH.md and stating the
+precedence rule. One paragraph, one worked example. Do not duplicate
+the manifest.
+
+Task 7 — integrity checks
+-------------------------
+- manual-fetch.json parses; every entry has a sha256 for category
+  payload (repo and image categories use digest-of-file where known
+  and null otherwise)
+- MANUAL-FETCH.md Section B matches manual-fetch.json Section>
+  payload entries one-to-one
+- scripts/dev/make-image-bundles.sh --list output matches the image
+  set from external-images.txt + curated K8s manifests
+- grep audit: lab-vm.conf and README-FIRST.md reference
+  MANUAL_FETCH_DIR; no outstanding reference to the old payload-only
+  model
+
+Acceptance
+----------
+1. Paste content/vendor/MANUAL-FETCH.md in full.
+2. Paste content/vendor/manual-fetch.json in full.
+3. Paste the --manual-bundle and --manual-instructions dry-run output.
+4. Paste make-image-bundles.sh --list output.
+5. State explicitly: everything ran online; the VM was not accessed;
+   no provisioning script was executed.

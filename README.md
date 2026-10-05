@@ -193,10 +193,15 @@ Run `python3 scripts/dev/patch-docs.py` to patch both mirrored documentation and
 Run `python3 scripts/dev/create-reviewer-packet.py` after regenerating parser and curation outputs to assemble the bounded k3s, build-status, runtime-download, and curation evidence in `content/extracted/reviewer-packet.md`.
 Run `bash scripts/dev/vendor-k3s.sh` online to fetch and verify the small pinned installer, system-image list, and RHEL 8 SELinux RPM; the large executable and optional image archive are not stored in the repository.
 Run `bash scripts/dev/package-vm-transfer.sh --dry-run` to review the guarded transfer and cleanup actions, then run it without `--dry-run` to fetch and verify the required executable, build the ZIP and payload archive, and stage obsolete-file removals.
+Use `--manual-bundle DIR` to create a separate k3s staging archive and `--manual-instructions` to write payload-only hand-fetch steps from the generated catalog.
+See [content/vendor/MANUAL-FETCH.md](content/vendor/MANUAL-FETCH.md) for the staging-before-network recovery contract and exact artifact pins.
 Use `--include-k3s-airgap-tarball` only when the optional bootstrap fallback is needed; see [content/vendor/README.md](content/vendor/README.md) and [learner-vm/README-FIRST.md](learner-vm/README-FIRST.md) for transfer and verification instructions.
 Run `python3 scripts/dev/vendor-runtime-downloads.py` online to vendor lab-linked ZIPs needed for preloading attendee-created build contexts and record their hashes in `versions.lock`.
 Run `python3 scripts/dev/write-vendored-files.py` after capture to refresh the source and SHA-256 inventory for vendored and generated content.
-The k3s image probe is recorded at `content/vendor/k3s/registry-probe.txt`; script 62 must use explicit `$DOCKER_REGISTRY` pulls and `k3s ctr images tag`, because `ctr` does not honor `registries.conf` mirrors.
+Run `python3 scripts/dev/generate-manual-fetch.py` whenever repository files, payload pins, curated manifests, or image inventories change; it regenerates `content/vendor/MANUAL-FETCH.md` and `manual-fetch.json`.
+Run `scripts/dev/make-image-bundles.sh --list` to print the fallback image set, or use `--both` on the connected Docker build host to create Docker-archive bundles using the pinned Skopeo container; the resulting archives load into the separate Podman and k3s containerd stores.
+The k3s image probe is recorded at `content/vendor/k3s/registry-probe.txt`; the pinned k3s service uses `/etc/rancher/k3s/registries.yaml` for containerd CRI mirror pulls, which can be exercised with `k3s crictl pull`.
+The online probe returned HTTP 000 due to name resolution failure, so Artifactory mirror access must be verified on the learner network before provisioning relies on it.
 The complete `content/` tree is an online-produced committed artifact for the learner VM; these development scripts are not provisioning scripts and must not be run on the airgapped VM.
 
 ## Enterprise Mirrors and Proxies
