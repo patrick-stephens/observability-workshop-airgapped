@@ -176,9 +176,10 @@
     "source": "https://github.com/k3s-io/k3s/releases/download/v1.37.1%2Bk3s1/k3s",
     "sha256": "92b94582eb7b34a8cf532e6006842b9ed215a6783cf56a3dd6271fd35243b2c0",
     "staging": "$MANUAL_FETCH_DIR/k3s/k3s",
+    "package_path": "learner-vm/content/vendor/payload/k3s/k3s",
     "required": true,
-    "used_by": "script 45 (planned)",
-    "purpose": "Required k3s release artifact; install or copy to /usr/local/bin/k3s as documented in Section B."
+    "used_by": "script 45",
+    "purpose": "Required k3s release artifact embedded in the single repository ZIP; manual recovery staging fallback is $MANUAL_FETCH_DIR/k3s/k3s; expected destination after provisioning is /usr/local/bin/k3s."
   },
   {
     "name": "k3s/k3s-airgap-images-amd64.tar.zst",
@@ -186,9 +187,10 @@
     "source": "https://github.com/k3s-io/k3s/releases/download/v1.37.1%2Bk3s1/k3s-airgap-images-amd64.tar.zst",
     "sha256": "865b2a63ad7a63fc0db17b7fc2985bf4ae11d5ae93ca1472be6218d20aeb6b23",
     "staging": "$MANUAL_FETCH_DIR/k3s/k3s-airgap-images-amd64.tar.zst",
+    "package_path": "learner-vm/content/vendor/payload/k3s/k3s-airgap-images-amd64.tar.zst",
     "required": false,
-    "used_by": "script 45 (planned)",
-    "purpose": "Optional fallback k3s release artifact; install or copy to /var/lib/rancher/k3s/agent/images/k3s-airgap-images-amd64.tar.zst as documented in Section B."
+    "used_by": "script 45",
+    "purpose": "Optional fallback k3s release artifact embedded in the single repository ZIP; manual recovery staging fallback is $MANUAL_FETCH_DIR/k3s/k3s-airgap-images-amd64.tar.zst; expected destination after provisioning is /var/lib/rancher/k3s/agent/images/k3s-airgap-images-amd64.tar.zst."
   },
   {
     "name": "Artifactory registry CA certificate",
@@ -197,7 +199,7 @@
     "sha256": null,
     "staging": "/etc/pki/ca-trust/source/anchors/airgap-ca.crt",
     "required": true,
-    "used_by": "script 30 (planned)",
+    "used_by": "script 30",
     "purpose": "Already present at the configured base-image path; no separate fetch is needed."
   },
   {
@@ -207,7 +209,7 @@
     "sha256": "86518c7cbc1d1966a4356b40a8e7ace3a5fba6d7360b1d09a7314345e967bb30",
     "staging": "content/vendor/downloads/otel-developers/opentelemetry-java-tracing-demo-v1.1.zip",
     "required": true,
-    "used_by": "script 60 (planned)",
+    "used_by": "script 60",
     "purpose": "Runtime build-context archive already included in the repository ZIP; original source URL: https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo/-/archive/v1.1/opentelemetry-java-tracing-demo-v1.1.zip."
   },
   {
@@ -217,7 +219,7 @@
     "sha256": "806746b3b2565d3a8cd3bc02611814b27b2a87a22bde652d33eb60ac4fb5c302",
     "staging": "content/vendor/downloads/prometheus/prometheus-java-metrics-demo-v0.5.zip",
     "required": true,
-    "used_by": "script 60 (planned)",
+    "used_by": "script 60",
     "purpose": "Runtime build-context archive already included in the repository ZIP; original source URL: https://gitlab.com/o11y-workshops/prometheus-java-metrics-demo/-/archive/v0.5/prometheus-java-metrics-demo-v0.5.zip."
   },
   {
@@ -227,7 +229,7 @@
     "sha256": "a8098f487d651997ec8cf3a5322a8b70b3a3ac60d9edee4c740bf8b2351b0af1",
     "staging": "content/vendor/downloads/prometheus/prometheus-service-demo-installer-v1.0.zip",
     "required": true,
-    "used_by": "script 60 (planned)",
+    "used_by": "script 60",
     "purpose": "Runtime build-context archive already included in the repository ZIP; original source URL: https://gitlab.com/o11y-workshops/prometheus-service-demo-installer/-/archive/v1.0/prometheus-service-demo-installer-v1.0.zip."
   },
   {
@@ -237,7 +239,7 @@
     "sha256": "e5cc3b3d9dfc1662c2d9be6da5abc9a4cd317d6abc3a5ffc02e3dd3248207fee",
     "staging": "content/vendor/k3s/install.sh",
     "required": true,
-    "used_by": "script 45 (planned)",
+    "used_by": "script 45",
     "purpose": "Pinned small k3s installation input included in the repository ZIP; no separate fetch is needed."
   },
   {
@@ -247,7 +249,7 @@
     "sha256": "377307d4039ccd04f0e27d2906595a8c7b7d49a79f7553c311f6f960ff3efb58",
     "staging": "content/vendor/k3s/k3s-images.txt",
     "required": true,
-    "used_by": "script 45 (planned)",
+    "used_by": "script 45",
     "purpose": "Pinned release system-image reference list included in the repository ZIP; no separate fetch is needed."
   },
   {
@@ -257,7 +259,7 @@
     "sha256": "a1e24b0d82b1a6806cd420e2c0398a1796b055efe368fa4aebc8bb173850934f",
     "staging": "content/vendor/k3s/k3s-selinux-1.6-1.el8.noarch.rpm",
     "required": true,
-    "used_by": "script 45 (planned)",
+    "used_by": "script 45",
     "purpose": "Pinned RHEL SELinux policy package included in the repository ZIP; no separate fetch is needed."
   }
 ]

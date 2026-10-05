@@ -1,0 +1,189 @@
+Prompt 13 — Make the repository ZIP self-contained for one-file transfer
+
+Context
+-------
+Read .github/copilot-instructions.md, README-FIRST.md, the current
+lab-vm.conf, scripts/00-diagnose.sh, scripts/dev/
+package-vm-transfer.sh, and content/vendor/MANUAL-FETCH.md.
+
+The operator can transfer ONLY the repository ZIP to the learner VM.
+A separate payload archive or sidecar file cannot be transferred.
+Therefore the current receiving instructions, which require a separate
+payload archive, are not usable and must be replaced.
+
+The learner VM is RHEL 8.6. It can reach internal Artifactory during
+provisioning. Artifactory serves container images, including
+registry.k8s.io images, but Artifactory-based k3s pulls have not been
+verified on the learner network. Do not claim they work until the
+operator supplies VM-side evidence.
+
+The k3s executable is required. The k3s airgap image tarball is an
+optional fallback. Keep both out of ordinary Git history, but include
+them inside the single generated transfer ZIP so the operator only
+transfers one file.
+
+Do not access the learner VM or execute provisioning scripts against
+it. Do not commit or stage changes unless explicitly asked.
+
+Objective
+---------
+Update the packaging, diagnostics, and transfer instructions so one
+repository ZIP contains the current source tree and required payload.
+After extraction, provisioning scripts must find the payload without
+any separate transfer or manual file copy.
+
+Target transfer layout inside the ZIP
+-------------------------------------
+Keep the normal repository layout and add these generated files to the
+ZIP only:
+
+  learner-vm/content/vendor/payload/k3s/k3s
+  learner-vm/content/vendor/payload/k3s/k3s-airgap-images-amd64.tar.zst
+  learner-vm/content/vendor/payload/payload-manifest.txt
+
+The k3s binary is REQUIRED. Include the airgap image tarball in this
+transfer package as a fallback because Artifactory-based k3s bootstrap
+has not yet been tested. Both files must be verified against the
+pinned SHA-256 values in versions.lock before adding them to the ZIP.
+
+The payload directory is generated during packaging and remains
+untracked and absent from ordinary Git history. Do not restore the
+removed large artifacts to the working tree or commit them.
+
+Task 1 — Update package-vm-transfer.sh
+--------------------------------------
+Inspect the existing script and preserve unrelated behavior. Add a
+single-transfer mode, the default mode, that:
+
+1. Builds the repository ZIP from the current worktree, including
+   staged, unstaged, and intended non-ignored untracked source files.
+   Do not use HEAD-only `git archive` if that omits current work.
+2. Fetches or reuses the pinned k3s binary and optional airgap tarball
+   on the connected machine, verifies their SHA-256 values from
+   versions.lock, and adds them under the target ZIP paths above.
+3. Includes `payload-manifest.txt` inside the ZIP. It records each
+   payload file's relative path, version, source URL, SHA-256, and
+   required/optional status.
+4. Does not require a separate payload archive or checksum sidecar to
+   be transferred to the VM.
+5. Prints the generated ZIP's name, byte size, SHA-256, and exact
+   verification/extraction commands. The ZIP SHA may also be written
+   to a sidecar for online record-keeping, but the VM workflow must
+   not depend on transferring that sidecar.
+6. Supports `--dry-run` and a `--no-airgap-tarball` option. The
+   default includes the tarball; `--no-airgap-tarball` omits it and
+   marks it optional/absent in the embedded manifest.
+7. Fails before producing the final ZIP if any included payload hash
+   mismatches. Do not delete or alter source files on failure.
+8. Excludes `.git/`, `.git/lfs/`, `dist/`, caches, logs, private keys,
+   and the four obsolete artifact paths. Preserve the current
+   worktree, including the staged deletions. Do not stage, commit, or
+   clean source files.
+
+If a prior packager mode still produces a separate payload archive,
+keep it only as an optional convenience mode. The one-ZIP mode is the
+default and must be the documented operator path.
+
+Task 2 — Update diagnostics and provisioning lookup
+---------------------------------------------------
+Read the actual scripts before changing them. Bump SCRIPT_VERSION and
+add a CHANGE comment to each changed learner-VM script.
+
+Update `scripts/00-diagnose.sh` so it looks for the k3s binary first
+at:
+
+  $REPO_ROOT/content/vendor/payload/k3s/k3s
+
+If that path is absent, it may also check:
+
+  $MANUAL_FETCH_DIR/k3s/k3s
+
+Report which source path was found and verify the pinned checksum.
+If neither exists or the checksum fails, emit a clear failure naming
+the required single-ZIP location and the MANUAL-FETCH.md fallback.
+Continue to treat the tarball as optional, but report whether it is
+present and checksum-valid at either the in-repo payload path or the
+manual staging path.
+
+Update `scripts/45-k3s-install.sh` to use the same lookup order:
+1. In-repo ZIP payload:
+   `$REPO_ROOT/content/vendor/payload/k3s/k3s`
+2. Optional manual staging fallback:
+   `$MANUAL_FETCH_DIR/k3s/k3s`
+
+Verify the chosen binary's checksum immediately before installing it.
+Use the same lookup order for the optional tarball. If the tarball is
+absent, k3s uses Artifactory for system-image pulls; if those pulls
+fail, provide diagnostics and the exact MANUAL-FETCH instructions.
+
+Do not require a separate payload archive, sidecar file, or manual
+copy after extracting the repository ZIP.
+
+Task 3 — Update documentation
+-----------------------------
+Update README-FIRST.md, content/vendor/README.md, and
+content/vendor/MANUAL-FETCH.md so the primary transfer workflow is:
+
+1. Generate one self-contained repository ZIP on the connected
+   machine.
+2. Transfer that single ZIP to the learner VM.
+3. Verify the payload files after extracting the ZIP using the
+   embedded payload manifest and `versions.lock`.
+4. Extract the ZIP.
+5. Run `sudo bash scripts/00-diagnose.sh` from the extracted
+   `learner-vm/` directory.
+6. Transcribe the complete diagnostic REPORT block and wait for
+   review before running scripts 10–80.
+
+Make it explicit that the standalone payload archive and separate
+checksum sidecar are no longer required for the normal workflow.
+Retain the manual-fetch instructions as a fallback for a damaged or
+incomplete ZIP. Document exact staging paths if manual recovery is
+needed.
+
+Task 4 — Verify the generated ZIP
+---------------------------------
+Generate a fresh ZIP in a new output directory. Do not overwrite the
+previous package until the new one passes all checks.
+
+Verify and report:
+- ZIP contains current provisioning scripts, lab-vm.conf,
+  MANUAL-FETCH.md, manual-fetch.json, workshop content, and the
+  generated `content/vendor/payload/` files.
+- Embedded payload-manifest hashes match the extracted k3s binary
+  and optional tarball.
+- ZIP excludes `.git/`, `dist/`, local logs/caches, private keys,
+  and the four obsolete files.
+- ZIP contains the current worktree versions of new and modified
+  provisioning scripts, not stale HEAD versions.
+- The documented ZIP extraction path matches the actual archive
+  layout. The operator should `cd` into the extracted
+  `learner-vm/` directory before running scripts.
+- `00-diagnose.sh` and `45-k3s-install.sh` use the same payload paths
+  and checksum sources.
+
+Validation (connected machine only)
+-----------------------------------
+Run:
+- `bash -n` and ShellCheck on changed shell scripts.
+- `pre-commit run --all-files`.
+- packager `--dry-run`.
+- generate the single ZIP and inspect it with `unzip -l`.
+- independently extract it to a temporary directory and verify payload
+  hashes.
+- `scripts/00-diagnose.sh --selftest`.
+
+Do not execute scripts 10–80, Artifactory pulls, k3s installation, or
+any command against the learner VM.
+
+Acceptance
+----------
+1. Paste the receiving-side instructions using only one transferred
+   ZIP.
+2. Paste the ZIP filename, size, SHA-256, and embedded payload
+   manifest.
+3. Paste the archive-content and payload-hash verification results.
+4. Paste `00-diagnose.sh --selftest`, ShellCheck, bash syntax, and
+   pre-commit results.
+5. Confirm the learner VM was not accessed, provisioning was not run
+   against it, and changes remain uncommitted.

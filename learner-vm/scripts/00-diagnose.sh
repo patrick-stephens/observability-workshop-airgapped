@@ -2,9 +2,9 @@
 set -euo pipefail
 
 SCRIPT_NAME="00-diagnose"
-# CHANGE: Keep diagnostics aligned with the Podman-only runtime and manual-fetch staging design.
-# SCRIPT_VERSION 7: Diagnose staged k3s payloads without legacy daemon checks.
-SCRIPT_VERSION="7"
+# CHANGE: Prefer checksum-pinned payloads embedded in the single repository ZIP, retaining manual staging as recovery.
+# SCRIPT_VERSION 8: Diagnose ZIP payloads before MANUAL_FETCH_DIR fallbacks.
+SCRIPT_VERSION="8"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SELFTEST=false
 DRY_RUN=false
@@ -413,12 +413,23 @@ else:
 PY
 }
 
-k3s_payload="$MANUAL_FETCH_DIR/k3s/k3s"
+k3s_zip_payload="$REPO_ROOT/learner-vm/content/vendor/payload/k3s/k3s"
+k3s_manual_payload="$MANUAL_FETCH_DIR/k3s/k3s"
+k3s_payload_source='absent'
+if [[ -e "$k3s_zip_payload" || -L "$k3s_zip_payload" ]]; then
+    k3s_payload="$k3s_zip_payload"
+    k3s_payload_source='single-ZIP payload'
+elif [[ -e "$k3s_manual_payload" || -L "$k3s_manual_payload" ]]; then
+    k3s_payload="$k3s_manual_payload"
+    k3s_payload_source='MANUAL_FETCH_DIR fallback'
+else
+    k3s_payload="$k3s_zip_payload"
+fi
 k3s_expected=""
 if command -v python3 >/dev/null 2>&1; then
     if k3s_expected="$(manual_sha256 k3s/k3s 2>/dev/null)"; then :; else k3s_expected=""; fi
 fi
-if [[ -s "$k3s_payload" ]]; then
+if [[ "$k3s_payload_source" != 'absent' ]]; then
     if [[ ! "$k3s_expected" =~ ^[0-9a-f]{64}$ ]]; then
         step_fail "pinned k3s payload checksum is unavailable" "Restore the k3s/k3s payload entry in content/vendor/manual-fetch.json." "python3 -m json.tool $(printf '%q' "$REPO_ROOT/content/vendor/manual-fetch.json")" "grep -n 'k3s/k3s' $(printf '%q' "$REPO_ROOT/content/vendor/manual-fetch.json")"
     elif ! command -v sha256sum >/dev/null 2>&1; then
@@ -426,21 +437,32 @@ if [[ -s "$k3s_payload" ]]; then
     else
         if k3s_actual="$(sha256sum "$k3s_payload" 2>/dev/null | awk '{print $1}')"; then :; else k3s_actual="unavailable"; fi
         if [[ "$k3s_actual" == "$k3s_expected" ]]; then
-            step_ok "required k3s payload is present and checksum-valid"
+            step_ok "required k3s binary found at $k3s_payload_source ($k3s_payload) and checksum-valid"
         else
-            step_fail "k3s payload checksum-invalid: expected $k3s_expected, actual $k3s_actual" "See Section B of content/vendor/MANUAL-FETCH.md and stage the verified file at $k3s_payload." "sha256sum $(printf '%q' "$k3s_payload")" "grep -n 'k3s/k3s' $(printf '%q' "$REPO_ROOT/content/vendor/manual-fetch.json")"
+            step_fail "k3s payload checksum-invalid at $k3s_payload: expected $k3s_expected, actual $k3s_actual" "Replace the single-ZIP payload at learner-vm/content/vendor/payload/k3s/k3s or recover the verified file to $k3s_manual_payload using Section B of content/vendor/MANUAL-FETCH.md." "sha256sum $(printf '%q' "$k3s_payload")" "grep -n 'k3s/k3s' $(printf '%q' "$REPO_ROOT/content/vendor/manual-fetch.json")"
         fi
     fi
 else
-    step_fail "required k3s binary payload is absent" "See Section B of content/vendor/MANUAL-FETCH.md and transfer the verified file to $k3s_payload." "ls -l $(printf '%q' "$MANUAL_FETCH_DIR/k3s")" "grep -n 'k3s/k3s' $(printf '%q' "$REPO_ROOT/content/vendor/MANUAL-FETCH.md")"
+    step_fail "required k3s binary is absent from the repository ZIP and manual staging" "The extracted ZIP must contain learner-vm/content/vendor/payload/k3s/k3s; recover the verified fallback to $k3s_manual_payload using Section B of content/vendor/MANUAL-FETCH.md." "ls -l $(printf '%q' "$k3s_zip_payload")" "ls -l $(printf '%q' "$MANUAL_FETCH_DIR/k3s")" "grep -n 'k3s/k3s' $(printf '%q' "$REPO_ROOT/content/vendor/MANUAL-FETCH.md")"
 fi
 
-airgap_payload="$MANUAL_FETCH_DIR/k3s/k3s-airgap-images-amd64.tar.zst"
+airgap_zip_payload="$REPO_ROOT/learner-vm/content/vendor/payload/k3s/k3s-airgap-images-amd64.tar.zst"
+airgap_manual_payload="$MANUAL_FETCH_DIR/k3s/k3s-airgap-images-amd64.tar.zst"
+airgap_payload_source='absent'
+if [[ -e "$airgap_zip_payload" || -L "$airgap_zip_payload" ]]; then
+    airgap_payload="$airgap_zip_payload"
+    airgap_payload_source='single-ZIP payload'
+elif [[ -e "$airgap_manual_payload" || -L "$airgap_manual_payload" ]]; then
+    airgap_payload="$airgap_manual_payload"
+    airgap_payload_source='MANUAL_FETCH_DIR fallback'
+else
+    airgap_payload="$airgap_zip_payload"
+fi
 airgap_expected=""
 if command -v python3 >/dev/null 2>&1; then
     if airgap_expected="$(manual_sha256 k3s/k3s-airgap-images-amd64.tar.zst 2>/dev/null)"; then :; else airgap_expected=""; fi
 fi
-if [[ -s "$airgap_payload" ]]; then
+if [[ "$airgap_payload_source" != 'absent' ]]; then
     if [[ ! "$airgap_expected" =~ ^[0-9a-f]{64}$ ]]; then
         step_fail "pinned optional k3s airgap checksum is unavailable" "Restore the k3s/k3s-airgap-images-amd64.tar.zst payload entry in content/vendor/manual-fetch.json." "python3 -m json.tool $(printf '%q' "$REPO_ROOT/content/vendor/manual-fetch.json")" "grep -n 'k3s-airgap-images' $(printf '%q' "$REPO_ROOT/content/vendor/manual-fetch.json")"
     elif ! command -v sha256sum >/dev/null 2>&1; then
@@ -448,13 +470,13 @@ if [[ -s "$airgap_payload" ]]; then
     else
         if airgap_actual="$(sha256sum "$airgap_payload" 2>/dev/null | awk '{print $1}')"; then :; else airgap_actual="unavailable"; fi
         if [[ "$airgap_actual" == "$airgap_expected" ]]; then
-            step_ok "optional k3s airgap tarball is present and checksum-valid; fallback is available"
+            step_ok "optional k3s airgap tarball found at $airgap_payload_source ($airgap_payload) and checksum-valid"
         else
-            step_fail "optional k3s airgap tarball checksum-invalid: expected $airgap_expected, actual $airgap_actual" "See Section B of content/vendor/MANUAL-FETCH.md and stage the optional file at $airgap_payload." "sha256sum $(printf '%q' "$airgap_payload")" "grep -n 'k3s-airgap-images' $(printf '%q' "$REPO_ROOT/content/vendor/manual-fetch.json")"
+            step_fail "optional k3s airgap tarball checksum-invalid at $airgap_payload: expected $airgap_expected, actual $airgap_actual" "Replace it with the pinned file from the ZIP or recover it to $airgap_manual_payload using Section B of content/vendor/MANUAL-FETCH.md." "sha256sum $(printf '%q' "$airgap_payload")" "grep -n 'k3s-airgap-images' $(printf '%q' "$REPO_ROOT/content/vendor/manual-fetch.json")"
         fi
     fi
 else
-    step_skip "optional k3s airgap tarball is absent; planned provisioning uses Artifactory pulls (not yet verified on the learner network)" "see Section B of content/vendor/MANUAL-FETCH.md if the optional fallback is required"
+    step_skip "optional k3s airgap tarball is absent from the ZIP and manual staging; bootstrap will use Artifactory CRI pulls, not yet verified on the learner network" "recover the optional file to $airgap_manual_payload using Section B of content/vendor/MANUAL-FETCH.md if required"
 fi
 
 k3s_probe="$REPO_ROOT/content/vendor/k3s/registry-probe.txt"

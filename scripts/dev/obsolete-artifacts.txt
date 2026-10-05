@@ -1,4 +1,4 @@
 content/bin/docker-compose-v2 | unused by all workshop labs; no Compose use in the curated run set | removed, no replacement
 content/bin/docker-compose-v2.sha256 | integrity sidecar for an unused binary | removed, no replacement
-content/vendor/k3s/k3s | 81.5 MB release executable; separate transfer required by decision 4 | payload archive: payload/k3s/k3s (REQUIRED)
-content/vendor/k3s/k3s-airgap-images-amd64.tar.zst | 194.4 MB; optional bootstrap fallback by decision 3 | payload archive: payload/k3s/k3s-airgap-images-amd64.tar.zst (OPTIONAL, opt-in)
+content/vendor/k3s/k3s | 81.5 MB release executable; required but not retained in Git | single repository ZIP: learner-vm/content/vendor/payload/k3s/k3s (REQUIRED)
+content/vendor/k3s/k3s-airgap-images-amd64.tar.zst | 194.4 MB; optional bootstrap fallback because Artifactory k3s pulls are unverified | single repository ZIP: learner-vm/content/vendor/payload/k3s/k3s-airgap-images-amd64.tar.zst (OPTIONAL, included by default; omit with --no-airgap-tarball)

@@ -2,8 +2,8 @@
 set -euo pipefail
 
 SCRIPT_NAME="45-k3s-install"
-# CHANGE: Install pinned k3s from MANUAL_FETCH_DIR and configure CRI mirrors before first start.
-SCRIPT_VERSION="2"
+# CHANGE: Install pinned k3s from the self-contained ZIP payload, falling back to MANUAL_FETCH_DIR only when absent.
+SCRIPT_VERSION="3"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRY_RUN=false
 UNKNOWN_ARGUMENTS=()
@@ -27,8 +27,14 @@ elif ((EUID != 0)); then
 fi
 
 K3S='/usr/local/bin/k3s'
-K3S_PAYLOAD="$MANUAL_FETCH_DIR/k3s/k3s"
-AIRGAP_PAYLOAD="$MANUAL_FETCH_DIR/k3s/k3s-airgap-images-amd64.tar.zst"
+K3S_ZIP_PAYLOAD="$REPO_ROOT/learner-vm/content/vendor/payload/k3s/k3s"
+K3S_MANUAL_PAYLOAD="$MANUAL_FETCH_DIR/k3s/k3s"
+AIRGAP_ZIP_PAYLOAD="$REPO_ROOT/learner-vm/content/vendor/payload/k3s/k3s-airgap-images-amd64.tar.zst"
+AIRGAP_MANUAL_PAYLOAD="$MANUAL_FETCH_DIR/k3s/k3s-airgap-images-amd64.tar.zst"
+K3S_PAYLOAD="$K3S_ZIP_PAYLOAD"
+K3S_PAYLOAD_SOURCE='absent'
+AIRGAP_PAYLOAD="$AIRGAP_ZIP_PAYLOAD"
+AIRGAP_PAYLOAD_SOURCE='absent'
 VENDOR_DIR="$REPO_ROOT/content/vendor/k3s"
 INSTALLER="$VENDOR_DIR/install.sh"
 SELINUX_RPM="$VENDOR_DIR/k3s-selinux-1.6-1.el8.noarch.rpm"
@@ -50,7 +56,7 @@ PY
 
 k3s_failure() {
 	local problem="$1" image="${2:-unknown}"
-	step_fail "$problem" "Check CA trust and $REGISTRIES_FILE; follow Section B of content/vendor/MANUAL-FETCH.md for payloads. Artifactory pulls are not considered verified until this learner network returns success." \
+	step_fail "$problem" "Check CA trust and $REGISTRIES_FILE; payloads are read from the ZIP first, then $MANUAL_FETCH_DIR/k3s/ per Section B of content/vendor/MANUAL-FETCH.md. Artifactory pulls are not verified until this learner network returns success." \
 		"$K3S --version" \
 		"$K3S crictl --help" \
 		"$K3S crictl images" \
@@ -76,17 +82,27 @@ fi
 
 K3S_VALID=false
 if [[ "$DRY_RUN" == true ]]; then
-	step_skip "required k3s payload presence/checksum are target-side and were not read during dry-run" "$K3S_PAYLOAD; SHA-256 $K3S_SHA"
-elif [[ -s "$K3S_PAYLOAD" ]]; then
-	actual="$(sha256sum "$K3S_PAYLOAD" | awk '{print $1}')"
-	if [[ "$actual" == "$K3S_SHA" ]]; then
-		K3S_VALID=true
-		step_ok "required k3s binary is present at MANUAL_FETCH_DIR and checksum-valid"
-	else
-		step_fail "k3s binary checksum mismatch: expected $K3S_SHA, actual $actual" "Replace $K3S_PAYLOAD using Section B of content/vendor/MANUAL-FETCH.md." "sha256sum $(printf %q "$K3S_PAYLOAD")" "grep -n 'k3s/k3s' $(printf %q "$REPO_ROOT/content/vendor/manual-fetch.json")"
-	fi
+	step_skip "required k3s payload presence/checksum are target-side and were not read during dry-run" "ZIP first: $K3S_ZIP_PAYLOAD; fallback: $K3S_MANUAL_PAYLOAD; SHA-256 $K3S_SHA"
+	K3S_PAYLOAD_SOURCE='not selected during dry-run'
 else
-	step_fail "required k3s binary is missing" "Fetch it as documented in Section B of content/vendor/MANUAL-FETCH.md and place it at $K3S_PAYLOAD." "ls -l $(printf %q "$MANUAL_FETCH_DIR/k3s")" "grep -n 'k3s/k3s' $(printf %q "$REPO_ROOT/content/vendor/MANUAL-FETCH.md")"
+	if [[ -e "$K3S_ZIP_PAYLOAD" || -L "$K3S_ZIP_PAYLOAD" ]]; then
+		K3S_PAYLOAD="$K3S_ZIP_PAYLOAD"
+		K3S_PAYLOAD_SOURCE='single-ZIP payload'
+	elif [[ -e "$K3S_MANUAL_PAYLOAD" || -L "$K3S_MANUAL_PAYLOAD" ]]; then
+		K3S_PAYLOAD="$K3S_MANUAL_PAYLOAD"
+		K3S_PAYLOAD_SOURCE='MANUAL_FETCH_DIR fallback'
+	fi
+	if [[ "$K3S_PAYLOAD_SOURCE" == 'absent' ]]; then
+		step_fail "required k3s binary is absent from both payload locations" "The ZIP must contain learner-vm/content/vendor/payload/k3s/k3s; fallback path is $K3S_MANUAL_PAYLOAD. See Section B of content/vendor/MANUAL-FETCH.md." "ls -l $(printf %q "$K3S_ZIP_PAYLOAD")" "ls -l $(printf %q "$K3S_MANUAL_PAYLOAD")" "grep -n 'k3s/k3s' $(printf %q "$REPO_ROOT/content/vendor/MANUAL-FETCH.md")"
+	else
+		if actual="$(sha256sum "$K3S_PAYLOAD" 2>/dev/null | awk '{print $1}')"; then :; else actual='unavailable'; fi
+		if [[ "$actual" == "$K3S_SHA" ]]; then
+			K3S_VALID=true
+			step_ok "required k3s binary found at $K3S_PAYLOAD_SOURCE ($K3S_PAYLOAD) and checksum-valid"
+		else
+			step_fail "k3s binary checksum mismatch at $K3S_PAYLOAD: expected $K3S_SHA, actual $actual" "Restore the payload in the single ZIP or replace the fallback at $K3S_MANUAL_PAYLOAD using Section B of content/vendor/MANUAL-FETCH.md." "sha256sum $(printf %q "$K3S_PAYLOAD")" "grep -n 'k3s/k3s' $(printf %q "$REPO_ROOT/content/vendor/manual-fetch.json")"
+		fi
+	fi
 fi
 
 SUPPORT_VALID=false
@@ -100,18 +116,27 @@ fi
 AIRGAP_VALID=false
 AIRGAP_INPUT_OK=true
 if [[ "$DRY_RUN" == true ]]; then
-	step_skip "optional airgap tarball presence/checksum are target-side and were not read during dry-run" "$AIRGAP_PAYLOAD; SHA-256 $AIRGAP_SHA"
-elif [[ -s "$AIRGAP_PAYLOAD" ]]; then
-	actual="$(sha256sum "$AIRGAP_PAYLOAD" | awk '{print $1}')"
-	if [[ "$actual" == "$AIRGAP_SHA" ]]; then
-		AIRGAP_VALID=true
-		step_ok "optional k3s system-image fallback is checksum-valid"
-	else
-		AIRGAP_INPUT_OK=false
-		step_fail "optional airgap tarball checksum mismatch: expected $AIRGAP_SHA, actual $actual" "Replace it using Section B of content/vendor/MANUAL-FETCH.md or remove it to use Artifactory." "sha256sum $(printf %q "$AIRGAP_PAYLOAD")" "grep -n 'k3s-airgap-images' $(printf %q "$REPO_ROOT/content/vendor/manual-fetch.json")"
-	fi
+	step_skip "optional airgap tarball presence/checksum are target-side and were not read during dry-run" "ZIP first: $AIRGAP_ZIP_PAYLOAD; fallback: $AIRGAP_MANUAL_PAYLOAD; SHA-256 $AIRGAP_SHA"
 else
-	step_skip "optional airgap tarball is absent; bootstrap will use Artifactory CRI pulls, not yet verified on the learner network" "stage $AIRGAP_PAYLOAD only if the registry fallback is needed"
+	if [[ -e "$AIRGAP_ZIP_PAYLOAD" || -L "$AIRGAP_ZIP_PAYLOAD" ]]; then
+		AIRGAP_PAYLOAD="$AIRGAP_ZIP_PAYLOAD"
+		AIRGAP_PAYLOAD_SOURCE='single-ZIP payload'
+	elif [[ -e "$AIRGAP_MANUAL_PAYLOAD" || -L "$AIRGAP_MANUAL_PAYLOAD" ]]; then
+		AIRGAP_PAYLOAD="$AIRGAP_MANUAL_PAYLOAD"
+		AIRGAP_PAYLOAD_SOURCE='MANUAL_FETCH_DIR fallback'
+	fi
+	if [[ "$AIRGAP_PAYLOAD_SOURCE" == 'absent' ]]; then
+		step_skip "optional airgap tarball is absent from ZIP and manual staging; bootstrap will use Artifactory CRI pulls, not yet verified on the learner network" "recover the optional file to $AIRGAP_MANUAL_PAYLOAD using Section B of content/vendor/MANUAL-FETCH.md if required"
+	else
+		if actual="$(sha256sum "$AIRGAP_PAYLOAD" 2>/dev/null | awk '{print $1}')"; then :; else actual='unavailable'; fi
+		if [[ "$actual" == "$AIRGAP_SHA" ]]; then
+			AIRGAP_VALID=true
+			step_ok "optional k3s system-image fallback found at $AIRGAP_PAYLOAD_SOURCE ($AIRGAP_PAYLOAD) and checksum-valid"
+		else
+			AIRGAP_INPUT_OK=false
+			step_fail "optional airgap tarball checksum mismatch at $AIRGAP_PAYLOAD: expected $AIRGAP_SHA, actual $actual" "Restore the ZIP payload or recover the pinned fallback to $AIRGAP_MANUAL_PAYLOAD using Section B of content/vendor/MANUAL-FETCH.md." "sha256sum $(printf %q "$AIRGAP_PAYLOAD")" "grep -n 'k3s-airgap-images' $(printf %q "$REPO_ROOT/content/vendor/manual-fetch.json")"
+		fi
+	fi
 fi
 
 if [[ "$DRY_RUN" == true ]]; then
@@ -151,11 +176,18 @@ if [[ -x "$K3S" ]] && [[ "$(sha256sum "$K3S" | awk '{print $1}')" == "$K3S_SHA" 
 	K3S_CHANGED=false
 	BINARY_READY=true
 	step_ok "installed k3s binary already matches the manual-fetch pin"
-elif run "install -o root -g root -m 0755 $(printf %q "$K3S_PAYLOAD") $(printf %q "$K3S")"; then
-	BINARY_READY=true
-	step_ok "installed the checksum-verified binary at $K3S"
+elif [[ "$K3S_VALID" == true ]]; then
+	if install_payload_sha="$(sha256sum "$K3S_PAYLOAD" 2>/dev/null | awk '{print $1}')"; then :; else install_payload_sha='unavailable'; fi
+	if [[ "$install_payload_sha" != "$K3S_SHA" ]]; then
+		k3s_failure "selected $K3S_PAYLOAD_SOURCE binary changed or failed its immediate pre-install checksum: expected $K3S_SHA, actual $install_payload_sha" "$K3S_PAYLOAD"
+	elif run "install -o root -g root -m 0755 $(printf %q "$K3S_PAYLOAD") $(printf %q "$K3S")"; then
+		BINARY_READY=true
+		step_ok "installed the checksum-verified k3s binary from $K3S_PAYLOAD_SOURCE at $K3S"
+	else
+		k3s_failure "could not install verified k3s binary" "$K3S_PAYLOAD"
+	fi
 else
-	k3s_failure "could not install verified k3s binary" "$K3S_PAYLOAD"
+	step_skip "k3s binary install skipped because neither payload source passed validation" "resolve the earlier FATAL entries"
 fi
 
 REGISTRIES_CHANGED=false

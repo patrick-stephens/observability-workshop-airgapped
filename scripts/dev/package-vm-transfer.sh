@@ -11,8 +11,9 @@ STAGING_DIR='content/vendor/k3s/payload-stage'
 DEFAULT_OUT='dist/o11y-lab-vm-transfer'
 OUT_DIR="$ROOT_DIR/$DEFAULT_OUT"
 DRY_RUN=false
-INCLUDE_AIRGAP=false
-NO_CLEAN=false
+INCLUDE_AIRGAP=true
+NO_CLEAN=true
+NO_CLEAN_REQUESTED=false
 CLEAN_ONLY=false
 REFRESH=false
 MANUAL_BUNDLE_DIR=''
@@ -23,10 +24,11 @@ LIST_MANUAL=false
 usage() {
 	cat <<'EOF'
 Usage: scripts/dev/package-vm-transfer.sh [options]
-  --dry-run                      print phases A-D without changing files
-  --include-k3s-airgap-tarball   include the optional k3s image fallback
-  --no-clean                     package assets but leave obsolete files
-  --clean-obsolete-only          fetch/verify required payload, then clean
+	--dry-run                      print phases A-D without changing files
+	--no-airgap-tarball            omit the optional k3s image fallback (default includes it)
+	--include-k3s-airgap-tarball   compatibility alias; the default already includes it
+	--no-clean                     compatibility alias; source cleanup is already disabled by default
+	--clean-obsolete-only          explicitly fetch/verify required payload, then stage obsolete removals
   --refresh                      re-fetch pinned payloads and verify hashes
   --out DIR                      output directory (default: dist/o11y-lab-vm-transfer)
 	--manual-bundle DIR            create DIR/manual-payload.tar.gz with payload artifacts
@@ -39,8 +41,9 @@ while (($#)); do
 	case "$1" in
 		--dry-run) DRY_RUN=true ;;
 		--include-k3s-airgap-tarball) INCLUDE_AIRGAP=true ;;
-		--no-clean) NO_CLEAN=true ;;
-		--clean-obsolete-only) CLEAN_ONLY=true ;;
+		--no-airgap-tarball) INCLUDE_AIRGAP=false ;;
+		--no-clean) NO_CLEAN=true; NO_CLEAN_REQUESTED=true ;;
+		--clean-obsolete-only) CLEAN_ONLY=true; NO_CLEAN=false ;;
 		--refresh) REFRESH=true ;;
 		--manual-bundle)
 			(($# >= 2)) || { usage >&2; exit 2; }
@@ -66,7 +69,7 @@ while (($#)); do
 	shift
 done
 
-if [[ "$CLEAN_ONLY" == true && "$NO_CLEAN" == true ]]; then
+if [[ "$CLEAN_ONLY" == true && "$NO_CLEAN_REQUESTED" == true ]]; then
 	printf '%s --clean-obsolete-only cannot be combined with --no-clean\n' "$LOG_PREFIX" >&2
 	exit 2
 fi
@@ -84,6 +87,18 @@ if [[ "$MANUAL_INSTRUCTIONS_REQUESTED" == true && -z "$MANUAL_INSTRUCTIONS_PATH"
 fi
 if [[ -n "$MANUAL_BUNDLE_DIR" && "$MANUAL_BUNDLE_DIR" != /* ]]; then MANUAL_BUNDLE_DIR="$ROOT_DIR/$MANUAL_BUNDLE_DIR"; fi
 if [[ -n "$MANUAL_INSTRUCTIONS_PATH" && "$MANUAL_INSTRUCTIONS_PATH" != /* ]]; then MANUAL_INSTRUCTIONS_PATH="$ROOT_DIR/$MANUAL_INSTRUCTIONS_PATH"; fi
+
+REPO_ZIP="$OUT_DIR/o11y-lab-vm-repository.zip"
+REPO_ZIP_SHA="$REPO_ZIP.sha256"
+ZIP_PAYLOAD_ROOT='learner-vm/content/vendor/payload'
+ZIP_K3S_DIR="$ZIP_PAYLOAD_ROOT/k3s"
+ZIP_BINARY_PATH="$ZIP_K3S_DIR/k3s"
+ZIP_AIRGAP_PATH="$ZIP_K3S_DIR/k3s-airgap-images-amd64.tar.zst"
+ZIP_PAYLOAD_MANIFEST="$ZIP_PAYLOAD_ROOT/payload-manifest.txt"
+if [[ "$DRY_RUN" == false && "$CLEAN_ONLY" == false && ( -e "$REPO_ZIP" || -e "$REPO_ZIP_SHA" ) ]]; then
+	printf '%s FATAL: refusing to overwrite an existing package or checksum in %s; choose a fresh --out directory\n' "$LOG_PREFIX" "$OUT_DIR" >&2
+	exit 1
+fi
 
 trim() {
 	local value="$1"
@@ -208,15 +223,15 @@ from pathlib import Path
 document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 payload = [entry for entry in document if entry["category"] == "payload"]
 expected = {
-	"k3s/k3s": (sys.argv[2], sys.argv[3], True),
-	"k3s/k3s-airgap-images-amd64.tar.zst": (sys.argv[4], sys.argv[5], False),
+	"k3s/k3s": (sys.argv[2], sys.argv[3], True, "learner-vm/content/vendor/payload/k3s/k3s"),
+	"k3s/k3s-airgap-images-amd64.tar.zst": (sys.argv[4], sys.argv[5], False, "learner-vm/content/vendor/payload/k3s/k3s-airgap-images-amd64.tar.zst"),
 }
 actual = {entry["name"]: entry for entry in payload}
 if set(actual) != set(expected):
 	raise SystemExit(f"manual-fetch.json payload entries differ from pinned package inputs: {sorted(actual)}")
-for name, (url, digest, required) in expected.items():
+for name, (url, digest, required, package_path) in expected.items():
 	entry = actual[name]
-	if (entry["source"], entry["sha256"], entry["required"]) != (url, digest, required):
+	if (entry["source"], entry["sha256"], entry["required"], entry.get("package_path")) != (url, digest, required, package_path):
 		raise SystemExit(f"manual-fetch.json payload pin mismatch for {name}")
 PY
 
@@ -230,18 +245,25 @@ verify_sha() {
 }
 
 fetch_verified() {
-	local url="$1" expected="$2" target="$3" temporary="$3.partial"
-	if [[ "$REFRESH" == false && -s "$target" ]]; then
-		if actual=$(sha256sum "$target" | awk '{print $1}') && [[ "$actual" == "$expected" ]]; then
-			printf '%s verified cached payload %s (%s)\n' "$LOG_PREFIX" "${target#"$ROOT_DIR/"}" "$actual"
-			return 0
-		fi
-		printf '%s cached payload failed verification; re-fetching %s\n' "$LOG_PREFIX" "${target#"$ROOT_DIR/"}" >&2
+	local url="$1" expected="$2" target="$3" temporary="$3.partial" actual
+	if [[ -e "$target" && "$REFRESH" == false ]]; then
+		if [[ ! -s "$target" ]]; then die "cached payload is empty and was left unchanged: $target; use --refresh to fetch a replacement"; fi
+		actual=$(sha256sum "$target" | awk '{print $1}')
+		[[ "$actual" == "$expected" ]] || die "cached payload SHA-256 mismatch for $target: expected $expected, actual $actual; source was left unchanged"
+		printf '%s verified cached payload %s (%s)\n' "$LOG_PREFIX" "${target#"$ROOT_DIR/"}" "$actual"
+		return 0
 	fi
 	mkdir -p "$(dirname "$target")"
 	rm -f -- "$temporary"
-	curl -fL --retry 2 --connect-timeout 15 --max-time 900 "$url" -o "$temporary"
-	verify_sha "$temporary" "$expected"
+	if ! curl -fL --retry 2 --connect-timeout 15 --max-time 900 "$url" -o "$temporary"; then
+		rm -f -- "$temporary"
+		die "could not fetch $url; existing source cache was not changed"
+	fi
+	actual=$(sha256sum "$temporary" | awk '{print $1}')
+	if [[ "$actual" != "$expected" ]]; then
+		rm -f -- "$temporary"
+		die "downloaded payload SHA-256 mismatch for $target: expected $expected, actual $actual; existing source cache was not changed"
+	fi
 	mv -f -- "$temporary" "$target"
 	printf '%s fetched and verified %s (%s)\n' "$LOG_PREFIX" "${target#"$ROOT_DIR/"}" "$expected"
 }
@@ -252,7 +274,7 @@ if [[ "$DRY_RUN" == true ]]; then
 	if [[ "$INCLUDE_AIRGAP" == true ]]; then
 		printf 'Would fetch or reuse OPTIONAL airgap tarball from %s; SHA-256 %s; cache %s\n' "$K3S_TARBALL_URL" "$K3S_TARBALL_SHA" "${TARBALL_CACHE#"$ROOT_DIR/"}"
 	else
-		printf 'Would omit OPTIONAL airgap tarball; use --include-k3s-airgap-tarball to include it.\n'
+		printf 'Would omit OPTIONAL airgap tarball because --no-airgap-tarball was selected.\n'
 	fi
 else
 	command -v curl >/dev/null 2>&1 || die 'curl is required to fetch the pinned payload'
@@ -263,36 +285,47 @@ else
 	fi
 fi
 
-REPO_ZIP="$OUT_DIR/o11y-lab-vm-repository.zip"
-PAYLOAD_DIR="$OUT_DIR/payload"
-PAYLOAD_ARCHIVE="$PAYLOAD_DIR/o11y-lab-vm-payload.tar.gz"
-PAYLOAD_MANIFEST="$PAYLOAD_DIR/payload-manifest.txt"
-
 if [[ "$CLEAN_ONLY" == false ]]; then
 	printf '%s PHASE C — PACKAGE\n' "$LOG_PREFIX"
 	if [[ "$DRY_RUN" == true ]]; then
-		printf 'Would build repository ZIP from the Git index and working-tree contents into a temporary staging copy.\n'
+		printf 'Would build one repository ZIP from the Git index and working-tree contents into a temporary staging copy.\n'
 		printf 'Would exclude .git/, .git/lfs/, dist/, generated logs/caches, and every obsolete-artifacts.txt path.\n'
-		printf 'Would include the Phase-D .gitignore entries in the staging copy so the ZIP reflects post-clean state.\n'
-		printf 'Would build %s and %s with matching SHA-256 sidecars.\n' "${REPO_ZIP#"$ROOT_DIR/"}" "${PAYLOAD_ARCHIVE#"$ROOT_DIR/"}"
+		printf 'Would inject verified payloads and payload-manifest.txt at %s inside the ZIP; no working-tree payload files are created.\n' "$ZIP_PAYLOAD_ROOT/"
+		printf 'Would include the Phase-D .gitignore entries in the ZIP staging copy.\n'
+		printf 'Would build %s with an online SHA-256 sidecar; the VM transfer needs only this ZIP.\n' "${REPO_ZIP#"$ROOT_DIR/"}"
+		if [[ -n "$MANUAL_BUNDLE_DIR" ]]; then printf 'Would additionally create the optional standalone manual payload bundle at %s.\n' "$MANUAL_BUNDLE_DIR"; fi
 	else
 		command -v zip >/dev/null 2>&1 || die 'zip is required to create the repository archive'
-		command -v tar >/dev/null 2>&1 || die 'tar is required to create the payload archive'
+		command -v unzip >/dev/null 2>&1 || die 'unzip is required to verify the repository archive'
 		command -v cp >/dev/null 2>&1 || die 'cp is required to stage repository files'
-		mkdir -p "$OUT_DIR" "$PAYLOAD_DIR"
+		mkdir -p "$OUT_DIR"
 		temp_root=$(mktemp -d "${TMPDIR:-/tmp}/o11y-transfer.XXXXXX")
-		cleanup_temp() { rm -rf -- "$temp_root"; }
+		zip_temporary=''
+		sha_temporary=''
+		cleanup_temp() {
+			rm -rf -- "$temp_root"
+			[[ -z "$zip_temporary" ]] || rm -f -- "$zip_temporary"
+			[[ -z "$sha_temporary" ]] || rm -f -- "$sha_temporary"
+		}
 		trap cleanup_temp EXIT
 		repo_stage="$temp_root/repository"
 		mkdir -p "$repo_stage"
 		while IFS= read -r -d '' path; do
 			[[ -n "${OBSOLETE_SET[$path]+x}" ]] && continue
 			[[ "$path" == dist || "$path" == dist/* ]] && continue
+			[[ "$path" == "$STAGING_DIR" || "$path" == "$STAGING_DIR/"* ]] && continue
+			[[ "$path" == "$ZIP_PAYLOAD_ROOT" || "$path" == "$ZIP_PAYLOAD_ROOT/"* ]] && continue
+			case "$path" in
+				id_rsa|id_dsa|id_ecdsa|id_ed25519|*/id_rsa|*/id_dsa|*/id_ecdsa|*/id_ed25519|*.pem|*.key|*.p12|*.pfx|*.ppk) continue ;;
+			esac
 			case "$path" in
 				*/__pycache__/*|.cache|.cache/*|*/.cache|*/.cache/*|.pytest_cache|.pytest_cache/*|*/.pytest_cache|*/.pytest_cache/*|.mypy_cache|.mypy_cache/*|*/.mypy_cache|*/.mypy_cache/*|.ruff_cache|.ruff_cache/*|*/.ruff_cache|*/.ruff_cache/*|logs|logs/*|*/logs|*/logs/*) continue ;;
 			esac
 			[[ "$path" == *.pyc || "$path" == *.log ]] && continue
-			[[ -f "$ROOT_DIR/$path" || -L "$ROOT_DIR/$path" ]] || die "indexed source disappeared before packaging: $path"
+			if [[ ! -f "$ROOT_DIR/$path" && ! -L "$ROOT_DIR/$path" ]]; then
+				if git ls-files --deleted -- "$path" | grep -Fxq -- "$path"; then continue; fi
+				die "indexed source disappeared before packaging: $path"
+			fi
 			mkdir -p "$repo_stage/$(dirname "$path")"
 			cp -a -- "$ROOT_DIR/$path" "$repo_stage/$path"
 		done < <(git ls-files --cached --others --exclude-standard -z)
@@ -305,30 +338,55 @@ if [[ "$CLEAN_ONLY" == false ]]; then
 			escaped="${escaped//2/[2]}"
 			printf '/%s' "$escaped"
 		}
-		for entry in '/dist/' '/content/vendor/k3s/payload-stage/'; do
+		for entry in '/dist/' '/content/vendor/k3s/payload-stage/' '/learner-vm/content/vendor/payload/'; do
 			append_ignore "$repo_stage/.gitignore" "$entry"
 		done
 		for path in "${OBSOLETE_PATHS[@]}"; do append_ignore "$repo_stage/.gitignore" "$(ignore_path "$path")"; done
-		rm -f -- "$REPO_ZIP" "$REPO_ZIP.sha256"
-		(cd "$repo_stage" && zip -q -X -yr "$REPO_ZIP" .)
-		(cd "$OUT_DIR" && sha256sum "$(basename "$REPO_ZIP")" > "$(basename "$REPO_ZIP").sha256")
-		(cd "$OUT_DIR" && sha256sum -c "$(basename "$REPO_ZIP").sha256")
 
-		payload_stage="$temp_root/payload"
-		mkdir -p "$payload_stage/payload/k3s"
-		install -m 0700 "$BINARY_CACHE" "$payload_stage/payload/k3s/k3s"
+		payload_stage="$repo_stage/$ZIP_PAYLOAD_ROOT"
+		mkdir -p "$payload_stage/k3s"
+		verify_sha "$BINARY_CACHE" "$K3S_BINARY_SHA"
+		install -m 0700 "$BINARY_CACHE" "$payload_stage/k3s/k3s"
+		staged_binary_sha=$(sha256sum "$payload_stage/k3s/k3s" | awk '{print $1}')
+		[[ "$staged_binary_sha" == "$K3S_BINARY_SHA" ]] || die "staged ZIP payload hash mismatch for $ZIP_BINARY_PATH: expected $K3S_BINARY_SHA, actual $staged_binary_sha"
 		{
-			printf 'relative path | version | source URL | SHA-256 | REQUIRED/OPTIONAL | expected destination on VM\n'
-			printf 'payload/k3s/k3s | %s | %s | %s | REQUIRED | /usr/local/bin/k3s (0700 root)\n' "$K3S_VERSION" "$K3S_BINARY_URL" "$K3S_BINARY_SHA"
+			printf 'relative_path\tversion\tsource_url\tsha256\tstatus\n'
+			printf '%s\t%s\t%s\t%s\tREQUIRED\n' "$ZIP_BINARY_PATH" "$K3S_VERSION" "$K3S_BINARY_URL" "$K3S_BINARY_SHA"
 			if [[ "$INCLUDE_AIRGAP" == true ]]; then
-				install -m 0600 "$TARBALL_CACHE" "$payload_stage/payload/k3s/k3s-airgap-images-amd64.tar.zst"
-				printf 'payload/k3s/k3s-airgap-images-amd64.tar.zst | %s | %s | %s | OPTIONAL | /var/lib/rancher/k3s/agent/images/k3s-airgap-images-amd64.tar.zst\n' "$K3S_VERSION" "$K3S_TARBALL_URL" "$K3S_TARBALL_SHA"
+				verify_sha "$TARBALL_CACHE" "$K3S_TARBALL_SHA"
+				install -m 0600 "$TARBALL_CACHE" "$payload_stage/k3s/k3s-airgap-images-amd64.tar.zst"
+				staged_airgap_sha=$(sha256sum "$payload_stage/k3s/k3s-airgap-images-amd64.tar.zst" | awk '{print $1}')
+				[[ "$staged_airgap_sha" == "$K3S_TARBALL_SHA" ]] || die "staged ZIP payload hash mismatch for $ZIP_AIRGAP_PATH: expected $K3S_TARBALL_SHA, actual $staged_airgap_sha"
+				printf '%s\t%s\t%s\t%s\tOPTIONAL_INCLUDED\n' "$ZIP_AIRGAP_PATH" "$K3S_VERSION" "$K3S_TARBALL_URL" "$K3S_TARBALL_SHA"
+			else
+				printf '%s\t%s\t%s\t%s\tOPTIONAL_NOT_INCLUDED\n' "$ZIP_AIRGAP_PATH" "$K3S_VERSION" "$K3S_TARBALL_URL" "$K3S_TARBALL_SHA"
 			fi
-		} > "$PAYLOAD_MANIFEST"
-		rm -f -- "$PAYLOAD_ARCHIVE" "$PAYLOAD_ARCHIVE.sha256"
-		(cd "$payload_stage" && tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner -czf "$PAYLOAD_ARCHIVE" payload)
-		(cd "$PAYLOAD_DIR" && sha256sum "$(basename "$PAYLOAD_ARCHIVE")" > "$(basename "$PAYLOAD_ARCHIVE").sha256")
-		(cd "$PAYLOAD_DIR" && sha256sum -c "$(basename "$PAYLOAD_ARCHIVE").sha256")
+		} > "$repo_stage/$ZIP_PAYLOAD_MANIFEST"
+		zip_temporary="$OUT_DIR/.o11y-lab-vm-repository.zip.partial.$$"
+		sha_temporary="$OUT_DIR/.o11y-lab-vm-repository.zip.sha256.partial.$$"
+		rm -f -- "$zip_temporary" "$sha_temporary"
+		(cd "$repo_stage" && zip -q -X -yr "$zip_temporary" .)
+		unzip -tqq "$zip_temporary" || die "generated ZIP failed its integrity test: $zip_temporary"
+		for relative_path in "$ZIP_BINARY_PATH" "$ZIP_PAYLOAD_MANIFEST"; do
+			entry=$(unzip -Z1 "$zip_temporary" | awk -v path="$relative_path" '$0 == path || $0 == "./" path {print; exit}')
+			[[ -n "$entry" ]] || die "generated ZIP is missing required entry $relative_path"
+		done
+	binary_entry=$(unzip -Z1 "$zip_temporary" | awk -v path="$ZIP_BINARY_PATH" '$0 == path || $0 == "./" path {print; exit}')
+		staged_binary_sha=$(unzip -p "$zip_temporary" "$binary_entry" | sha256sum | awk '{print $1}')
+		[[ "$staged_binary_sha" == "$K3S_BINARY_SHA" ]] || die "embedded ZIP payload hash mismatch for $ZIP_BINARY_PATH: expected $K3S_BINARY_SHA, actual $staged_binary_sha"
+		if [[ "$INCLUDE_AIRGAP" == true ]]; then
+			airgap_entry=$(unzip -Z1 "$zip_temporary" | awk -v path="$ZIP_AIRGAP_PATH" '$0 == path || $0 == "./" path {print; exit}')
+			[[ -n "$airgap_entry" ]] || die "generated ZIP is missing required included entry $ZIP_AIRGAP_PATH"
+			staged_airgap_sha=$(unzip -p "$zip_temporary" "$airgap_entry" | sha256sum | awk '{print $1}')
+			[[ "$staged_airgap_sha" == "$K3S_TARBALL_SHA" ]] || die "embedded ZIP payload hash mismatch for $ZIP_AIRGAP_PATH: expected $K3S_TARBALL_SHA, actual $staged_airgap_sha"
+		fi
+		zip_sha=$(sha256sum "$zip_temporary" | awk '{print $1}')
+		printf '%s  %s\n' "$zip_sha" "$(basename "$REPO_ZIP")" > "$sha_temporary"
+		mv -- "$zip_temporary" "$REPO_ZIP"
+		zip_temporary=''
+		mv -- "$sha_temporary" "$REPO_ZIP_SHA"
+		sha_temporary=''
+		(cd "$OUT_DIR" && sha256sum -c "$(basename "$REPO_ZIP_SHA")")
 		trap - EXIT
 		cleanup_temp
 	fi
@@ -396,16 +454,19 @@ fi
 
 printf '%s PHASE D — REMOVE OBSOLETE FILES\n' "$LOG_PREFIX"
 if [[ "$DRY_RUN" == true ]]; then
-	for index in "${!OBSOLETE_PATHS[@]}"; do
-		path="${OBSOLETE_PATHS[$index]}"
-		if [[ -e "$path" ]]; then
-			printf 'Would git rm -- %s (%s)\n' "$path" "${OBSOLETE_REPLACEMENTS[$index]}"
-		else
-			printf 'No removal needed; already absent from HEAD: %s\n' "$path"
-		fi
-	done
-	printf 'Would add exact ignore entries for dist/, payload staging, and the four obsolete paths.\n'
-	printf 'Would report: git diff --cached --stat -- <manifest paths>\n'
+	if [[ "$NO_CLEAN" == true ]]; then
+		printf 'Cleanup is disabled by default; no source files will be removed or staged.\n'
+	else
+		for index in "${!OBSOLETE_PATHS[@]}"; do
+			path="${OBSOLETE_PATHS[$index]}"
+			if [[ -e "$path" ]]; then
+				printf 'Would git rm -- %s (%s)\n' "$path" "${OBSOLETE_REPLACEMENTS[$index]}"
+			else
+				printf 'No removal needed; already absent from HEAD: %s\n' "$path"
+			fi
+		done
+		printf 'Would add exact ignore entries for dist/, payload staging, and the four obsolete paths.\n'
+	fi
 	printf '%s dry-run complete; no files were fetched, written, or removed.\n' "$LOG_PREFIX"
 	exit 0
 fi
@@ -455,15 +516,44 @@ else
 		fi
 	done
 fi
-printf 'repo ZIP: %s | %s bytes | SHA-256 %s\n' "${REPO_ZIP#"$ROOT_DIR/"}" "$(stat -c '%s' "$REPO_ZIP")" "$(sha256sum "$REPO_ZIP" | awk '{print $1}')"
-printf 'payload archive: %s | %s bytes | SHA-256 %s\n' "${PAYLOAD_ARCHIVE#"$ROOT_DIR/"}" "$(stat -c '%s' "$PAYLOAD_ARCHIVE")" "$(sha256sum "$PAYLOAD_ARCHIVE" | awk '{print $1}')"
-printf 'payload manifest: %s\n' "${PAYLOAD_MANIFEST#"$ROOT_DIR/"}"
+zip_sha=$(sha256sum "$REPO_ZIP" | awk '{print $1}')
+printf 'single-transfer repository ZIP: %s | %s bytes | SHA-256 %s\n' "${REPO_ZIP#"$ROOT_DIR/"}" "$(stat -c '%s' "$REPO_ZIP")" "$zip_sha"
+printf 'embedded payload manifest: %s\n' "$ZIP_PAYLOAD_MANIFEST"
+if [[ -n "$MANUAL_BUNDLE_DIR" ]]; then printf 'optional standalone manual bundle: %s/manual-payload.tar.gz\n' "$MANUAL_BUNDLE_DIR"; fi
 printf 'removed files: %s | total bytes: %s\n' "$removed_count" "$removed_bytes"
 printf 'obsolete-manifest resolutions:\n'
 for index in "${!OBSOLETE_PATHS[@]}"; do
 	printf '%s | %s | %s bytes | %s\n' "${OBSOLETE_PATHS[$index]}" "${OBSOLETE_REPLACEMENTS[$index]}" "${OBSOLETE_SIZES[$index]}" "${OBSOLETE_REASONS[$index]}"
 done
-printf 'operator verification commands:\n  (cd %s && sha256sum -c %s)\n  (cd %s && sha256sum -c %s)\n' \
-	"${OUT_DIR#"$ROOT_DIR/"}" "$(basename "$REPO_ZIP").sha256" \
-	"${PAYLOAD_DIR#"$ROOT_DIR/"}" "$(basename "$PAYLOAD_ARCHIVE").sha256"
-printf 'receiving sequence: verify both archive checksums; extract the repository ZIP to the chosen repository directory; extract the payload archive with --strip-components=1 into /var/tmp/o11y-lab-vm-manual; verify both staged payload hashes against payload/payload-manifest.txt; from <repository>/learner-vm run sudo bash scripts/00-diagnose.sh; transcribe its complete REPORT block and wait for review before running scripts 10-80.\n'
+printf 'online ZIP sidecar check: (cd %s && sha256sum -c %s)\n' "${OUT_DIR#"$ROOT_DIR/"}" "$(basename "$REPO_ZIP_SHA")"
+printf 'receiving commands (transfer this ZIP only):\n'
+printf "ZIP_SHA256='%s'\n" "$zip_sha"
+cat <<'EOF'
+set -euo pipefail
+REPOSITORY_DIR="$HOME/o11y-lab"
+printf '%s  %s\n' "$ZIP_SHA256" o11y-lab-vm-repository.zip | sha256sum -c -
+mkdir -p "$REPOSITORY_DIR"
+unzip -q o11y-lab-vm-repository.zip -d "$REPOSITORY_DIR"
+cd "$REPOSITORY_DIR"
+verify_payload() {
+	local relative_path="$1" lock_key="$2" expected_status="$3" lock_line lock_sha manifest_row manifest_status manifest_sha actual
+	local manifest='learner-vm/content/vendor/payload/payload-manifest.txt'
+	lock_line="$(awk -v key="$lock_key" '$1 == key {print; exit}' versions.lock)"
+	lock_sha="$(awk '{for (i=1;i<=NF;i++) if ($i ~ /^sha256:/) {sub(/^sha256:/,"",$i); print $i; exit}}' <<< "$lock_line")"
+	manifest_row="$(awk -F '\t' -v path="$relative_path" '$1 == path {print; exit}' "$manifest")"
+	[[ -n "$lock_sha" && -n "$manifest_row" ]] || { printf 'Missing pin or manifest row: %s\n' "$relative_path" >&2; return 1; }
+	manifest_status="$(cut -f5 <<< "$manifest_row")"
+	if [[ "$manifest_status" == OPTIONAL_NOT_INCLUDED ]]; then printf 'SKIP optional payload: %s\n' "$relative_path"; return 0; fi
+	[[ "$manifest_status" == "$expected_status" ]] || { printf 'Manifest status mismatch: %s\n' "$relative_path" >&2; return 1; }
+	manifest_sha="$(cut -f4 <<< "$manifest_row")"
+	[[ "$manifest_sha" == "$lock_sha" ]] || { printf 'versions.lock/manifest mismatch: %s\n' "$relative_path" >&2; return 1; }
+	actual="$(sha256sum "$relative_path" | awk '{print $1}')"
+	[[ "$actual" == "$lock_sha" ]] || { printf 'Payload SHA-256 mismatch: %s\n' "$relative_path" >&2; return 1; }
+	printf 'PASS %s %s\n' "$relative_path" "$actual"
+}
+verify_payload learner-vm/content/vendor/payload/k3s/k3s learner-k3s-binary-amd64 REQUIRED
+verify_payload learner-vm/content/vendor/payload/k3s/k3s-airgap-images-amd64.tar.zst learner-k3s-airgap-images-amd64.tar.zst OPTIONAL_INCLUDED
+cd "$REPOSITORY_DIR/learner-vm"
+sudo bash scripts/00-diagnose.sh
+EOF
+printf 'Transcribe the complete REPORT block and wait for review before running scripts 10-80.\n'

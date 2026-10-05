@@ -1,41 +1,32 @@
 # Vendored Transfer Assets
 
-This directory keeps small, pinned installation inputs and checksums in the repository.
-Large release binaries and container-image archives are generated as a separate transfer payload by `scripts/dev/package-vm-transfer.sh` on the connected upstream machine.
-The `k3s/SHA256SUMS` file covers only the small files retained beside it.
+This directory keeps small, pinned installation inputs and checksums in ordinary Git history.
+The `k3s/SHA256SUMS` file covers the retained installer, image list, and SELinux RPM.
+The large k3s binary and optional airgap image tarball remain out of ordinary Git history.
 
-The repository ZIP and payload archive are transferred separately to the learner VM.
-Transfer the payload manifest and each archive's `.sha256` sidecar as well.
-Verify both archives before extraction:
+## One-ZIP Transfer
 
-```bash
-sha256sum -c o11y-lab-vm-repository.zip.sha256
-(cd payload && sha256sum -c o11y-lab-vm-payload.tar.gz.sha256)
-```
+On the connected machine, `scripts/dev/package-vm-transfer.sh` builds a ZIP from the current worktree and embeds the verified payload under `learner-vm/content/vendor/payload/`.
+The default package includes both the required k3s binary and the optional airgap tarball fallback.
+The `--no-airgap-tarball` option omits that fallback and records `OPTIONAL_NOT_INCLUDED` in the embedded manifest.
+Transfer only `o11y-lab-vm-repository.zip` to the learner VM.
+A standalone payload archive and separate payload checksum sidecar are not required; any ZIP sidecar is for online record-keeping only.
 
-Extract the repository ZIP to the operator's chosen workspace and the payload archive to `/var/tmp/o11y-lab-vm-transfer/`.
-The archive contains `payload/k3s/k3s`, which the operator hash-checks against `payload/payload-manifest.txt` and installs as `/usr/local/bin/k3s` with mode `0700` and root ownership.
-The required payload contains the pinned k3s executable; the airgap image tarball is included only when the online packager receives `--include-k3s-airgap-tarball`.
-If included, verify its manifest hash and place it in `/var/lib/rancher/k3s/agent/images/` before the first k3s start as the optional system-image fallback.
-Use these commands after extracting the payload archive and checking the file hashes:
+The embedded `learner-vm/content/vendor/payload/payload-manifest.txt` is tab-separated and records each payload path, version, source URL, pinned SHA-256, and inclusion status.
+After extraction, verify each included file against both this manifest and its `versions.lock` record before running `sudo bash scripts/00-diagnose.sh` from the extracted `learner-vm/` directory.
+The exact receiving commands and diagnostic-only gate are in [learner-vm/README-FIRST.md](../../learner-vm/README-FIRST.md).
 
-```bash
-sudo install -o root -g root -m 0700 /var/tmp/o11y-lab-vm-transfer/payload/k3s/k3s /usr/local/bin/k3s
-sudo install -D -o root -g root -m 0600 /var/tmp/o11y-lab-vm-transfer/payload/k3s/k3s-airgap-images-amd64.tar.zst /var/lib/rancher/k3s/agent/images/k3s-airgap-images-amd64.tar.zst
-```
+## Manual Recovery
 
-Run the second command only when the optional tarball was packaged.
-Detailed transfer commands and provisioning order are in [learner-vm/README-FIRST.md](../../learner-vm/README-FIRST.md).
-The complete human-readable artifact table and fallback image guidance are in [MANUAL-FETCH.md](MANUAL-FETCH.md); `manual-fetch.json` is its generated machine-readable companion.
-On the learner VM, manual artifacts are staged under `MANUAL_FETCH_DIR` from `learner-vm/lab-vm.conf`.
-The intended provisioning contract is to check and verify staged files before attempting Artifactory or official-source network access, then name the exact MANUAL-FETCH section and staging path in a fatal fix hint if both routes fail.
+If the ZIP is damaged or the required binary is absent or checksum-invalid, fetch the pinned binary on a connected machine and verify it against `versions.lock`.
+Transfer a verified recovery copy to `$MANUAL_FETCH_DIR/k3s/k3s`, where `MANUAL_FETCH_DIR` defaults to `/var/tmp/o11y-lab-vm-manual`.
+The optional tarball fallback path is `$MANUAL_FETCH_DIR/k3s/k3s-airgap-images-amd64.tar.zst`.
+Scripts 00 and 45 prefer the payload embedded in the repository ZIP and consult these manual paths only when the corresponding embedded file is absent.
+See [MANUAL-FETCH.md](MANUAL-FETCH.md) for pinned URLs, hashes, and recovery steps.
 
-During provisioning, k3s obtains its system images from the configured Artifactory registry mirror while the registry is reachable.
-The k3s `registries.yaml` mirror applies to containerd CRI pulls, including kubelet pulls and `k3s crictl pull`; `k3s ctr` is not the pull path for testing mirrors.
-The online registry probe returned HTTP 000 because the connected host could not resolve the configured registry hostname, so mirror access remains unverified until tested on the learner network.
+Artifactory-based k3s pulls have not been verified on the learner network.
+If the optional tarball is omitted or absent, provisioning uses the configured Artifactory CRI pull path and records its actual result; do not infer success from the connected-host probe.
+The k3s mirror-aware pull path is `k3s crictl pull`, not `k3s ctr images pull`.
 
 The Podman and k3s containerd image stores are separate.
 Workshop images must be provisioned into both stores as needed and verified before hand-off; attendees must not need Artifactory or any other network service at runtime.
-
-The removed files are listed in `scripts/dev/obsolete-artifacts.txt`.
-To recover an upstream source file after cleanup, restore it from the freeze tag, for example `git checkout workshop-lvm-prep-v2 -- content/vendor/k3s/k3s`.

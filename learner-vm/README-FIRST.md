@@ -4,38 +4,69 @@ This guide describes the connected-upstream packaging and RHEL 8.6 learner-VM ha
 The VM is prepared while Artifactory is reachable, then handed to attendees with its required images already present.
 No container image or other dependency may be pulled from a network service during attendee runtime.
 
-## Transfer Files
+## One-File Transfer
 
-The online packager creates a repository ZIP and a separate payload archive under `payload/`.
-Transfer both archives, both `.sha256` sidecars, and `payload/payload-manifest.txt` to the VM using the approved file-transfer method.
+On the connected upstream machine, create one self-contained ZIP from the current worktree.
+The default includes the required k3s binary and the optional airgap image tarball as a fallback.
+
+```bash
+cd /path/to/observability-workshop-airgapped
+bash scripts/dev/package-vm-transfer.sh --out dist/o11y-lab-vm-transfer-single
+```
+
+The packager prints the ZIP size and SHA-256 and also writes an online-record sidecar.
+Transfer only `o11y-lab-vm-repository.zip` to the learner VM; the sidecar and a separate payload archive are not needed.
 Git, Git LFS, and access to an online Git service are not required on the VM.
 
-From the directory containing the transferred files, verify the archives before extracting them:
+On the learner VM, substitute the SHA-256 printed by the packager and choose the repository directory.
 
 ```bash
-sha256sum -c o11y-lab-vm-repository.zip.sha256
-(cd payload && sha256sum -c o11y-lab-vm-payload.tar.gz.sha256)
+ZIP_SHA256='<SHA-256 printed by the packager>'
+ZIP_NAME='o11y-lab-vm-repository.zip'
+REPOSITORY_DIR="$HOME/o11y-lab"
+printf '%s  %s\n' "$ZIP_SHA256" "$ZIP_NAME" | sha256sum -c -
+mkdir -p "$REPOSITORY_DIR"
+unzip -q "$ZIP_NAME" -d "$REPOSITORY_DIR"
+cd "$REPOSITORY_DIR"
 ```
 
-Extract the repository and payload to their expected locations:
+Verify the embedded payload manifest against both `versions.lock` and the extracted payload bytes before running the diagnostic.
 
 ```bash
-mkdir -p "$HOME/o11y-lab"
-unzip -q o11y-lab-vm-repository.zip -d "$HOME/o11y-lab"
-sudo install -d -m 0700 /var/tmp/o11y-lab-vm-manual
-sudo tar -xzf payload/o11y-lab-vm-payload.tar.gz --strip-components=1 -C /var/tmp/o11y-lab-vm-manual
+set -euo pipefail
+manifest='learner-vm/content/vendor/payload/payload-manifest.txt'
+verify_payload() {
+  local relative_path="$1" lock_key="$2" expected_status="$3" lock_line lock_sha row status manifest_sha actual
+  lock_line="$(awk -v key="$lock_key" '$1 == key {print; exit}' versions.lock)"
+  lock_sha="$(awk '{for (i=1;i<=NF;i++) if ($i ~ /^sha256:/) {sub(/^sha256:/,"",$i); print $i; exit}}' <<< "$lock_line")"
+  row="$(awk -F '\t' -v path="$relative_path" '$1 == path {print; exit}' "$manifest")"
+  [[ -n "$lock_sha" && -n "$row" ]]
+  status="$(cut -f5 <<< "$row")"
+  if [[ "$status" == OPTIONAL_NOT_INCLUDED ]]; then printf 'SKIP optional payload: %s\n' "$relative_path"; return 0; fi
+  [[ "$status" == "$expected_status" ]]
+  manifest_sha="$(cut -f4 <<< "$row")"
+  [[ "$manifest_sha" == "$lock_sha" ]]
+  actual="$(sha256sum "$relative_path" | awk '{print $1}')"
+  [[ "$actual" == "$lock_sha" ]]
+  printf 'PASS %s %s\n' "$relative_path" "$actual"
+}
+verify_payload learner-vm/content/vendor/payload/k3s/k3s learner-k3s-binary-amd64 REQUIRED
+verify_payload learner-vm/content/vendor/payload/k3s/k3s-airgap-images-amd64.tar.zst learner-k3s-airgap-images-amd64.tar.zst OPTIONAL_INCLUDED
 ```
 
-The payload staging directory is `$MANUAL_FETCH_DIR`, set to `/var/tmp/o11y-lab-vm-manual` in `learner-vm/lab-vm.conf`. Keep the payload archive's directory structure intact: script 10 checks the required k3s binary against `versions.lock`, and script 45 verifies the authoritative manual-fetch catalog before installing it with root ownership and mode `0755`.
+The extracted k3s payload is under `learner-vm/content/vendor/payload/k3s/` and requires no manual copy.
+The optional tarball is included by default because Artifactory-based k3s pulls have not been verified on the learner network.
+To build a smaller ZIP, the connected operator may use `--no-airgap-tarball`; the manifest then records `OPTIONAL_NOT_INCLUDED`.
 
 ## Manual Fetch Recovery
 
-See [content/vendor/MANUAL-FETCH.md](../content/vendor/MANUAL-FETCH.md) when a network-dependent fetch fails: first look at the artifact's `$MANUAL_FETCH_DIR` staging path, verify and use it if present, otherwise try its documented network source, and if that fails stop with FATAL and use the exact staging path named in the fix hint; for example, if script 45 reports a missing k3s binary, fetch the pinned URL from Section B on a connected machine, verify its SHA-256, transfer it to `$MANUAL_FETCH_DIR/k3s/k3s`, then rerun script 45.
+See [content/vendor/MANUAL-FETCH.md](../content/vendor/MANUAL-FETCH.md) if the single ZIP is damaged or an embedded payload path is absent.
+For k3s recovery, fetch the pinned URL on a connected machine, verify its SHA-256, and transfer it to `$MANUAL_FETCH_DIR/k3s/k3s` or `$MANUAL_FETCH_DIR/k3s/k3s-airgap-images-amd64.tar.zst` as appropriate.
+Scripts 00 and 45 prefer the embedded ZIP paths and consult these manual staging paths only when the corresponding embedded file is absent.
+A present-but-invalid embedded file is reported as a checksum failure; stop and repair or re-extract the ZIP rather than bypassing it with a fallback copy.
 
-The optional airgap tarball is included only when the connected operator used `--include-k3s-airgap-tarball`. If present at its catalog path, script 45 verifies its hash and copies it into k3s's agent image directory before the first service start. If absent, script 45 reports that bootstrap will use Artifactory CRI pulls; their success is not assumed.
-
-The airgap tarball is a recovery option if Artifactory-based bootstrap proves unreliable.
-K3s imports images found in its agent image directory during bootstrap, avoiding registry pulls for those system images.
+The airgap tarball is an optional bootstrap fallback if Artifactory-based provisioning is unreliable.
+When absent from both paths, k3s uses Artifactory CRI pulls; their success is not assumed.
 
 ## Provisioning Design
 
