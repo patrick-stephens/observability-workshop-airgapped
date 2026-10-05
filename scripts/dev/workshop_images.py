@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 import json
-import shlex
-import subprocess
 from pathlib import Path
 
 try:
@@ -132,55 +130,6 @@ def discover_images():
     return _make_entries(podman_references, k3s_references, local_tags)
 
 
-def discover_store_images():
-    external = read_external_images()
-    local_tags = read_local_build_tags()
-    curated = _curated_sources()
-    manifest_references = _manifest_store_references(curated)
-    podman_references = set(external) | manifest_references["podman"]
-    return {
-        "podman": sorted({canonical_reference(ref, local_tags) for ref in podman_references}),
-        "k3s": sorted({canonical_reference(ref, local_tags) for ref in manifest_references["k3s"]}),
-    }
-
-
-def store_entries(store):
-    local_tags = read_local_build_tags()
-    entries = []
-    for reference in discover_store_images()[store]:
-        local_reference = reference.removeprefix("localhost/")
-        local = reference.startswith("localhost/") or local_reference in local_tags or reference in local_tags
-        entries.append({
-            "name": reference,
-            "source": "in-repo" if local else f"docker://{reference}",
-            "build_context_available": local_build_command(reference) is not None if local else False,
-        })
-    return entries
-
-
-def local_build_command(reference):
-    target = reference.removeprefix("localhost/")
-    commands = json.loads((ROOT / "content/extracted/commands.json").read_text(encoding="utf-8"))
-    for track, track_data in commands.items():
-        for lab in track_data.get("labs", []):
-            for command in lab.get("commands", []):
-                if command.get("type") != "build" or command.get("tag") != target:
-                    continue
-                build_step = next((step for step in command.get("preload_steps", []) if step.startswith("docker build ")), None)
-                if build_step:
-                    return track, shlex.split(build_step)
-    return None
-
-
-def build_local_image(reference):
-    result = local_build_command(reference)
-    if result is None:
-        raise SystemExit(f"no captured preloadable build command exists for in-repository image {reference}")
-    track, arguments = result
-    print(f"building {reference} from the vendored {track} context", flush=True)
-    subprocess.run(arguments, cwd=ROOT / "content/repos" / track, check=True)
-
-
 def print_image_list(entries):
     print("image | expected size | stores | source")
     for entry in entries:
@@ -193,16 +142,9 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--list", action="store_true")
-    parser.add_argument("--store", choices=("podman", "k3s"))
-    parser.add_argument("--build-local")
     options = parser.parse_args()
-    if options.build_local:
-        build_local_image(options.build_local)
-    elif options.list:
+    if options.list:
         print_image_list(discover_images())
-    elif options.store:
-        for entry in store_entries(options.store):
-            print(json.dumps(entry, sort_keys=True))
     else:
         for entry in discover_images():
             print(json.dumps(entry, sort_keys=True))

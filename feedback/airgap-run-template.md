@@ -7,11 +7,9 @@
 - Operator:
 <!-- VM identifier and installed RHEL release. -->
 - VM / RHEL version:
-<!-- SHA-256 printed by the connected-machine packager for the one ZIP. -->
-- Package ZIP SHA-256:
-<!-- ZIP file size in bytes, as printed by the packager or file listing. -->
-- Package ZIP size:
-<!-- Approved mechanism used to transfer the ZIP to the VM. -->
+<!-- Commit SHA or repository revision checked out on the learner VM. -->
+- Repository revision:
+<!-- Approved mechanism used to bring the repository onto the network. -->
 - Transfer method:
 <!-- List any lab-vm.conf values changed from packaged defaults. -->
 - lab-vm.conf deviations from defaults:

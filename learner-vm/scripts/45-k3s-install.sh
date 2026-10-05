@@ -2,8 +2,8 @@
 set -euo pipefail
 
 SCRIPT_NAME="45-k3s-install"
-# CHANGE: Fetch the pinned k3s binary from K3S_BINARY_URL when no same-VM staged copy exists; Artifactory supplies images.
-SCRIPT_VERSION="4"
+# CHANGE: Prefer and validate same-VM recovery staging before an installed binary or bounded Artifactory fetch.
+SCRIPT_VERSION="5"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRY_RUN=false
 UNKNOWN_ARGUMENTS=()
@@ -100,20 +100,20 @@ if [[ "$DRY_RUN" == true ]]; then
 	K3S_PAYLOAD_SOURCE='not selected during dry-run'
 	K3S_VALID=false
 else
-	if [[ -x "$K3S" ]] && [[ "$(sha256sum "$K3S" 2>/dev/null | awk '{print $1}')" == "$K3S_SHA" ]]; then
-		K3S_VALID=true
-		K3S_PAYLOAD="$K3S"
-		K3S_PAYLOAD_SOURCE='already-installed pinned binary'
-		step_ok "existing k3s binary already matches the versions.lock SHA-256"
-	elif [[ -e "$K3S_MANUAL_PAYLOAD" || -L "$K3S_MANUAL_PAYLOAD" ]]; then
+	if [[ -e "$K3S_MANUAL_PAYLOAD" || -L "$K3S_MANUAL_PAYLOAD" ]]; then
 		K3S_PAYLOAD="$K3S_MANUAL_PAYLOAD"
 		K3S_PAYLOAD_SOURCE='MANUAL_FETCH_DIR fallback'
 		if actual="$(sha256sum "$K3S_PAYLOAD" 2>/dev/null | awk '{print $1}')" && [[ "$actual" == "$K3S_SHA" ]]; then
 			K3S_VALID=true
 			step_ok "same-VM staged k3s binary is checksum-valid: $K3S_PAYLOAD"
 		else
-			step_fail "same-VM staged k3s binary checksum mismatch: expected $K3S_SHA, actual ${actual:-unavailable}" "Replace $K3S_MANUAL_PAYLOAD with a binary downloaded from configured K3S_BINARY_URL and verified against versions.lock." "sha256sum $(printf %q "$K3S_MANUAL_PAYLOAD")" "grep '^learner-k3s-binary-amd64 ' $(printf %q "$REPO_ROOT/versions.lock")"
+			step_fail "same-VM staged k3s binary checksum mismatch: K3S_BINARY_URL=${K3S_BINARY_URL_SAFE}; expected SHA-256 $K3S_SHA, actual ${actual:-unavailable}" "Follow MANUAL-FETCH.md Section B to correct K3S_BINARY_URL or replace the staged file, then verify against versions.lock." "sha256sum $(printf %q "$K3S_MANUAL_PAYLOAD")" "grep '^learner-k3s-binary-amd64 ' $(printf %q "$REPO_ROOT/versions.lock")"
 		fi
+	elif [[ -x "$K3S" ]] && [[ "$(sha256sum "$K3S" 2>/dev/null | awk '{print $1}')" == "$K3S_SHA" ]]; then
+		K3S_VALID=true
+		K3S_PAYLOAD="$K3S"
+		K3S_PAYLOAD_SOURCE='already-installed pinned binary'
+		step_ok "existing k3s binary already matches the versions.lock SHA-256"
 	elif [[ -z "${K3S_BINARY_URL:-}" ]]; then
 		step_fail "K3S_BINARY_URL is unset and no same-VM staged k3s binary exists" "Obtain the exact Artifactory generic-file URL from the administrator and set K3S_BINARY_URL, or download the pinned binary on this VM to $K3S_MANUAL_PAYLOAD." "awk -F= '/^K3S_BINARY_URL=/ {print \"K3S_BINARY_URL is configured (value redacted)\"; found=1} END {if (!found) print \"K3S_BINARY_URL is unset\"}' $(printf '%q' "$CONFIG_FILE")" "ls -ld $(printf '%q' "$MANUAL_FETCH_DIR/k3s")" "grep '^learner-k3s-binary-amd64 ' $(printf '%q' "$REPO_ROOT/versions.lock")"
 	else
@@ -137,8 +137,10 @@ else
 				if curl --fail --silent --show-error --connect-timeout 15 --max-time 900 --output "$download_tmp" --write-out '%{http_code}' "$K3S_BINARY_URL" >"$status_file" 2>"$fetch_log"; then :; else fetch_exit=$?; fi
 				fetch_http="$(cat "$status_file" 2>/dev/null || printf '000')"
 				if ((fetch_exit != 0)) || [[ "$fetch_http" != 200 ]]; then
+					fetch_actual='unavailable'
+					if [[ -s "$download_tmp" ]]; then fetch_actual="$(sha256sum "$download_tmp" | awk '{print $1}')"; fi
 					K3S_ERROR_SUMMARY="$(sed -E 's#https?://[^[:space:]]+#<URL>#g' "$fetch_log" | tail -n 4 | tr '\n' '; ')"
-					step_fail "k3s binary fetch failed from $K3S_BINARY_URL_SAFE (curl exit $fetch_exit, HTTP ${fetch_http:-000}): ${K3S_ERROR_SUMMARY:-no curl error text}" "Set K3S_BINARY_URL to the exact Artifactory generic-file URL from the administrator, or download the pinned binary on this VM to $K3S_MANUAL_PAYLOAD." "getent hosts $(printf %q "$K3S_BINARY_HOST")" "curl -vI --connect-timeout 5 --max-time 15 $(printf %q "$K3S_BINARY_URL_SAFE") 2>&1 | tail -n 12" "printf '' | openssl s_client -connect $(printf %q "$K3S_BINARY_CONNECT") -servername $(printf %q "$K3S_BINARY_HOST") 2>&1 | tail -n 12" "cat $(printf %q "$REGISTRIES_FILE")" "journalctl -u k3s -b --no-pager | tail -n 15"
+					step_fail "k3s binary fetch failed from $K3S_BINARY_URL_SAFE (curl exit $fetch_exit, HTTP ${fetch_http:-000}): ${K3S_ERROR_SUMMARY:-no curl error text}; expected SHA-256 $K3S_SHA, actual ${fetch_actual}" "Set K3S_BINARY_URL to the administrator-supplied Artifactory generic-file URL and follow MANUAL-FETCH.md Section B for same-VM recovery." "getent hosts $(printf %q "$K3S_BINARY_HOST")" "curl -vI --connect-timeout 5 --max-time 10 $(printf %q "$K3S_BINARY_URL_SAFE") 2>&1 | tail -n 12" "printf '' | openssl s_client -connect $(printf %q "$K3S_BINARY_CONNECT") -servername $(printf %q "$K3S_BINARY_HOST") 2>&1 | tail -n 12" "cat $(printf %q "$REGISTRIES_FILE")" "journalctl -u k3s -b --no-pager | tail -n 15"
 				else
 					actual="$(sha256sum "$download_tmp" | awk '{print $1}')"
 					if [[ "$actual" == "$K3S_SHA" ]]; then
@@ -147,7 +149,7 @@ else
 						K3S_PAYLOAD_SOURCE='K3S_BINARY_URL'
 						step_ok "downloaded k3s binary from the configured Artifactory endpoint and verified SHA-256 $actual (HTTP $fetch_http)"
 					else
-						step_fail "downloaded k3s binary SHA-256 mismatch from $K3S_BINARY_URL_SAFE (HTTP $fetch_http): expected $K3S_SHA, actual $actual" "Do not install this file. Correct K3S_BINARY_URL or download the pinned binary to $K3S_MANUAL_PAYLOAD after verifying its versions.lock hash." "sha256sum $(printf %q "$download_tmp")" "grep '^learner-k3s-binary-amd64 ' $(printf %q "$REPO_ROOT/versions.lock")" "getent hosts $(printf %q "$K3S_BINARY_HOST")" "printf '' | openssl s_client -connect $(printf %q "$K3S_BINARY_CONNECT") -servername $(printf %q "$K3S_BINARY_HOST") 2>&1 | tail -n 12"
+						step_fail "downloaded k3s binary SHA-256 mismatch from $K3S_BINARY_URL_SAFE (HTTP $fetch_http): expected $K3S_SHA, actual $actual" "Do not install this file. Correct K3S_BINARY_URL and follow MANUAL-FETCH.md Section B for same-VM recovery." "sha256sum $(printf %q "$download_tmp")" "grep '^learner-k3s-binary-amd64 ' $(printf %q "$REPO_ROOT/versions.lock")" "getent hosts $(printf %q "$K3S_BINARY_HOST")" "printf '' | openssl s_client -connect $(printf %q "$K3S_BINARY_CONNECT") -servername $(printf %q "$K3S_BINARY_HOST") 2>&1 | tail -n 12"
 					fi
 				fi
 			fi

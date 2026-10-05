@@ -39,8 +39,6 @@ def k3s_evidence():
         if artifact == "learner-k3s-binary-amd64":
             status = "runtime download from administrator-supplied K3S_BINARY_URL; checksum pin recorded only in versions.lock"
             artifact_rows.append(f"k3s binary | {version_or_url} | versions.lock only | {status}")
-        elif artifact == "learner-k3s-airgap-images-amd64.tar.zst":
-            artifact_rows.append("k3s airgap image archive | n/a | n/a | not transferred or required; images use Artifactory CRI pulls")
         elif "REQUIRED" in remainder:
             digest = "n/a" if artifact == "learner-k3s-binary-amd64" else remainder.split(" ", 1)[0]
             status = "required small support file retained in Git"
@@ -102,8 +100,6 @@ def lock_delta():
     for line in read_lines("versions.lock"):
         if line.startswith("learner-k3s-binary-amd64 "):
             result.append("learner-k3s-binary-amd64 | checksum authority: versions.lock | runtime source: administrator-supplied K3S_BINARY_URL")
-        elif line.startswith("learner-k3s-airgap-images-amd64.tar.zst "):
-            result.append("learner-k3s-airgap-images-amd64.tar.zst | not transferred or used; k3s images use Artifactory CRI pulls")
         elif line.startswith("learner-k3s") or line.startswith("runtime-download.") or line.startswith("workshop.reveal.js-menu "):
             result.append(line)
     return result

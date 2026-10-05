@@ -2,8 +2,8 @@
 set -euo pipefail
 
 SCRIPT_NAME="10-preflight"
-# CHANGE: Check the same-VM k3s fallback or configured Artifactory URL and remove all airgap tarball checks.
-SCRIPT_VERSION="4"
+# CHANGE: Fail with the exact operator action when no staged or installed k3s binary and URL are available.
+SCRIPT_VERSION="5"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRY_RUN=false
 UNKNOWN_ARGUMENTS=()
@@ -119,7 +119,7 @@ elif [[ -x /usr/local/bin/k3s ]] && [[ "$(sha256sum /usr/local/bin/k3s 2>/dev/nu
 elif [[ -n "${K3S_BINARY_URL:-}" ]]; then
 	step_ok "K3S_BINARY_URL is configured for script 45; 00-diagnose checks its bounded TLS response"
 else
-	step_fail "k3s cannot be fetched because K3S_BINARY_URL is unset and no same-VM staged binary exists" "Obtain the exact Artifactory generic-file URL from the administrator and set K3S_BINARY_URL, or download the pinned binary on this VM to $k3s_payload." "awk -F= '/^K3S_BINARY_URL=/ {print \"K3S_BINARY_URL is configured (value redacted)\"; found=1} END {if (!found) print \"K3S_BINARY_URL is unset\"}' $(printf '%q' "$CONFIG_FILE")" "ls -ld $(printf '%q' "$MANUAL_FETCH_DIR/k3s")" "grep '^learner-k3s-binary-amd64 ' $(printf '%q' "$REPO_ROOT/versions.lock")"
+	step_fail "k3s cannot be fetched because K3S_BINARY_URL is unset and no staged or installed pinned binary exists" "Set K3S_BINARY_URL in lab-vm.conf to the Artifactory generic-file URL for the pinned k3s binary; ask your Artifactory administrator." "grep '^K3S_BINARY_URL=' $(printf '%q' "$CONFIG_FILE")" "ls -ld $(printf '%q' "$MANUAL_FETCH_DIR/k3s")" "grep '^learner-k3s-binary-amd64 ' $(printf '%q' "$REPO_ROOT/versions.lock")"
 fi
 
 required_files=(

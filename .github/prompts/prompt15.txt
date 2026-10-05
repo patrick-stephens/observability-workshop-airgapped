@@ -1,0 +1,244 @@
+Context
+-------
+Read .github/copilot-instructions.md and check feedback/
+airgap-run-*.md (none expected yet).
+
+The transferable unit is the git repository. Nothing else. No custom
+ZIPs, no payload archives, no sidecar files. This is a hard
+constraint. Every provisioning script must either use files already
+in the repository tree or fetch what it needs from Artifactory at
+runtime.
+
+Consequences:
+- The k3s binary is fetched from a configurable Artifactory
+  generic-file URL at provisioning time.
+- The k3s airgap image tarball is dropped entirely — k3s pulls system
+  images from Artifactory via /etc/rancher/k3s/registries.yaml.
+- The container image tooling that produced separate fallback bundles
+  in dist/ is retired from the workflow.
+- The repository itself carries the small vendored files (workshop
+  repos, docs mirrors, runtime-download archives, k3s install.sh,
+  k3s-selinux RPM, app_pod.yaml, reveal.js-menu). These stay.
+- MANUAL-FETCH.md becomes a runtime-recovery reference: how the
+  operator handles a fetch failure on the VM, not what to stage
+  before a transfer.
+
+This task runs on the connected upstream machine only. Do not access
+the learner VM or run provisioning against it.
+
+Objective
+---------
+Align the repository with the repo-only transfer workflow. Retire the
+packager. Drop the airgap tarball. Make every runtime fetch
+recoverable on the VM without any second transfer.
+
+Task 1 — set the k3s binary URL in lab-vm.conf
+----------------------------------------------
+Add:
+
+  K3S_BINARY_URL=""
+  # Set on the learner VM before running script 45.
+  # Artifactory generic-file URL for the pinned k3s binary (v1.37.1+k3s1).
+  # Obtain the exact URL from the Artifactory administrator.
+  # The pinned SHA-256 lives in versions.lock; do not duplicate it here.
+
+Leave it empty in the committed file — it is set on the VM, not in
+source. 10-preflight fails with a clear fix-hint if script 45 would
+be reached with K3S_BINARY_URL still unset.
+
+Keep unchanged:
+  WORKSHOP_USER="engineer"
+  PASSWORDLESS_SUDO="yes"
+  DOCS_PORT="8090"
+  MANUAL_FETCH_DIR="/var/tmp/o11y-lab-vm-manual"
+  DOCKER_REGISTRY="${ART_HOST}/artifactory/docker-registry"
+
+Do not add Docker CE, Docker daemon, Compose, or /etc/docker config.
+
+Task 2 — retire the packager
+----------------------------
+Read scripts/dev/package-vm-transfer.sh.
+
+Remove it from the workflow. Two acceptable outcomes:
+
+  (a) Delete the script and any adjacent packaging helpers.
+  (b) Keep it but move it under scripts/dev/retired/ with a short
+      header comment stating it is not part of the transfer workflow
+      and is retained only for historical reference.
+
+Prefer (a) unless the operator has a reason to keep it. Also delete
+scripts/dev/make-image-bundles.sh unless the operator wants it
+retained as a retired tool for the same reason.
+
+Remove any commands in README-FIRST.md, MANUAL-FETCH.md, or the
+consistency docs that invoke the packager.
+
+The dist/ directory is gitignored. Do not delete its contents; leave
+it as a local artifact.
+
+Task 3 — update scripts/00-diagnose.sh
+--------------------------------------
+Read the current script, bump SCRIPT_VERSION, add a CHANGE comment.
+
+Change the k3s binary check:
+
+- Do not look for a binary inside the repository tree.
+- If $MANUAL_FETCH_DIR/k3s/k3s exists, verify its SHA-256 against
+  versions.lock and report it as a manually staged binary.
+- Otherwise, if K3S_BINARY_URL is set, HEAD-probe the URL using the
+  OS trust store and a bounded timeout (10s). Report the HTTP status
+  and Content-Length if returned; do not download the body.
+- If K3S_BINARY_URL is empty, report step_fail with fix-hint: "set
+  K3S_BINARY_URL in lab-vm.conf to the Artifactory generic-file URL
+  for the pinned k3s binary — ask your Artifactory administrator".
+- Do not probe GitHub.
+- Do not check for or mention the k3s airgap image tarball.
+- Preserve the read-only behavior, report-block protocol, --selftest,
+  and the existing content and CA checks.
+
+Task 4 — update scripts/45-k3s-install.sh
+----------------------------------------
+Read the current script, bump SCRIPT_VERSION, add a CHANGE comment.
+
+Fetch and install the k3s binary with this precedence:
+
+1. If $MANUAL_FETCH_DIR/k3s/k3s exists, use it after verifying
+   SHA-256 against versions.lock.
+2. Otherwise, require K3S_BINARY_URL to be non-empty. Download to a
+   temporary file with TLS validation and a bounded timeout; verify
+   SHA-256 before installing. On mismatch or fetch failure: do not
+   install; report URL (no credentials), HTTP/error details, expected
+   and actual SHA, and fix-hint pointing at K3S_BINARY_URL and
+   MANUAL-FETCH.md Section B.
+
+Do not fetch the k3s binary from GitHub on the learner VM.
+
+Remove all references to the airgap images tarball. Do not check for
+it, do not copy it, do not mention it in comments or diagnostics.
+
+Configure k3s registries.yaml (mirrors + CA) before the first start
+so system images come from Artifactory. Verify a healthy k3s boot
+with system pods Ready and system images present in the k3s store.
+Do not claim Artifactory-based k3s pulls have been tested on the
+learner network.
+
+On bootstrap failure include: K3S_BINARY_URL (redacted of any
+credentials), DNS and TLS diagnostics, k3s journal, registries.yaml
+content, and failed image references.
+
+Task 5 — update scripts/62-k3s-images.sh
+----------------------------------------
+Use `k3s crictl pull <original-reference>` for external Kubernetes
+images (CRI is mirror-aware). Use `podman save` + `k3s ctr -n k8s.io
+images import` only for locally built Podman images.
+
+Remove any reference to a pre-staged image bundle as a required
+input. If an optional local bundle path still exists, keep it only
+as an informational fallback and do not require it. On failure,
+print reference, endpoint, k3s version, `k3s crictl images`, and
+journal excerpts.
+
+Task 6 — rewrite MANUAL-FETCH.md and manual-fetch.json
+-----------------------------------------------------
+Reframe from "what to stage before transfer" to "what the VM fetches
+at runtime and how to recover on-failure."
+
+New structure:
+
+Section A — In repository (already present)
+  Every small vendored file that travels with the repo: workshop
+  repos, docs mirrors, runtime-download archives, k3s install.sh,
+  k3s-selinux RPM, vendored app_pod.yaml, reveal.js-menu, CA on the
+  base image. Purpose: state explicitly that nothing here needs
+  action.
+
+Section B — Fetched at provisioning time on the VM
+  The k3s binary. Runtime source: K3S_BINARY_URL (Artifactory
+  generic-file URL). Fallback if the fetch fails: download the
+  pinned file on the VM from the same Artifactory URL (or from any
+  machine that can reach the same source), place it at
+  $MANUAL_FETCH_DIR/k3s/k3s, verify SHA-256 against versions.lock,
+  rerun script 45. Document the exact commands to do this on the VM.
+
+Section C — Container images, fetched at provisioning time
+  Pulled from $DOCKER_REGISTRY by scripts 60 and 62. Fallback: if
+  Artifactory is unreachable, contact the Artifactory administrator
+  — do not attempt a public-internet fallback. If a specific image
+  is not available via the mirror, list the reference, endpoint, and
+  the diagnostics to capture before escalating.
+
+Drop every reference to: payload archives, single ZIPs, sidecars,
+airgap image tarballs, image bundle generation, or transferring
+anything beyond the repository.
+
+Regenerate manual-fetch.json to match. Entries now describe runtime
+fetches and their recovery, not pre-transfer staging.
+
+Task 7 — rewrite README-FIRST.md
+--------------------------------
+The primary workflow is:
+
+1. Commit and push repo changes on the connected machine.
+2. Bring the repo onto the airgapped network (however that is done:
+   internal mirror, approved file transfer of the repository, etc.).
+3. On the learner VM, clone or copy the repo to a working directory.
+4. Edit learner-vm/lab-vm.conf and set K3S_BINARY_URL to the
+   Artifactory generic-file URL for the pinned k3s binary.
+5. From learner-vm/, run `sudo bash scripts/00-diagnose.sh`.
+6. Transcribe the complete REPORT block into
+   feedback/airgap-run-001.md and wait for review.
+7. After review, run scripts 10 through 80 in numeric order,
+   transcribing each report block.
+8. When 80-verify-offline passes both parts, shut down cleanly and
+   snapshot the VM.
+
+State plainly: nothing besides the repository is transferred; all
+runtime dependencies come from Artifactory; the operator sets one
+variable on the VM before provisioning.
+
+Remove the packager, payload archive, checksum sidecar, airgap
+tarball, and image bundle sections.
+
+Task 8 — consistency audit
+--------------------------
+Grep the whole repository (excluding .git/ and dist/) for stale
+references and update them:
+
+  "payload archive", "o11y-lab-vm-payload", "payload-manifest",
+  "MANUAL-FETCH-payload", "single ZIP", "single-ZIP",
+  "package-vm-transfer", "make-image-bundles",
+  "k3s-airgap-images", "airgap tarball", "content/vendor/payload",
+  "content/vendor/k3s/k3s" (as a required in-repo path),
+  "docker-compose-v2", "content/bin"
+
+Expected outcomes:
+- superseded by the repo-only model: rewrite;
+- historical prompt files under .github/prompts/ or similar: leave
+  unchanged unless they are operator-facing;
+- obscura under feedback/: leave unchanged (historical record).
+
+Validation — connected machine only
+-----------------------------------
+Run:
+- bash -n and ShellCheck on all changed scripts;
+- pre-commit run --all-files;
+- scripts/00-diagnose.sh --selftest;
+- grep audit above, and report which matches remain and why.
+
+Do not run provisioning scripts against the learner VM. Do not claim
+Artifactory reachability, k3s installation, image pulls, or offline
+operation have been verified there.
+
+Acceptance
+----------
+1. Paste the updated lab-vm.conf in full.
+2. Paste MANUAL-FETCH.md and README-FIRST.md in full.
+3. Paste the grep audit result, listing every remaining match and
+   whether it is intentional.
+4. Paste bash syntax, ShellCheck, pre-commit, and --selftest results.
+5. State explicitly: the packager is retired (or moved to
+   scripts/dev/retired/), the airgap tarball is dropped, the repo is
+   the only transfer artifact.
+6. Confirm the learner VM was not accessed and no provisioning
+   script was executed against it.
+7. Leave all changes uncommitted and unstaged.

@@ -2,9 +2,9 @@
 set -euo pipefail
 
 SCRIPT_NAME="00-diagnose"
-# CHANGE: Check a staged k3s binary or probe the operator-supplied Artifactory URL without downloading it.
-# SCRIPT_VERSION 9: Use K3S_BINARY_URL and the versions.lock binary pin; no bundled payload is required.
-SCRIPT_VERSION="9"
+# CHANGE: Capture bounded Artifactory HEAD status and Content-Length in memory without writing probe files.
+# SCRIPT_VERSION 11: Keep the URL probe body-free, read-only, and capped at ten seconds.
+SCRIPT_VERSION="11"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SELFTEST=false
 DRY_RUN=false
@@ -416,7 +416,7 @@ elif [[ -e "$k3s_manual_payload" || -L "$k3s_manual_payload" ]]; then
         step_fail "staged local k3s binary checksum mismatch: expected $k3s_expected, actual $k3s_actual" "Replace the staged file using K3S_BINARY_URL from learner-vm/lab-vm.conf and the pinned SHA in versions.lock." "sha256sum $(printf '%q' "$k3s_manual_payload")" "grep '^learner-k3s-binary-amd64 ' $(printf '%q' "$REPO_ROOT/versions.lock")"
     fi
 elif [[ -z "${K3S_BINARY_URL:-}" ]]; then
-    step_fail "k3s binary cannot be fetched because K3S_BINARY_URL is unset and no staged binary exists" "Obtain the Artifactory generic-file URL from the administrator and set K3S_BINARY_URL, or download the pinned binary on this VM to $k3s_manual_payload." "grep '^K3S_BINARY_URL=' $(printf '%q' "$CONFIG_FILE")" "ls -ld $(printf '%q' "$MANUAL_FETCH_DIR/k3s")" "grep '^learner-k3s-binary-amd64 ' $(printf '%q' "$REPO_ROOT/versions.lock")"
+    step_fail "k3s binary cannot be fetched because K3S_BINARY_URL is unset and no staged binary exists" "Set K3S_BINARY_URL in lab-vm.conf to the Artifactory generic-file URL for the pinned k3s binary — ask your Artifactory administrator, or manually stage the binary at $k3s_manual_payload." "grep '^K3S_BINARY_URL=' $(printf '%q' "$CONFIG_FILE")" "ls -ld $(printf '%q' "$MANUAL_FETCH_DIR/k3s")" "grep '^learner-k3s-binary-amd64 ' $(printf '%q' "$REPO_ROOT/versions.lock")"
 else
     k3s_url_info="$(python3 - "$K3S_BINARY_URL" "$ART_HOST" <<'PY'
 import sys
@@ -445,11 +445,20 @@ PY
         k3s_url_connect="${k3s_url_parts[1]}"
         k3s_url_safe="${k3s_url_parts[2]}"
         k3s_head_status='000'
-        if k3s_head_status="$(curl --head --silent --show-error --connect-timeout 5 --max-time 20 --output /dev/null --write-out '%{http_code}' "$K3S_BINARY_URL" 2>/dev/null)"; then :; fi
-        if [[ "$k3s_head_status" =~ ^2[0-9][0-9]$ ]]; then
-            step_ok "configured Artifactory k3s binary URL responded to bounded TLS HEAD: $k3s_url_safe (HTTP $k3s_head_status); binary was not downloaded"
+        k3s_head_response=''
+        if k3s_head_response="$(curl --head --silent --show-error --connect-timeout 5 --max-time 10 --dump-header - --output /dev/null --write-out $'\n%{http_code}' "$K3S_BINARY_URL" 2>/dev/null)"; then
+            k3s_head_status="${k3s_head_response##*$'\n'}"
+            k3s_head_headers="${k3s_head_response%$'\n'*}"
         else
-            step_fail "K3S_BINARY_URL HEAD probe failed: $k3s_url_safe (HTTP ${k3s_head_status:-000})" "Check Artifactory generic-file access, CA trust, and K3S_BINARY_URL; this probe did not download the binary." "getent hosts $(printf '%q' "$k3s_url_host")" "curl -vI --connect-timeout 5 --max-time 20 $(printf '%q' "$k3s_url_safe") 2>&1 | tail -n 12" "printf '' | openssl s_client -connect $(printf '%q' "$k3s_url_connect") -servername $(printf '%q' "$k3s_url_host") 2>&1 | tail -n 12" "grep '^learner-k3s-binary-amd64 ' $(printf '%q' "$REPO_ROOT/versions.lock")"
+            k3s_head_headers="$k3s_head_response"
+        fi
+        k3s_content_length='not returned'
+        k3s_content_length="$(awk 'tolower($1) == "content-length:" {gsub("\\r", "", $2); value=$2} END {if (value != "") print value}' <<< "$k3s_head_headers")"
+        [[ -n "$k3s_content_length" ]] || k3s_content_length='not returned'
+        if [[ "$k3s_head_status" =~ ^2[0-9][0-9]$ ]]; then
+            step_ok "configured Artifactory k3s binary URL responded to bounded TLS HEAD: $k3s_url_safe (HTTP $k3s_head_status; Content-Length ${k3s_content_length}); binary was not downloaded"
+        else
+            step_fail "K3S_BINARY_URL HEAD probe failed: $k3s_url_safe (HTTP ${k3s_head_status:-000}; Content-Length ${k3s_content_length})" "Check Artifactory generic-file access, CA trust, and K3S_BINARY_URL; this probe did not download the binary." "getent hosts $(printf '%q' "$k3s_url_host")" "curl -vI --connect-timeout 5 --max-time 10 $(printf '%q' "$k3s_url_safe") 2>&1 | tail -n 12" "printf '' | openssl s_client -connect $(printf '%q' "$k3s_url_connect") -servername $(printf '%q' "$k3s_url_host") 2>&1 | tail -n 12" "grep '^learner-k3s-binary-amd64 ' $(printf '%q' "$REPO_ROOT/versions.lock")"
         fi
     fi
 fi

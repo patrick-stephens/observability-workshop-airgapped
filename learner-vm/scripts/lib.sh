@@ -1,8 +1,8 @@
 # shellcheck shell=bash
 set -euo pipefail
 
-# CHANGE: Keep dry-run reports on stdout without creating or appending system logs.
-LIB_VERSION="2"
+# CHANGE: Remove the obsolete compatibility-binary lookup from shared learner configuration.
+LIB_VERSION="4"
 : "${SCRIPT_NAME:?Set SCRIPT_NAME before sourcing scripts/lib.sh}"
 : "${SCRIPT_VERSION:?Set SCRIPT_VERSION before sourcing scripts/lib.sh}"
 
@@ -28,7 +28,6 @@ fi
 
 REPOS_ROOT="$REPO_ROOT/content/repos"
 DOCS_ROOT="$REPO_ROOT/content/docs"
-VENDOR_BIN="$REPO_ROOT/content/bin"
 LOG_DIR="/var/log/lab-setup"
 LOG_FILE="${LOG_DIR}/${SCRIPT_NAME}.log"
 DRY_RUN="${DRY_RUN:-false}"
