@@ -48,7 +48,7 @@ Before completing a change, run `pre-commit run --all-files` and confirm it pass
 This runs all applicable file hooks; the Conventional Commits hook is run for commit messages when a commit is created.
 The generic JSON key sorter excludes the npm-generated `slides/package-lock.json` to preserve npm's lockfile serialization; JSON syntax and other file checks still run.
 Byte-rewriting hooks, source-mode/name checks, YAML style checks, and the generic large-file threshold exclude `content/` so upstream snapshots and generated outputs remain intact; gitleaks, JSON checks, and other applicable validation still run.
-The learner VM receives a repository ZIP and a separately checksummed k3s payload archive, so Git and Git LFS are not required on that VM.
+The learner VM receives one source-only repository ZIP; script 45 downloads the pinned k3s binary from an administrator-supplied Artifactory generic-file URL, and k3s obtains images through Artifactory CRI pulls during provisioning. Git and Git LFS are not required on the VM.
 
 ## Host Prerequisites
 
@@ -191,18 +191,16 @@ Run `python3 scripts/dev/parse-labs.py` to extract every Docker and Podman comma
 Run `python3 scripts/dev/patch-docs.py` to patch both mirrored documentation and repository lab pages, `python3 scripts/dev/curate.py` to generate the curated service run set, and `python3 scripts/dev/check-docs.py` to verify local page and asset references.
 `check-docs.py` retries missing `otel-developers` mirror assets once and records any remaining gaps in `content/extracted/docs-gaps.txt`.
 Run `python3 scripts/dev/create-reviewer-packet.py` after regenerating parser and curation outputs to assemble the bounded k3s, build-status, runtime-download, and curation evidence in `content/extracted/reviewer-packet.md`.
-Run `bash scripts/dev/vendor-k3s.sh` online to fetch and verify the small pinned installer, system-image list, and RHEL 8 SELinux RPM; the large executable and optional image archive are not stored in the repository.
-Run `bash scripts/dev/package-vm-transfer.sh --dry-run` to review the guarded transfer and cleanup actions, then run it without `--dry-run` to fetch and verify the required executable, build the ZIP and payload archive, and stage obsolete-file removals.
-Use `--manual-bundle DIR` to create a separate k3s staging archive and `--manual-instructions` to write payload-only hand-fetch steps from the generated catalog.
-See [content/vendor/MANUAL-FETCH.md](content/vendor/MANUAL-FETCH.md) for the staging-before-network recovery contract and exact artifact pins.
-Use `--include-k3s-airgap-tarball` only when the optional bootstrap fallback is needed; see [content/vendor/README.md](content/vendor/README.md) and [learner-vm/README-FIRST.md](learner-vm/README-FIRST.md) for transfer and verification instructions.
+Run `bash scripts/dev/vendor-k3s.sh` online to fetch and verify the small pinned installer, system-image list, and RHEL 8 SELinux RPM; the k3s executable is fetched at provisioning time, and no airgap image archive is used.
+Run `bash scripts/dev/package-vm-transfer.sh --dry-run` to review source-only ZIP packaging, then run it with a new `--out` directory to create the ZIP from the current worktree. The packager does not fetch runtime payloads, overwrite existing outputs, stage changes, or clean the worktree.
+Transfer only `o11y-lab-vm-repository.zip`; its `.sha256` sidecar is online record-keeping. Set `K3S_BINARY_URL` in `learner-vm/lab-vm.conf` to the exact HTTPS generic-file URL supplied by the Artifactory administrator before provisioning; do not invent a URL or use the public release URL on the learner VM.
+See [content/vendor/MANUAL-FETCH.md](content/vendor/MANUAL-FETCH.md) for same-VM binary recovery and the Artifactory image-pull workflow. The binary checksum authority remains `versions.lock`.
 Run `python3 scripts/dev/vendor-runtime-downloads.py` online to vendor lab-linked ZIPs needed for preloading attendee-created build contexts and record their hashes in `versions.lock`.
 Run `python3 scripts/dev/write-vendored-files.py` after capture to refresh the source and SHA-256 inventory for vendored and generated content.
-Run `python3 scripts/dev/generate-manual-fetch.py` whenever repository files, payload pins, curated manifests, or image inventories change; it regenerates `content/vendor/MANUAL-FETCH.md` and `manual-fetch.json`.
-Run `scripts/dev/make-image-bundles.sh --list` to print the fallback image set, or use `--both` on the connected Docker build host to create Docker-archive bundles using the pinned Skopeo container; the resulting archives load into the separate Podman and k3s containerd stores.
-The k3s image probe is recorded at `content/vendor/k3s/registry-probe.txt`; the pinned k3s service uses `/etc/rancher/k3s/registries.yaml` for containerd CRI mirror pulls, which can be exercised with `k3s crictl pull`.
-The online probe returned HTTP 000 due to name resolution failure, so Artifactory mirror access must be verified on the learner network before provisioning relies on it.
-The complete `content/` tree is an online-produced committed artifact for the learner VM; these development scripts are not provisioning scripts and must not be run on the airgapped VM.
+Run `python3 scripts/dev/generate-manual-fetch.py` whenever repository files, runtime requirements, curated manifests, or image inventories change; it regenerates `content/vendor/MANUAL-FETCH.md` and `manual-fetch.json`.
+External Podman images use `podman pull` through the configured registry mirror; external Kubernetes images use `k3s crictl pull` through the k3s registry mirror. Locally built images needed by k3s are transferred from Podman with `podman save` and `k3s ctr -n k8s.io images import`; no image bundle transfer is required.
+The k3s image probe is recorded at `content/vendor/k3s/registry-probe.txt`; its HTTP 000 result was inconclusive due to name-resolution failure. Artifactory access must be verified on the learner network before provisioning relies on it.
+The complete `content/` tree is an online-produced committed artifact for the learner VM; these development scripts are not provisioning scripts and must not be run on the learner VM.
 
 ## Enterprise Mirrors and Proxies
 

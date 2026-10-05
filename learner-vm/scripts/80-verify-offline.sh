@@ -2,7 +2,8 @@
 set -euo pipefail
 
 SCRIPT_NAME="80-verify-offline"
-SCRIPT_VERSION="1"
+# CHANGE: Direct missing Podman images to the configured Artifactory pull path; separate bundles are not used.
+SCRIPT_VERSION="2"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRY_RUN=false
 UNKNOWN_ARGUMENTS=()
@@ -160,7 +161,7 @@ verify_podman_images() {
 			step_ok "rootful Podman image is preloaded: $image"
 			record_result "- PASS Podman image: $image"
 		else
-			step_fail "required rootful Podman image is missing: $image" "Run learner-vm/scripts/60-load-images.sh while Artifactory is reachable or stage the verified bundle under $MANUAL_FETCH_DIR/images/." "podman images --no-trunc" "grep -F $(printf %q "$image") $(printf %q "$EXTERNAL_IMAGES")" "cat $(printf %q "$REPO_ROOT/content/extracted/built-tags.txt")"
+			step_fail "required rootful Podman image is missing: $image" "Check the configured Artifactory mirror, then rerun learner-vm/scripts/60-load-images.sh; locally built images are reconstructed from the vendored commands and contexts." "podman images --no-trunc" "grep -F $(printf %q "$image") $(printf %q "$EXTERNAL_IMAGES")" "cat $(printf %q "$REPO_ROOT/content/extracted/built-tags.txt")" "sed -n '1,100p' /etc/containers/registries.conf"
 			record_result "- FAIL Podman image: $image"
 		fi
 	done

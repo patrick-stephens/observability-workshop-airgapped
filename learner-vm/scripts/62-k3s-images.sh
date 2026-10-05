@@ -2,7 +2,8 @@
 set -euo pipefail
 
 SCRIPT_NAME="62-k3s-images"
-SCRIPT_VERSION="1"
+# CHANGE: Remove second-transfer bundle fallback and report Artifactory CRI pull diagnostics for original references.
+SCRIPT_VERSION="3"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRY_RUN=false
 UNKNOWN_ARGUMENTS=()
@@ -29,9 +30,6 @@ K3S='/usr/local/bin/k3s'
 SYSTEM_IMAGES="$REPO_ROOT/content/vendor/k3s/k3s-images.txt"
 CURATED="$REPO_ROOT/content/extracted/curated.json"
 MANIFEST="$REPO_ROOT/content/repos/opentelemetry/_vendored/app_pod.yaml"
-K3S_BUNDLE="$MANUAL_FETCH_DIR/images/images-k3s-containerd.tar"
-K3S_BUNDLE_SHA="$K3S_BUNDLE.sha256"
-K3S_BUNDLE_IMAGES="$K3S_BUNDLE.images.sha256"
 PODMAN_TAR=''
 cleanup() {
 	[[ -z "$PODMAN_TAR" ]] || rm -f -- "$PODMAN_TAR"
@@ -40,11 +38,14 @@ trap cleanup EXIT
 
 format_k3s_failure() {
 	local image="$1"
-	step_fail "k3s image operation failed for $image" "Check CA trust and /etc/rancher/k3s/registries.yaml; CRI pulls use Artifactory only when that learner-network path succeeds. See Section C of content/vendor/MANUAL-FETCH.md and stage a valid bundle under $MANUAL_FETCH_DIR/images/." \
+	step_fail "k3s image operation failed for original reference $image; configured Artifactory mirror is $DOCKER_REGISTRY" "Check Artifactory reachability and image availability, CA trust, and /etc/rancher/k3s/registries.yaml; external references use k3s crictl pull. Locally built images use Podman save plus k3s ctr import; no second transfer artifact is required." \
 		"$K3S --version" \
 		"$K3S crictl --help" \
 		"$K3S crictl images" \
 		"$K3S ctr -n k8s.io images list" \
+		"getent hosts $(printf %q "$REG_HOST")" \
+		"curl -v --connect-timeout 5 --max-time 15 https://$(printf %q "$DOCKER_REGISTRY")/v2/ 2>&1 | tail -n 12" \
+		"printf '' | openssl s_client -connect $(printf %q "$REG_HOST"):443 -servername $(printf %q "$REG_HOST") 2>&1 | tail -n 12" \
 		"journalctl -u k3s -b --no-pager | tail -n 15" \
 		"cat /etc/rancher/k3s/registries.yaml" \
 		"tail -n 15 /var/lib/rancher/k3s/agent/containerd/containerd.log" \
@@ -55,7 +56,7 @@ k3s_image_exists() {
 	"$K3S" ctr -n k8s.io images list 2>/dev/null | awk -v reference="$1" '$1 == reference {found=1} END {exit !found}'
 }
 
-for file in "$SYSTEM_IMAGES" "$CURATED" "$MANIFEST" "$REPO_ROOT/content/vendor/manual-fetch.json"; do
+for file in "$SYSTEM_IMAGES" "$CURATED" "$MANIFEST"; do
 	if [[ ! -s "$file" ]]; then
 		step_fail "k3s image input is missing: ${file#"$REPO_ROOT/"}" "Restore the repository ZIP and vendored manifest." "ls -l $(printf %q "$file")" "find $(printf %q "$REPO_ROOT/content/vendor") -maxdepth 2 -type f -print"
 	fi
@@ -64,7 +65,7 @@ done
 if [[ "$DRY_RUN" == true ]]; then
 	step_skip "installed k3s binary check is target-side and was not evaluated during dry-run" "$K3S"
 elif [[ ! -x "$K3S" ]]; then
-	step_fail "k3s executable is unavailable at $K3S" "Run learner-vm/scripts/45-k3s-install.sh after staging the binary described in Section B of content/vendor/MANUAL-FETCH.md." "ls -l $(printf '%q' "$K3S")" "sha256sum $(printf '%q' "$MANUAL_FETCH_DIR/k3s/k3s")"
+	step_fail "k3s executable is unavailable at $K3S" "Run learner-vm/scripts/45-k3s-install.sh after setting K3S_BINARY_URL or staging a verified same-VM fallback at $MANUAL_FETCH_DIR/k3s/k3s." "ls -l $(printf '%q' "$K3S")" "awk -F= '/^K3S_BINARY_URL=/ {print \"K3S_BINARY_URL is configured (value redacted)\"; found=1} END {if (!found) print \"K3S_BINARY_URL is unset\"}' $(printf '%q' "$CONFIG_FILE")" "ls -l $(printf '%q' "$MANUAL_FETCH_DIR/k3s")"
 fi
 if ! command -v python3 >/dev/null 2>&1; then
 	step_fail "python3 is unavailable" "Run learner-vm/scripts/20-install-tooling.sh before parsing curated image metadata." "command -v python3" "rpm -q python3"
@@ -108,11 +109,7 @@ if ((${#K3S_IMAGES[@]} == 0)); then
 fi
 
 if [[ "$DRY_RUN" == true ]]; then
-	if [[ -s "$K3S_BUNDLE" ]]; then
-		log "would validate sidecars and import $K3S_BUNDLE with k3s ctr -n k8s.io images import"
-	else
-		log "no staged k3s-containerd bundle at $K3S_BUNDLE; would use CRI pulls and Podman save/import"
-	fi
+	log "external references use k3s crictl pull through the configured Artifactory mirror; local localhost references use Podman save and k3s ctr import"
 	for image in "${K3S_IMAGES[@]}"; do
 		if [[ "$image" == localhost/* ]]; then
 			log "would transfer exact local Podman reference with podman save and k3s ctr import: $image"
@@ -123,43 +120,6 @@ if [[ "$DRY_RUN" == true ]]; then
 	step_skip "k3s CRI pulls, imports, and store verification were not executed during dry-run" "Artifactory pulls remain unverified until tested on the learner network"
 	end_report "review the image references and mirror configuration, then rerun on the learner VM"
 	exit 0
-fi
-
-if ! command -v sha256sum >/dev/null 2>&1; then
-	step_fail "sha256sum is unavailable" "Install coreutils before verifying manual image bundles." "command -v sha256sum" "rpm -q coreutils"
-fi
-if [[ -s "$K3S_BUNDLE" ]]; then
-	expected_bundle_sha="$(awk 'NR == 1 {print $1}' "$K3S_BUNDLE_SHA" 2>/dev/null || true)"
-	actual_bundle_sha="$(sha256sum "$K3S_BUNDLE" | awk '{print $1}')"
-		bundle_image_count=0
-	if [[ -s "$K3S_BUNDLE_SHA" && -s "$K3S_BUNDLE_IMAGES" && "$expected_bundle_sha" =~ ^[0-9a-f]{64}$ && "$actual_bundle_sha" == "$expected_bundle_sha" ]]; then
-		step_ok "manual k3s image archive digest is valid at its staging path"
-		if run "$K3S ctr -n k8s.io images import $(printf %q "$K3S_BUNDLE")"; then
-			step_ok "imported manual image bundle into k3s containerd namespace k8s.io"
-			while IFS='|' read -r reference expected_digest || [[ -n "$reference" ]]; do
-				reference="$(printf '%s' "$reference" | xargs)"
-				expected_digest="$(printf '%s' "$expected_digest" | xargs)"
-				if [[ -z "$reference" || ! "$expected_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-					step_fail "manual k3s image digest sidecar has a malformed row" "Regenerate the bundle with scripts/dev/make-image-bundles.sh and transfer all three files." "sed -n '1,20p' $(printf '%q' "$K3S_BUNDLE_IMAGES")"
-					continue
-				fi
-				((bundle_image_count+=1))
-				actual_digest="$($K3S ctr -n k8s.io images list | awk -v ref="$reference" '$1 == ref {print $3; exit}')"
-				if [[ "$actual_digest" == "$expected_digest" ]]; then
-					step_ok "k3s bundle digest verified for $reference"
-				else
-					step_fail "k3s imported digest mismatch for $reference: expected $expected_digest, actual ${actual_digest:-missing}" "Regenerate the k3s bundle and its per-image sidecar on the connected machine." "$K3S ctr -n k8s.io images list" "grep -F $(printf '%q' "$reference") $(printf '%q' "$K3S_BUNDLE_IMAGES")"
-				fi
-			done < "$K3S_BUNDLE_IMAGES"
-			if ((bundle_image_count == 0)); then step_fail "manual k3s image digest sidecar is empty" "Regenerate and transfer the archive plus both sidecars using Section C of content/vendor/MANUAL-FETCH.md." "ls -l $(printf '%q' "$K3S_BUNDLE_IMAGES")"; fi
-		else
-			format_k3s_failure "$K3S_BUNDLE"
-		fi
-	else
-		step_fail "manual k3s image bundle, archive digest, or image digest sidecar is missing/invalid" "Regenerate it with scripts/dev/make-image-bundles.sh --k3s-store and stage all three files under $MANUAL_FETCH_DIR/images/." "ls -l $(printf %q "$MANUAL_FETCH_DIR/images")" "sha256sum $(printf %q "$K3S_BUNDLE")" "cat $(printf %q "$K3S_BUNDLE_IMAGES")"
-	fi
-else
-	step_skip "no manual k3s-containerd fallback bundle is staged" "will use CRI pulls and Podman image imports"
 fi
 
 for image in "${K3S_IMAGES[@]}"; do
@@ -208,21 +168,4 @@ for image in "${K3S_IMAGES[@]}"; do
 done
 
 end_report "Review k3s image failures; continue with learner-vm/scripts/70-quickstart.sh only when all required references are present. Artifactory CRI pulls remain unverified until VM-side report evidence exists."
-			while IFS='|' read -r reference expected_digest || [[ -n "$reference" ]]; do
-				reference="$(printf '%s' "$reference" | xargs)"
-				expected_digest="$(printf '%s' "$expected_digest" | xargs)"
-				if [[ -z "$reference" || ! "$expected_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-					step_fail "manual k3s image digest sidecar has a malformed row" "Regenerate the bundle with scripts/dev/make-image-bundles.sh and transfer all three files." "sed -n '1,20p' $(printf '%q' "$K3S_BUNDLE_IMAGES")"
-					continue
-				fi
-				((bundle_image_count+=1))
-				actual_digest="$($K3S ctr -n k8s.io images list | awk -v ref="$reference" '$1 == ref {print $3; exit}')"
-				if [[ "$actual_digest" == "$expected_digest" ]]; then
-					step_ok "k3s bundle digest verified for $reference"
-				else
-					step_fail "k3s imported digest mismatch for $reference: expected $expected_digest, actual ${actual_digest:-missing}" "Regenerate the k3s bundle and its per-image sidecar on the connected machine." "$K3S ctr -n k8s.io images list" "grep -F $(printf '%q' "$reference") $(printf '%q' "$K3S_BUNDLE_IMAGES")"
-				fi
-			done < "$K3S_BUNDLE_IMAGES"
-			if ((bundle_image_count == 0)); then step_fail "manual k3s image digest sidecar is empty" "Regenerate and transfer the archive plus both sidecars using Section C of content/vendor/MANUAL-FETCH.md." "ls -l $(printf '%q' "$K3S_BUNDLE_IMAGES")"; fi
 ((FAIL_COUNT == 0))
-			step_fail "manual k3s image bundle, archive digest, or image digest sidecar is missing/invalid" "Regenerate it with scripts/dev/make-image-bundles.sh --k3s-store and stage all three files under $MANUAL_FETCH_DIR/images/." "ls -l $(printf '%q' "$MANUAL_FETCH_DIR/images")" "sha256sum $(printf '%q' "$K3S_BUNDLE")" "awk 'NR == 1 {print \\$1}' $(printf '%q' "$K3S_BUNDLE_SHA")" "cat $(printf '%q' "$K3S_BUNDLE_IMAGES")"

@@ -2,8 +2,8 @@
 set -euo pipefail
 
 SCRIPT_NAME="45-k3s-install"
-# CHANGE: Install pinned k3s from the self-contained ZIP payload, falling back to MANUAL_FETCH_DIR only when absent.
-SCRIPT_VERSION="3"
+# CHANGE: Fetch the pinned k3s binary from K3S_BINARY_URL when no same-VM staged copy exists; Artifactory supplies images.
+SCRIPT_VERSION="4"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRY_RUN=false
 UNKNOWN_ARGUMENTS=()
@@ -27,14 +27,12 @@ elif ((EUID != 0)); then
 fi
 
 K3S='/usr/local/bin/k3s'
-K3S_ZIP_PAYLOAD="$REPO_ROOT/learner-vm/content/vendor/payload/k3s/k3s"
 K3S_MANUAL_PAYLOAD="$MANUAL_FETCH_DIR/k3s/k3s"
-AIRGAP_ZIP_PAYLOAD="$REPO_ROOT/learner-vm/content/vendor/payload/k3s/k3s-airgap-images-amd64.tar.zst"
-AIRGAP_MANUAL_PAYLOAD="$MANUAL_FETCH_DIR/k3s/k3s-airgap-images-amd64.tar.zst"
-K3S_PAYLOAD="$K3S_ZIP_PAYLOAD"
+K3S_PAYLOAD="$K3S_MANUAL_PAYLOAD"
 K3S_PAYLOAD_SOURCE='absent'
-AIRGAP_PAYLOAD="$AIRGAP_ZIP_PAYLOAD"
-AIRGAP_PAYLOAD_SOURCE='absent'
+K3S_BINARY_URL_SAFE='unset'
+K3S_BINARY_HOST=''
+K3S_BINARY_CONNECT=''
 VENDOR_DIR="$REPO_ROOT/content/vendor/k3s"
 INSTALLER="$VENDOR_DIR/install.sh"
 SELINUX_RPM="$VENDOR_DIR/k3s-selinux-1.6-1.el8.noarch.rpm"
@@ -44,19 +42,33 @@ TEMP_FILES=()
 cleanup() { ((${#TEMP_FILES[@]} == 0)) || rm -f -- "${TEMP_FILES[@]}"; }
 trap cleanup EXIT
 
-manual_sha256() {
-	python3 - "$REPO_ROOT/content/vendor/manual-fetch.json" "$1" <<'PY'
-import json,sys
-with open(sys.argv[1],encoding="utf-8") as source: entries=json.load(source)
-entry=next((item for item in entries if item.get("category")=="payload" and item.get("name")==sys.argv[2]),None)
-if not entry or not isinstance(entry.get("sha256"),str): raise SystemExit(1)
-print(entry["sha256"])
+locked_sha256() {
+	local key="$1"
+	awk -v key="$key" '$1 == key {for (i=1;i<=NF;i++) if ($i ~ /^sha256:/) {sub(/^sha256:/,"",$i); print $i; exit}}' "$REPO_ROOT/versions.lock"
+}
+
+parse_k3s_url() {
+	python3 - "$K3S_BINARY_URL" "$ART_HOST" <<'PY'
+import sys
+from urllib.parse import urlsplit, urlunsplit
+parsed=urlsplit(sys.argv[1])
+expected_host=sys.argv[2].lower()
+if parsed.scheme != "https" or not parsed.hostname or parsed.hostname.lower() != expected_host:
+    raise SystemExit(1)
+try:
+    port=parsed.port
+except ValueError:
+    raise SystemExit(1)
+authority=parsed.hostname + (f":{port}" if port else "")
+print(parsed.hostname)
+print(authority if port else authority + ":443")
+print(urlunsplit(("https", authority, parsed.path, "", "")))
 PY
 }
 
 k3s_failure() {
 	local problem="$1" image="${2:-unknown}"
-	step_fail "$problem" "Check CA trust and $REGISTRIES_FILE; payloads are read from the ZIP first, then $MANUAL_FETCH_DIR/k3s/ per Section B of content/vendor/MANUAL-FETCH.md. Artifactory pulls are not verified until this learner network returns success." \
+	step_fail "$problem; K3S_BINARY_URL=${K3S_BINARY_URL_SAFE}" "Check K3S_BINARY_URL (operator-supplied Artifactory generic-file URL), CA trust, and $REGISTRIES_FILE; use $MANUAL_FETCH_DIR/k3s/k3s only as the same-VM staging fallback. Artifactory pulls remain unverified until learner-network evidence exists." \
 		"$K3S --version" \
 		"$K3S crictl --help" \
 		"$K3S crictl images" \
@@ -64,43 +76,83 @@ k3s_failure() {
 		"journalctl -u k3s -b --no-pager | tail -n 15" \
 		"cat $(printf %q "$REGISTRIES_FILE")" \
 		"tail -n 15 /var/lib/rancher/k3s/agent/containerd/containerd.log" \
+		"getent hosts $(printf %q "${K3S_BINARY_HOST:-$ART_HOST}")" \
+		"curl -vI --connect-timeout 5 --max-time 15 $(printf %q "$K3S_BINARY_URL_SAFE") 2>&1 | tail -n 12" \
+		"printf '' | openssl s_client -connect $(printf %q "${K3S_BINARY_CONNECT:-$REG_HOST:443}") -servername $(printf %q "${K3S_BINARY_HOST:-$REG_HOST}") 2>&1 | tail -n 12" \
 		"printf '%s\\n' $(printf %q "$image")"
 }
 
-if [[ ! -s "$REPO_ROOT/content/vendor/manual-fetch.json" ]] || ! command -v python3 >/dev/null 2>&1; then
-	step_fail "manual-fetch catalog or Python 3 is unavailable" "Restore content/vendor/manual-fetch.json and install Python 3 before installing k3s." "ls -l $(printf %q "$REPO_ROOT/content/vendor/manual-fetch.json")" "command -v python3"
-	end_report "restore the catalog and Python 3 before retrying"
+if [[ ! -s "$REPO_ROOT/versions.lock" ]] || ! command -v python3 >/dev/null 2>&1; then
+	step_fail "versions.lock or Python 3 is unavailable" "Restore versions.lock and install Python 3 before installing the pinned k3s binary." "ls -l $(printf %q "$REPO_ROOT/versions.lock")" "command -v python3"
+	end_report "restore the lock file and Python 3 before retrying"
 	exit 1
 fi
-K3S_SHA="$(manual_sha256 k3s/k3s 2>/dev/null || true)"
-AIRGAP_SHA="$(manual_sha256 k3s/k3s-airgap-images-amd64.tar.zst 2>/dev/null || true)"
-if [[ ! "$K3S_SHA" =~ ^[0-9a-f]{64}$ || ! "$AIRGAP_SHA" =~ ^[0-9a-f]{64}$ ]]; then
-	step_fail "manual-fetch catalog lacks valid pinned k3s payload hashes" "Regenerate content/vendor/manual-fetch.json from versions.lock on the connected machine." "python3 -m json.tool $(printf '%q' "$REPO_ROOT/content/vendor/manual-fetch.json")" "grep -n 'k3s/k3s' $(printf '%q' "$REPO_ROOT/content/vendor/manual-fetch.json")"
-	end_report "restore the two catalog payload rows before installing k3s"
+K3S_SHA="$(locked_sha256 learner-k3s-binary-amd64)"
+if [[ ! "$K3S_SHA" =~ ^[0-9a-f]{64}$ ]]; then
+	step_fail "versions.lock lacks a valid k3s binary SHA-256" "Restore the learner-k3s-binary-amd64 pin in versions.lock on the connected source tree." "grep '^learner-k3s-binary-amd64 ' $(printf %q "$REPO_ROOT/versions.lock")" "sed -n '/learner-k3s-binary-amd64/p' $(printf %q "$REPO_ROOT/versions.lock")"
+	end_report "restore the pinned k3s binary hash before retrying"
 	exit 1
 fi
 
 K3S_VALID=false
 if [[ "$DRY_RUN" == true ]]; then
-	step_skip "required k3s payload presence/checksum are target-side and were not read during dry-run" "ZIP first: $K3S_ZIP_PAYLOAD; fallback: $K3S_MANUAL_PAYLOAD; SHA-256 $K3S_SHA"
+	step_skip "staged binary lookup, Artifactory download, and checksum are target-side and were not executed during dry-run" "use $K3S_MANUAL_PAYLOAD first, otherwise set K3S_BINARY_URL to the administrator-supplied Artifactory generic-file URL"
 	K3S_PAYLOAD_SOURCE='not selected during dry-run'
+	K3S_VALID=false
 else
-	if [[ -e "$K3S_ZIP_PAYLOAD" || -L "$K3S_ZIP_PAYLOAD" ]]; then
-		K3S_PAYLOAD="$K3S_ZIP_PAYLOAD"
-		K3S_PAYLOAD_SOURCE='single-ZIP payload'
+	if [[ -x "$K3S" ]] && [[ "$(sha256sum "$K3S" 2>/dev/null | awk '{print $1}')" == "$K3S_SHA" ]]; then
+		K3S_VALID=true
+		K3S_PAYLOAD="$K3S"
+		K3S_PAYLOAD_SOURCE='already-installed pinned binary'
+		step_ok "existing k3s binary already matches the versions.lock SHA-256"
 	elif [[ -e "$K3S_MANUAL_PAYLOAD" || -L "$K3S_MANUAL_PAYLOAD" ]]; then
 		K3S_PAYLOAD="$K3S_MANUAL_PAYLOAD"
 		K3S_PAYLOAD_SOURCE='MANUAL_FETCH_DIR fallback'
-	fi
-	if [[ "$K3S_PAYLOAD_SOURCE" == 'absent' ]]; then
-		step_fail "required k3s binary is absent from both payload locations" "The ZIP must contain learner-vm/content/vendor/payload/k3s/k3s; fallback path is $K3S_MANUAL_PAYLOAD. See Section B of content/vendor/MANUAL-FETCH.md." "ls -l $(printf %q "$K3S_ZIP_PAYLOAD")" "ls -l $(printf %q "$K3S_MANUAL_PAYLOAD")" "grep -n 'k3s/k3s' $(printf %q "$REPO_ROOT/content/vendor/MANUAL-FETCH.md")"
-	else
-		if actual="$(sha256sum "$K3S_PAYLOAD" 2>/dev/null | awk '{print $1}')"; then :; else actual='unavailable'; fi
-		if [[ "$actual" == "$K3S_SHA" ]]; then
+		if actual="$(sha256sum "$K3S_PAYLOAD" 2>/dev/null | awk '{print $1}')" && [[ "$actual" == "$K3S_SHA" ]]; then
 			K3S_VALID=true
-			step_ok "required k3s binary found at $K3S_PAYLOAD_SOURCE ($K3S_PAYLOAD) and checksum-valid"
+			step_ok "same-VM staged k3s binary is checksum-valid: $K3S_PAYLOAD"
 		else
-			step_fail "k3s binary checksum mismatch at $K3S_PAYLOAD: expected $K3S_SHA, actual $actual" "Restore the payload in the single ZIP or replace the fallback at $K3S_MANUAL_PAYLOAD using Section B of content/vendor/MANUAL-FETCH.md." "sha256sum $(printf %q "$K3S_PAYLOAD")" "grep -n 'k3s/k3s' $(printf %q "$REPO_ROOT/content/vendor/manual-fetch.json")"
+			step_fail "same-VM staged k3s binary checksum mismatch: expected $K3S_SHA, actual ${actual:-unavailable}" "Replace $K3S_MANUAL_PAYLOAD with a binary downloaded from configured K3S_BINARY_URL and verified against versions.lock." "sha256sum $(printf %q "$K3S_MANUAL_PAYLOAD")" "grep '^learner-k3s-binary-amd64 ' $(printf %q "$REPO_ROOT/versions.lock")"
+		fi
+	elif [[ -z "${K3S_BINARY_URL:-}" ]]; then
+		step_fail "K3S_BINARY_URL is unset and no same-VM staged k3s binary exists" "Obtain the exact Artifactory generic-file URL from the administrator and set K3S_BINARY_URL, or download the pinned binary on this VM to $K3S_MANUAL_PAYLOAD." "awk -F= '/^K3S_BINARY_URL=/ {print \"K3S_BINARY_URL is configured (value redacted)\"; found=1} END {if (!found) print \"K3S_BINARY_URL is unset\"}' $(printf '%q' "$CONFIG_FILE")" "ls -ld $(printf '%q' "$MANUAL_FETCH_DIR/k3s")" "grep '^learner-k3s-binary-amd64 ' $(printf '%q' "$REPO_ROOT/versions.lock")"
+	else
+		url_info=''
+		if url_info="$(parse_k3s_url 2>/dev/null)"; then
+			mapfile -t url_parts <<< "$url_info"
+			K3S_BINARY_HOST="${url_parts[0]}"
+			K3S_BINARY_CONNECT="${url_parts[1]}"
+			K3S_BINARY_URL_SAFE="${url_parts[2]}"
+			download_tmp=$(mktemp "${TMPDIR:-/tmp}/k3s-binary.XXXXXX") || download_tmp=''
+			fetch_log=$(mktemp "${TMPDIR:-/tmp}/k3s-fetch.XXXXXX") || fetch_log=''
+			status_file=$(mktemp "${TMPDIR:-/tmp}/k3s-fetch-status.XXXXXX") || status_file=''
+			if [[ -z "$download_tmp$fetch_log$status_file" ]]; then
+				[[ -z "$download_tmp" ]] || rm -f -- "$download_tmp"
+				[[ -z "$fetch_log" ]] || rm -f -- "$fetch_log"
+				[[ -z "$status_file" ]] || rm -f -- "$status_file"
+				step_fail "could not create temporary files for the k3s Artifactory fetch" "Check temporary storage before retrying script 45." "df -hP /tmp" "ls -ld /tmp"
+			else
+				TEMP_FILES+=("$download_tmp" "$fetch_log" "$status_file")
+				fetch_exit=0
+				if curl --fail --silent --show-error --connect-timeout 15 --max-time 900 --output "$download_tmp" --write-out '%{http_code}' "$K3S_BINARY_URL" >"$status_file" 2>"$fetch_log"; then :; else fetch_exit=$?; fi
+				fetch_http="$(cat "$status_file" 2>/dev/null || printf '000')"
+				if ((fetch_exit != 0)) || [[ "$fetch_http" != 200 ]]; then
+					K3S_ERROR_SUMMARY="$(sed -E 's#https?://[^[:space:]]+#<URL>#g' "$fetch_log" | tail -n 4 | tr '\n' '; ')"
+					step_fail "k3s binary fetch failed from $K3S_BINARY_URL_SAFE (curl exit $fetch_exit, HTTP ${fetch_http:-000}): ${K3S_ERROR_SUMMARY:-no curl error text}" "Set K3S_BINARY_URL to the exact Artifactory generic-file URL from the administrator, or download the pinned binary on this VM to $K3S_MANUAL_PAYLOAD." "getent hosts $(printf %q "$K3S_BINARY_HOST")" "curl -vI --connect-timeout 5 --max-time 15 $(printf %q "$K3S_BINARY_URL_SAFE") 2>&1 | tail -n 12" "printf '' | openssl s_client -connect $(printf %q "$K3S_BINARY_CONNECT") -servername $(printf %q "$K3S_BINARY_HOST") 2>&1 | tail -n 12" "cat $(printf %q "$REGISTRIES_FILE")" "journalctl -u k3s -b --no-pager | tail -n 15"
+				else
+					actual="$(sha256sum "$download_tmp" | awk '{print $1}')"
+					if [[ "$actual" == "$K3S_SHA" ]]; then
+						K3S_VALID=true
+						K3S_PAYLOAD="$download_tmp"
+						K3S_PAYLOAD_SOURCE='K3S_BINARY_URL'
+						step_ok "downloaded k3s binary from the configured Artifactory endpoint and verified SHA-256 $actual (HTTP $fetch_http)"
+					else
+						step_fail "downloaded k3s binary SHA-256 mismatch from $K3S_BINARY_URL_SAFE (HTTP $fetch_http): expected $K3S_SHA, actual $actual" "Do not install this file. Correct K3S_BINARY_URL or download the pinned binary to $K3S_MANUAL_PAYLOAD after verifying its versions.lock hash." "sha256sum $(printf %q "$download_tmp")" "grep '^learner-k3s-binary-amd64 ' $(printf %q "$REPO_ROOT/versions.lock")" "getent hosts $(printf %q "$K3S_BINARY_HOST")" "printf '' | openssl s_client -connect $(printf %q "$K3S_BINARY_CONNECT") -servername $(printf %q "$K3S_BINARY_HOST") 2>&1 | tail -n 12"
+					fi
+				fi
+			fi
+		else
+			step_fail "K3S_BINARY_URL must be an HTTPS generic-file URL on ART_HOST" "Obtain the exact URL from the Artifactory administrator; do not use a public release URL." "printf '%s\\n' 'K3S_BINARY_URL is configured; value redacted'" "grep '^ART_HOST=' $(printf %q "$CONFIG_FILE")" "getent hosts $(printf %q "$ART_HOST")"
 		fi
 	fi
 fi
@@ -113,47 +165,19 @@ else
 	step_fail "retained k3s support files are missing or checksum-invalid" "Restore the small files listed by content/vendor/k3s/SHA256SUMS from the repository ZIP." "ls -l $(printf %q "$VENDOR_DIR")" "(cd $(printf %q "$VENDOR_DIR") && sha256sum -c SHA256SUMS)"
 fi
 
-AIRGAP_VALID=false
-AIRGAP_INPUT_OK=true
-if [[ "$DRY_RUN" == true ]]; then
-	step_skip "optional airgap tarball presence/checksum are target-side and were not read during dry-run" "ZIP first: $AIRGAP_ZIP_PAYLOAD; fallback: $AIRGAP_MANUAL_PAYLOAD; SHA-256 $AIRGAP_SHA"
-else
-	if [[ -e "$AIRGAP_ZIP_PAYLOAD" || -L "$AIRGAP_ZIP_PAYLOAD" ]]; then
-		AIRGAP_PAYLOAD="$AIRGAP_ZIP_PAYLOAD"
-		AIRGAP_PAYLOAD_SOURCE='single-ZIP payload'
-	elif [[ -e "$AIRGAP_MANUAL_PAYLOAD" || -L "$AIRGAP_MANUAL_PAYLOAD" ]]; then
-		AIRGAP_PAYLOAD="$AIRGAP_MANUAL_PAYLOAD"
-		AIRGAP_PAYLOAD_SOURCE='MANUAL_FETCH_DIR fallback'
-	fi
-	if [[ "$AIRGAP_PAYLOAD_SOURCE" == 'absent' ]]; then
-		step_skip "optional airgap tarball is absent from ZIP and manual staging; bootstrap will use Artifactory CRI pulls, not yet verified on the learner network" "recover the optional file to $AIRGAP_MANUAL_PAYLOAD using Section B of content/vendor/MANUAL-FETCH.md if required"
-	else
-		if actual="$(sha256sum "$AIRGAP_PAYLOAD" 2>/dev/null | awk '{print $1}')"; then :; else actual='unavailable'; fi
-		if [[ "$actual" == "$AIRGAP_SHA" ]]; then
-			AIRGAP_VALID=true
-			step_ok "optional k3s system-image fallback found at $AIRGAP_PAYLOAD_SOURCE ($AIRGAP_PAYLOAD) and checksum-valid"
-		else
-			AIRGAP_INPUT_OK=false
-			step_fail "optional airgap tarball checksum mismatch at $AIRGAP_PAYLOAD: expected $AIRGAP_SHA, actual $actual" "Restore the ZIP payload or recover the pinned fallback to $AIRGAP_MANUAL_PAYLOAD using Section B of content/vendor/MANUAL-FETCH.md." "sha256sum $(printf %q "$AIRGAP_PAYLOAD")" "grep -n 'k3s-airgap-images' $(printf %q "$REPO_ROOT/content/vendor/manual-fetch.json")"
-		fi
-	fi
-fi
-
 if [[ "$DRY_RUN" == true ]]; then
 	run "rpm -Uvh $(printf %q "$SELINUX_RPM")"
 	step_skip "k3s SELinux RPM installation was previewed before first start" "$SELINUX_RPM"
-	run "install -o root -g root -m 0755 $(printf %q "$K3S_PAYLOAD") $K3S"
-	step_skip "pinned k3s binary installation was previewed" "$K3S"
+	step_skip "k3s binary download or local fallback install was previewed" "K3S_BINARY_URL is operator-supplied; its exact URL is not embedded in the ZIP"
 	log "would write $REGISTRIES_FILE before the first k3s start using DOCKER_REGISTRY=$DOCKER_REGISTRY and CA_CERT_SOURCE=$CA_CERT_SOURCE"
-	if [[ "$AIRGAP_VALID" == true ]]; then run "install -D -o root -g root -m 0600 $(printf %q "$AIRGAP_PAYLOAD") /var/lib/rancher/k3s/agent/images/k3s-airgap-images-amd64.tar.zst"; fi
 	step_skip "vendored install.sh would run with INSTALL_K3S_SKIP_DOWNLOAD=true and INSTALL_K3S_SKIP_SELINUX_RPM=true" "$INSTALLER"
 	step_skip "k3s service, kubeconfig, node readiness, and CRI pulls are target-side and were not executed during dry-run" "the actual pull result is recorded only on the learner network"
 	end_report "review the pinned payload and registry order; run without --dry-run on the learner VM"
 	exit 0
 fi
 
-if [[ "$K3S_VALID" != true || "$SUPPORT_VALID" != true || "$AIRGAP_INPUT_OK" != true ]]; then
-	step_skip "k3s installation stopped because a required input or a supplied optional fallback failed validation" "resolve the earlier FATAL entries before starting k3s"
+if [[ "$K3S_VALID" != true || "$SUPPORT_VALID" != true ]]; then
+	step_skip "k3s installation stopped because the required binary or retained support files failed validation" "resolve the earlier FATAL entries before starting k3s"
 	end_report "correct required inputs before starting k3s"
 	exit 1
 fi
@@ -210,25 +234,8 @@ else
 	rm -f -- "$registry_tmp"
 fi
 
-AIRGAP_STAGED=false
-AIRGAP_CHANGED=false
-if [[ "$AIRGAP_VALID" == true ]]; then
-	image_dir='/var/lib/rancher/k3s/agent/images'
-	image_target="$image_dir/k3s-airgap-images-amd64.tar.zst"
-	if [[ -s "$image_target" ]] && cmp -s "$AIRGAP_PAYLOAD" "$image_target"; then
-		AIRGAP_STAGED=true
-		step_ok "verified airgap images are already staged before k3s start"
-	elif run "install -D -o root -g root -m 0600 $(printf %q "$AIRGAP_PAYLOAD") $(printf %q "$image_target")"; then
-		AIRGAP_STAGED=true
-		AIRGAP_CHANGED=true
-		step_ok "copied optional verified airgap images before first k3s start"
-	else
-		k3s_failure "could not stage optional k3s airgap images" "$AIRGAP_PAYLOAD"
-	fi
-fi
-
-if [[ "$SELINUX_READY" != true || "$BINARY_READY" != true || "$REGISTRIES_READY" != true || ( "$AIRGAP_VALID" == true && "$AIRGAP_STAGED" != true ) ]]; then
-	step_skip "k3s start skipped because a required binary, SELinux, registry, or supplied-fallback stage did not validate" "fix the earlier FATAL entries"
+if [[ "$SELINUX_READY" != true || "$BINARY_READY" != true || "$REGISTRIES_READY" != true ]]; then
+	step_skip "k3s start skipped because the binary, SELinux policy, or registry configuration did not validate" "fix the earlier FATAL entries"
 	end_report "k3s was not started because its required preconditions failed"
 	exit 1
 fi
@@ -236,7 +243,7 @@ fi
 service_active=false
 if systemctl is-active --quiet k3s 2>/dev/null; then service_active=true; fi
 if [[ "$service_active" == true ]]; then
-	if [[ "$K3S_CHANGED" == true || "$REGISTRIES_CHANGED" == true || "$AIRGAP_CHANGED" == true ]]; then
+	if [[ "$K3S_CHANGED" == true || "$REGISTRIES_CHANGED" == true ]]; then
 		if run 'systemctl restart k3s'; then step_ok "restarted existing k3s service after required updates"; else k3s_failure "could not restart existing k3s service" "k3s service"; fi
 	else
 		step_ok "k3s service is already active"

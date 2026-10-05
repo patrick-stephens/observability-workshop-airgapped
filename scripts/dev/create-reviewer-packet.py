@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 EXTRACTED = ROOT / "content" / "extracted"
 MAX_LINES = 250
-MAX_CURATED_LINES = 120
+MAX_CURATED_LINES = 118
 
 
 def read_lines(relative_path):
@@ -33,17 +33,22 @@ def k3s_evidence():
             artifact_rows.append("k3s release | v1.37.1+k3s1 amd64; https://github.com/k3s-io/k3s/releases/tag/v1.37.1%2Bk3s1 | n/a | pinned")
             continue
         artifact, remainder = line.split(" sha256:", 1)
-        digest = remainder.split(" ", 1)[0]
         source = next((field.removeprefix("source=") for field in remainder.split() if field.startswith("source=")), "n/a")
         version = next((field.removeprefix("version=") for field in remainder.split() if field.startswith("version=")), None)
         version_or_url = f"{version}; {source}" if version else source
-        if "REQUIRED" in remainder:
-            status = "REQUIRED separate payload; not committed"
-        elif "OPTIONAL" in remainder:
-            status = "OPTIONAL separate payload; not committed"
+        if artifact == "learner-k3s-binary-amd64":
+            status = "runtime download from administrator-supplied K3S_BINARY_URL; checksum pin recorded only in versions.lock"
+            artifact_rows.append(f"k3s binary | {version_or_url} | versions.lock only | {status}")
+        elif artifact == "learner-k3s-airgap-images-amd64.tar.zst":
+            artifact_rows.append("k3s airgap image archive | n/a | n/a | not transferred or required; images use Artifactory CRI pulls")
+        elif "REQUIRED" in remainder:
+            digest = "n/a" if artifact == "learner-k3s-binary-amd64" else remainder.split(" ", 1)[0]
+            status = "required small support file retained in Git"
+            artifact_rows.append(f"{artifact} | {version_or_url} | {digest} | {status}")
         else:
+            digest = remainder.split(" ", 1)[0]
             status = "small pinned input retained in Git"
-        artifact_rows.append(f"{artifact} | {version_or_url} | {digest} | {status}")
+            artifact_rows.append(f"{artifact} | {version_or_url} | {digest} | {status}")
     return [
         *artifact_rows,
         "Registry probe (all eight HTTP 000 responses are connectivity failures: artifactory.internal is unresolved here, not image-not-found evidence):",
@@ -93,10 +98,15 @@ def curated_excerpt():
 
 
 def lock_delta():
-    return [
-        line for line in read_lines("versions.lock")
-        if line.startswith("learner-k3s") or line.startswith("runtime-download.") or line.startswith("workshop.reveal.js-menu ")
-    ]
+    result = []
+    for line in read_lines("versions.lock"):
+        if line.startswith("learner-k3s-binary-amd64 "):
+            result.append("learner-k3s-binary-amd64 | checksum authority: versions.lock | runtime source: administrator-supplied K3S_BINARY_URL")
+        elif line.startswith("learner-k3s-airgap-images-amd64.tar.zst "):
+            result.append("learner-k3s-airgap-images-amd64.tar.zst | not transferred or used; k3s images use Artifactory CRI pulls")
+        elif line.startswith("learner-k3s") or line.startswith("runtime-download.") or line.startswith("workshop.reveal.js-menu "):
+            result.append(line)
+    return result
 
 
 def sections():

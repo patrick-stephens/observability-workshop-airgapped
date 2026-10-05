@@ -2,8 +2,8 @@
 set -euo pipefail
 
 SCRIPT_NAME="10-preflight"
-# CHANGE: Make dry-run target-independent and accept the intentionally empty expected-failures file.
-SCRIPT_VERSION="2"
+# CHANGE: Check the same-VM k3s fallback or configured Artifactory URL and remove all airgap tarball checks.
+SCRIPT_VERSION="4"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRY_RUN=false
 UNKNOWN_ARGUMENTS=()
@@ -102,53 +102,24 @@ else
 	fi
 fi
 
-manual_sha256() {
-	python3 - "$REPO_ROOT/content/vendor/manual-fetch.json" "$1" <<'PY'
-import json
-import sys
-with open(sys.argv[1], encoding="utf-8") as source:
-    entries = json.load(source)
-entry = next((item for item in entries if item.get("category") == "payload" and item.get("name") == sys.argv[2]), None)
-if not entry or not isinstance(entry.get("sha256"), str):
-    raise SystemExit(1)
-print(entry["sha256"])
-PY
-}
-
+locked_k3s_sha="$(awk '$1 == "learner-k3s-binary-amd64" {for (i=1;i<=NF;i++) if ($i ~ /^sha256:/) {sub(/^sha256:/,"",$i); print $i; exit}}' "$REPO_ROOT/versions.lock")"
 k3s_payload="$MANUAL_FETCH_DIR/k3s/k3s"
 if [[ "$DRY_RUN" == true ]]; then
-	step_skip "k3s payload presence and checksum are target-side and were not checked during dry-run" "required: $k3s_payload; pinned SHA: content/vendor/manual-fetch.json"
-else
-if command -v python3 >/dev/null 2>&1 && expected_k3s_sha="$(manual_sha256 k3s/k3s 2>/dev/null)" && [[ "$expected_k3s_sha" =~ ^[0-9a-f]{64}$ ]]; then
-	if [[ -s "$k3s_payload" ]]; then
-		actual_k3s_sha="$(sha256sum "$k3s_payload" | awk '{print $1}')"
-		if [[ "$actual_k3s_sha" == "$expected_k3s_sha" ]]; then
-			step_ok "required k3s binary exists and matches the manual-fetch SHA-256"
-		else
-			step_fail "k3s binary checksum mismatch: expected $expected_k3s_sha, actual $actual_k3s_sha" "Replace $k3s_payload using Section B of content/vendor/MANUAL-FETCH.md." "sha256sum $(printf '%q' "$k3s_payload")" "grep -n 'k3s/k3s' $(printf '%q' "$REPO_ROOT/content/vendor/manual-fetch.json")"
-		fi
+	step_skip "k3s binary fallback and K3S_BINARY_URL checks are target-side and were not evaluated during dry-run" "script 45 fetches from the configured Artifactory generic-file URL; same-VM fallback: $k3s_payload"
+elif [[ ! "$locked_k3s_sha" =~ ^[0-9a-f]{64}$ ]]; then
+	step_fail "versions.lock lacks the pinned k3s binary SHA-256" "Restore the learner-k3s-binary-amd64 pin in versions.lock on the connected source tree." "grep '^learner-k3s-binary-amd64 ' $(printf '%q' "$REPO_ROOT/versions.lock")" "sed -n '/learner-k3s-binary-amd64/p' $(printf '%q' "$REPO_ROOT/versions.lock")"
+elif [[ -e "$k3s_payload" || -L "$k3s_payload" ]]; then
+	if actual_k3s_sha="$(sha256sum "$k3s_payload" 2>/dev/null | awk '{print $1}')" && [[ "$actual_k3s_sha" == "$locked_k3s_sha" ]]; then
+		step_ok "same-VM staged k3s binary matches the versions.lock SHA-256"
 	else
-		step_fail "required k3s binary is missing" "Fetch and verify it using Section B of content/vendor/MANUAL-FETCH.md, then stage it at $k3s_payload." "ls -l $(printf '%q' "$MANUAL_FETCH_DIR/k3s")" "grep -n 'k3s/k3s' $(printf '%q' "$REPO_ROOT/content/vendor/MANUAL-FETCH.md")"
+		step_fail "same-VM staged k3s binary checksum mismatch: expected $locked_k3s_sha, actual ${actual_k3s_sha:-unavailable}" "Replace $k3s_payload with a binary downloaded from the configured K3S_BINARY_URL, then verify it against versions.lock." "sha256sum $(printf '%q' "$k3s_payload")" "grep '^learner-k3s-binary-amd64 ' $(printf '%q' "$REPO_ROOT/versions.lock")"
 	fi
+elif [[ -x /usr/local/bin/k3s ]] && [[ "$(sha256sum /usr/local/bin/k3s 2>/dev/null | awk '{print $1}')" == "$locked_k3s_sha" ]]; then
+	step_ok "installed k3s binary matches the versions.lock SHA-256; no download is needed"
+elif [[ -n "${K3S_BINARY_URL:-}" ]]; then
+	step_ok "K3S_BINARY_URL is configured for script 45; 00-diagnose checks its bounded TLS response"
 else
-	step_fail "manual-fetch catalog cannot supply the required k3s SHA-256" "Restore content/vendor/manual-fetch.json and install Python 3, then rerun preflight." "ls -l $(printf '%q' "$REPO_ROOT/content/vendor/manual-fetch.json")" "python3 -m json.tool $(printf '%q' "$REPO_ROOT/content/vendor/manual-fetch.json")"
-fi
-
-airgap_payload="$MANUAL_FETCH_DIR/k3s/k3s-airgap-images-amd64.tar.zst"
-if [[ -s "$airgap_payload" ]]; then
-	if expected_airgap_sha="$(manual_sha256 k3s/k3s-airgap-images-amd64.tar.zst 2>/dev/null)" && [[ "$expected_airgap_sha" =~ ^[0-9a-f]{64}$ ]]; then
-		actual_airgap_sha="$(sha256sum "$airgap_payload" | awk '{print $1}')"
-		if [[ "$actual_airgap_sha" == "$expected_airgap_sha" ]]; then
-			step_ok "optional k3s airgap tarball is present and checksum-valid"
-		else
-			step_fail "optional airgap tarball checksum mismatch: expected $expected_airgap_sha, actual $actual_airgap_sha" "Replace the optional file using Section B of content/vendor/MANUAL-FETCH.md or remove the invalid copy." "sha256sum $(printf '%q' "$airgap_payload")" "grep -n 'k3s-airgap-images' $(printf '%q' "$REPO_ROOT/content/vendor/manual-fetch.json")"
-		fi
-	else
-		step_fail "manual-fetch catalog cannot supply the optional airgap SHA-256" "Restore the optional payload entry in content/vendor/manual-fetch.json." "python3 -m json.tool $(printf '%q' "$REPO_ROOT/content/vendor/manual-fetch.json")"
-	fi
-else
-	step_skip "optional k3s airgap tarball is absent; provisioning will use Artifactory pulls, not yet verified on the learner network" "stage it at $airgap_payload only if the registry fallback is needed"
-fi
+	step_fail "k3s cannot be fetched because K3S_BINARY_URL is unset and no same-VM staged binary exists" "Obtain the exact Artifactory generic-file URL from the administrator and set K3S_BINARY_URL, or download the pinned binary on this VM to $k3s_payload." "awk -F= '/^K3S_BINARY_URL=/ {print \"K3S_BINARY_URL is configured (value redacted)\"; found=1} END {if (!found) print \"K3S_BINARY_URL is unset\"}' $(printf '%q' "$CONFIG_FILE")" "ls -ld $(printf '%q' "$MANUAL_FETCH_DIR/k3s")" "grep '^learner-k3s-binary-amd64 ' $(printf '%q' "$REPO_ROOT/versions.lock")"
 fi
 
 required_files=(
@@ -215,5 +186,5 @@ else
 	fi
 fi
 
-end_report "Review this report and follow README-FIRST.md; continue only after required payload and capacity checks pass."
+end_report "Review this report and follow README-FIRST.md; continue only after binary source and capacity checks pass."
 ((FAIL_COUNT == 0))

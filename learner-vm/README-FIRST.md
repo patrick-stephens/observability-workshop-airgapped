@@ -7,7 +7,7 @@ No container image or other dependency may be pulled from a network service duri
 ## One-File Transfer
 
 On the connected upstream machine, create one self-contained ZIP from the current worktree.
-The default includes the required k3s binary and the optional airgap image tarball as a fallback.
+The ZIP contains the current source tree and small vendored inputs only; it does not contain the k3s binary or an image archive.
 
 ```bash
 cd /path/to/observability-workshop-airgapped
@@ -30,43 +30,35 @@ unzip -q "$ZIP_NAME" -d "$REPOSITORY_DIR"
 cd "$REPOSITORY_DIR"
 ```
 
-Verify the embedded payload manifest against both `versions.lock` and the extracted payload bytes before running the diagnostic.
+The k3s binary is downloaded during provisioning from an Artifactory generic-file URL and verified against the pinned SHA-256 in `versions.lock`.
+The ZIP sidecar is optional online integrity metadata and is not a second transfer file.
 
-```bash
-set -euo pipefail
-manifest='learner-vm/content/vendor/payload/payload-manifest.txt'
-verify_payload() {
-  local relative_path="$1" lock_key="$2" expected_status="$3" lock_line lock_sha row status manifest_sha actual
-  lock_line="$(awk -v key="$lock_key" '$1 == key {print; exit}' versions.lock)"
-  lock_sha="$(awk '{for (i=1;i<=NF;i++) if ($i ~ /^sha256:/) {sub(/^sha256:/,"",$i); print $i; exit}}' <<< "$lock_line")"
-  row="$(awk -F '\t' -v path="$relative_path" '$1 == path {print; exit}' "$manifest")"
-  [[ -n "$lock_sha" && -n "$row" ]]
-  status="$(cut -f5 <<< "$row")"
-  if [[ "$status" == OPTIONAL_NOT_INCLUDED ]]; then printf 'SKIP optional payload: %s\n' "$relative_path"; return 0; fi
-  [[ "$status" == "$expected_status" ]]
-  manifest_sha="$(cut -f4 <<< "$row")"
-  [[ "$manifest_sha" == "$lock_sha" ]]
-  actual="$(sha256sum "$relative_path" | awk '{print $1}')"
-  [[ "$actual" == "$lock_sha" ]]
-  printf 'PASS %s %s\n' "$relative_path" "$actual"
-}
-verify_payload learner-vm/content/vendor/payload/k3s/k3s learner-k3s-binary-amd64 REQUIRED
-verify_payload learner-vm/content/vendor/payload/k3s/k3s-airgap-images-amd64.tar.zst learner-k3s-airgap-images-amd64.tar.zst OPTIONAL_INCLUDED
-```
+## k3s Binary URL
 
-The extracted k3s payload is under `learner-vm/content/vendor/payload/k3s/` and requires no manual copy.
-The optional tarball is included by default because Artifactory-based k3s pulls have not been verified on the learner network.
-To build a smaller ZIP, the connected operator may use `--no-airgap-tarball`; the manifest then records `OPTIONAL_NOT_INCLUDED`.
+The packaged `learner-vm/lab-vm.conf` intentionally leaves `K3S_BINARY_URL` empty.
+Obtain the exact HTTPS generic-file URL from the Artifactory administrator and set it in that file before provisioning.
+Do not invent an Artifactory path or use the public GitHub release URL on the learner VM.
+The SHA-256 in `versions.lock` remains authoritative and is not duplicated in `lab-vm.conf`.
 
 ## Manual Fetch Recovery
 
-See [content/vendor/MANUAL-FETCH.md](../content/vendor/MANUAL-FETCH.md) if the single ZIP is damaged or an embedded payload path is absent.
-For k3s recovery, fetch the pinned URL on a connected machine, verify its SHA-256, and transfer it to `$MANUAL_FETCH_DIR/k3s/k3s` or `$MANUAL_FETCH_DIR/k3s/k3s-airgap-images-amd64.tar.zst` as appropriate.
-Scripts 00 and 45 prefer the embedded ZIP paths and consult these manual staging paths only when the corresponding embedded file is absent.
-A present-but-invalid embedded file is reported as a checksum failure; stop and repair or re-extract the ZIP rather than bypassing it with a fallback copy.
+If the automatic download fails, configure the administrator-supplied `K3S_BINARY_URL` and use the same-VM staging fallback below.
+This fallback downloads on the learner VM; do not transfer a binary, payload archive, or airgap tarball separately.
 
-The airgap tarball is an optional bootstrap fallback if Artifactory-based provisioning is unreliable.
-When absent from both paths, k3s uses Artifactory CRI pulls; their success is not assumed.
+```bash
+set -a
+source learner-vm/lab-vm.conf
+set +a
+sudo install -d -o "$WORKSHOP_USER" -g "$WORKSHOP_USER" -m 0750 "$MANUAL_FETCH_DIR/k3s"
+curl --fail --silent --show-error --connect-timeout 15 --max-time 900 --output "$MANUAL_FETCH_DIR/k3s/k3s" "$K3S_BINARY_URL"
+expected_sha="$(awk '$1 == "learner-k3s-binary-amd64" {for (i=1;i<=NF;i++) if ($i ~ /^sha256:/) {sub(/^sha256:/,"",$i); print $i; exit}}' versions.lock)"
+actual_sha="$(sha256sum "$MANUAL_FETCH_DIR/k3s/k3s" | awk '{print $1}')"
+[[ "$actual_sha" == "$expected_sha" ]]
+```
+
+Rerun script 45 after the staged file matches the lock hash.
+If a staged file exists but has a mismatched hash, stop and replace it from the configured Artifactory URL before retrying.
+See [content/vendor/MANUAL-FETCH.md](../content/vendor/MANUAL-FETCH.md) for the pinned upstream provenance and fallback details.
 
 ## Provisioning Design
 
@@ -128,9 +120,10 @@ Do not run scripts 10–80 until the diagnostic report has been reviewed and the
 ## Removed Files and Recovery
 
 The cleanup manifest is `scripts/dev/obsolete-artifacts.txt`.
-It removes an unused compatibility executable and sidecar, the separately transferred k3s executable, and the optional airgap tarball from the repository working tree.
+It records the former compatibility executable and sidecar, k3s executable, and airgap tarball paths that must not enter the source ZIP.
+The packager does not remove, stage, or clean these or any other working-tree files.
 The small k3s installer, image list, and SELinux RPM remain in Git and are checksummed by `content/vendor/k3s/SHA256SUMS`.
-Large payloads are generated on the connected machine by `scripts/dev/package-vm-transfer.sh` and are not committed.
+Script 45 downloads the pinned k3s binary from the administrator-supplied `K3S_BINARY_URL`; k3s images are acquired through Artifactory CRI pulls during provisioning.
 
 The upstream freeze tag `workshop-lvm-prep-v2` is the recovery point for removed Git files.
 From an upstream clone, restore an individual path with `git checkout workshop-lvm-prep-v2 -- <path>`.
