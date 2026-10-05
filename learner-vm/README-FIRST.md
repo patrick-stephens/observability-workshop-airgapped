@@ -22,37 +22,24 @@ Extract the repository and payload to their expected locations:
 ```bash
 mkdir -p "$HOME/o11y-lab"
 unzip -q o11y-lab-vm-repository.zip -d "$HOME/o11y-lab"
-sudo install -d -m 0700 /var/tmp/o11y-lab-vm-transfer
-sudo tar -xzf payload/o11y-lab-vm-payload.tar.gz -C /var/tmp/o11y-lab-vm-transfer
+sudo install -d -m 0700 /var/tmp/o11y-lab-vm-manual
+sudo tar -xzf payload/o11y-lab-vm-payload.tar.gz --strip-components=1 -C /var/tmp/o11y-lab-vm-manual
 ```
 
-The payload staging directory is `/var/tmp/o11y-lab-vm-transfer/`.
-Confirm the k3s binary hash against the `REQUIRED` row in `payload/payload-manifest.txt` and `versions.lock`, then install it with the destination mode and ownership expected by the planned installer:
-
-```bash
-sha256sum /var/tmp/o11y-lab-vm-transfer/payload/k3s/k3s
-sudo install -o root -g root -m 0700 /var/tmp/o11y-lab-vm-transfer/payload/k3s/k3s /usr/local/bin/k3s
-```
+The payload staging directory is `$MANUAL_FETCH_DIR`, set to `/var/tmp/o11y-lab-vm-manual` in `learner-vm/lab-vm.conf`. Keep the payload archive's directory structure intact: script 10 checks the required k3s binary against `versions.lock`, and script 45 verifies the authoritative manual-fetch catalog before installing it with root ownership and mode `0755`.
 
 ## Manual Fetch Recovery
 
-See [content/vendor/MANUAL-FETCH.md](../content/vendor/MANUAL-FETCH.md) when a network-dependent fetch fails: first look at the artifact's `$MANUAL_FETCH_DIR` staging path, verify and use it if present, otherwise try its documented network source, and if that fails stop with FATAL and use the exact staging path named in the fix hint; for example, if planned script 45 reports a missing k3s binary, fetch the pinned URL from Section B on a connected machine, verify its SHA-256, transfer it to `$MANUAL_FETCH_DIR/k3s/k3s`, then rerun script 45.
+See [content/vendor/MANUAL-FETCH.md](../content/vendor/MANUAL-FETCH.md) when a network-dependent fetch fails: first look at the artifact's `$MANUAL_FETCH_DIR` staging path, verify and use it if present, otherwise try its documented network source, and if that fails stop with FATAL and use the exact staging path named in the fix hint; for example, if script 45 reports a missing k3s binary, fetch the pinned URL from Section B on a connected machine, verify its SHA-256, transfer it to `$MANUAL_FETCH_DIR/k3s/k3s`, then rerun script 45.
 
-The optional airgap tarball is included only when the connected operator used `--include-k3s-airgap-tarball`.
-If present, verify its hash against the `OPTIONAL` row in `payload/payload-manifest.txt`, then copy it before the first k3s start:
-
-```bash
-sha256sum /var/tmp/o11y-lab-vm-transfer/payload/k3s/k3s-airgap-images-amd64.tar.zst
-sudo install -D -o root -g root -m 0600 /var/tmp/o11y-lab-vm-transfer/payload/k3s/k3s-airgap-images-amd64.tar.zst /var/lib/rancher/k3s/agent/images/k3s-airgap-images-amd64.tar.zst
-```
+The optional airgap tarball is included only when the connected operator used `--include-k3s-airgap-tarball`. If present at its catalog path, script 45 verifies its hash and copies it into k3s's agent image directory before the first service start. If absent, script 45 reports that bootstrap will use Artifactory CRI pulls; their success is not assumed.
 
 The airgap tarball is a recovery option if Artifactory-based bootstrap proves unreliable.
 K3s imports images found in its agent image directory during bootstrap, avoiding registry pulls for those system images.
 
 ## Provisioning Design
 
-Install operating-system CA trust for the configured registry before starting k3s.
-Then write `/etc/rancher/k3s/registries.yaml` before the k3s service starts so its containerd instance uses the approved Artifactory mirror for both `docker.io` and `registry.k8s.io`.
+Install operating-system CA trust for the configured registry with script 30 before starting k3s. Script 45 installs the retained SELinux RPM, installs the checksum-verified k3s binary, then writes `/etc/rancher/k3s/registries.yaml` before the k3s service starts so its containerd instance uses the approved Artifactory mirror for both `docker.io` and `registry.k8s.io`.
 The pinned v1.37.1+k3s1 release supports mirror endpoint URLs with a path prefix and per-endpoint `tls.ca_file` configuration.
 
 The following illustrates the supported registry structure using values from `learner-vm/lab-vm.conf`:
@@ -82,8 +69,7 @@ Use that CRI path for pull diagnostics; `k3s ctr images pull` is not the mirror-
 Inspect images with `sudo /usr/local/bin/k3s crictl images` and inspect the containerd registry host configuration under `/var/lib/rancher/k3s/agent/etc/containerd/certs.d/`.
 For failures, inspect `/var/lib/rancher/k3s/agent/containerd/containerd.log` and `sudo journalctl -u k3s -b --no-pager`.
 
-The intended provisioning order is to establish CA trust, write the mirror configuration, install the checksum-verified k3s executable, and start k3s while Artifactory is reachable.
-Then verify that system pods are Ready and inspect the k3s image store using `k3s kubectl get pods -A` and `k3s crictl images`.
+The intended provisioning order is scripts 10, 20, 30, 40, 45, 50, 60, 62, and 70. This establishes CA trust, installs tools and mirrors, configures k3s before first start, and then preloads the separate rootful Podman and k3s image stores. Verify that system pods are Ready and inspect the k3s image store using `k3s kubectl get pods -A` and `k3s crictl images`.
 The mirror format is documented in the [K3s private registry guide](https://docs.k3s.io/installation/private-registry) and verified against the pinned [v1.37.1+k3s1 containerd configuration source](https://github.com/k3s-io/k3s/blob/v1.37.1%2Bk3s1/pkg/agent/containerd/config.go).
 The registry must be tested on the learner network before this path is considered validated.
 The connected-machine probe reported HTTP 000 because its resolver could not resolve the configured registry host; this is not evidence of an image miss or a successful mirror pull.
@@ -92,6 +78,7 @@ After bootstrap, provision workshop images into the separate k3s containerd stor
 The k3s and Podman image stores are independent.
 Before hand-off, block Artifactory access and verify that both stores contain every image required by their respective labs.
 Attendees must not need Artifactory or any other network service at runtime.
+Rootless Podman is not enabled by these scripts; see [docs/rootless-podman.md](../docs/rootless-podman.md) before considering a future migration because its image store requires separate preloading.
 
 ## Diagnosis and Run Order
 
@@ -99,9 +86,7 @@ Run `sudo "$HOME/o11y-lab/learner-vm/scripts/00-diagnose.sh"` after extraction t
 The diagnostic reports the previous online registry probe as inconclusive when its recorded status is HTTP 000.
 Its report is read-only evidence and does not establish that mirror pulls have been tested on the learner network.
 
-The package currently includes diagnostics and operator instructions; the later numbered provisioning scripts are authored and reviewed as separate artifacts.
-Run only the reviewed provisioning scripts in their documented order when they are supplied.
-Do not infer that an absent or planned script was executed or validated by this packaging workflow.
+Run `sudo learner-vm/scripts/10-preflight.sh --dry-run` first to review target-specific prerequisites, then run the numbered provisioning scripts in the order above without `--dry-run` only on the learner VM. Finish with `sudo learner-vm/scripts/80-verify-offline.sh`; its Artifactory-blocked Part B is skipped unless safe, reversible per-IP firewall blocking can be established. A dry-run is only a plan and is not evidence of RHEL installation, successful mirror pulls, image preload, or offline operation.
 
 ## Removed Files and Recovery
 

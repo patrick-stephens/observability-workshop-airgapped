@@ -1,6 +1,8 @@
 # shellcheck shell=bash
 set -euo pipefail
 
+# CHANGE: Keep dry-run reports on stdout without creating or appending system logs.
+LIB_VERSION="2"
 : "${SCRIPT_NAME:?Set SCRIPT_NAME before sourcing scripts/lib.sh}"
 : "${SCRIPT_VERSION:?Set SCRIPT_VERSION before sourcing scripts/lib.sh}"
 
@@ -59,7 +61,7 @@ fi
 log() {
     local line="[${SCRIPT_NAME}] $*"
     printf '%s\n' "$line"
-    if [[ "$SELFTEST_MODE" != "true" ]] && mkdir -p "$LOG_DIR" 2>/dev/null && printf '%s\n' "$line" >>"$LOG_FILE" 2>/dev/null; then
+    if [[ "$SELFTEST_MODE" != "true" && "$DRY_RUN" != "true" ]] && mkdir -p "$LOG_DIR" 2>/dev/null && printf '%s\n' "$line" >>"$LOG_FILE" 2>/dev/null; then
         :
     fi
 }
@@ -127,7 +129,7 @@ begin_report() {
 }
 
 end_report() {
-    local hostname_value timestamp_value git_sha result skipped_summary line
+    local hostname_value timestamp_value git_sha result skipped_summary line log_summary
     local report_lines=() skip_joined=""
 
     REPORT_ACTIVE=0
@@ -148,19 +150,21 @@ end_report() {
     else
         skipped_summary="SKIPPED (0): none"
     fi
+    if [[ "$DRY_RUN" == "true" ]]; then log_summary="not written during --dry-run: ${LOG_FILE}"; else log_summary="${LOG_FILE}"; fi
 
     report_lines+=("==================== REPORT BEGIN ====================")
     report_lines+=("SCRIPT: ${SCRIPT_NAME} ${SCRIPT_VERSION}")
+    report_lines+=("LIBRARY: lib.sh ${LIB_VERSION}")
     report_lines+=("HOST: ${hostname_value} ${timestamp_value} git: ${git_sha}")
     report_lines+=("RESULT: ${result} (ok=${OK_COUNT} failed=${FAIL_COUNT} skipped=${SKIP_COUNT})")
     for line in "${FAIL_ENTRIES[@]}"; do report_lines+=("$line"); done
-    report_lines+=("OK: ${OK_COUNT} steps — full log: ${LOG_FILE}")
+    report_lines+=("OK: ${OK_COUNT} steps — full log: ${log_summary}")
     report_lines+=("${skipped_summary}")
     report_lines+=("NEXT: ${1:-Review the report and follow README-FIRST.md.}")
     report_lines+=("==================== REPORT END ======================")
 
     printf '%s\n' "${report_lines[@]}"
-    if [[ "$SELFTEST_MODE" != "true" ]] && mkdir -p "$LOG_DIR" 2>/dev/null; then
+    if [[ "$SELFTEST_MODE" != "true" && "$DRY_RUN" != "true" ]] && mkdir -p "$LOG_DIR" 2>/dev/null; then
         printf '%s\n' "${report_lines[@]}" >>"$LOG_FILE" 2>/dev/null || true
     fi
 }

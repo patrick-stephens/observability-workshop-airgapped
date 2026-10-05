@@ -2,8 +2,9 @@
 set -euo pipefail
 
 SCRIPT_NAME="00-diagnose"
-# SCRIPT_VERSION 4: Diagnose detached k3s payloads and Artifactory-backed bootstrap readiness.
-SCRIPT_VERSION="4"
+# CHANGE: Keep diagnostics aligned with the Podman-only runtime and manual-fetch staging design.
+# SCRIPT_VERSION 7: Diagnose staged k3s payloads without legacy daemon checks.
+SCRIPT_VERSION="7"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SELFTEST=false
 DRY_RUN=false
@@ -24,7 +25,7 @@ fi
 
 begin_report
 for argument in "${UNKNOWN_ARGUMENTS[@]}"; do
-    step_fail "unknown argument: $argument" "Use learner-vm/scripts/00-diagnose.sh with --selftest, --dry-run, or no argument."
+    step_fail "unknown argument: $argument" "Use learner-vm/scripts/00-diagnose.sh with --selftest, --dry-run, or no argument." "printf '%s\\n' --selftest --dry-run"
 done
 
 if [[ "$SELFTEST" == "true" ]]; then
@@ -34,7 +35,7 @@ if [[ "$SELFTEST" == "true" ]]; then
         "printf 'synthetic diagnostic output\\n'" \
         "lab-selftest-command-that-does-not-exist"
     step_skip "synthetic optional dependency is absent" "optional self-test tool"
-    end_report "transcribe this report block; provisioning scripts (10-80) are finalised after this report is reviewed"
+    end_report "review the synthetic report; no provisioning was attempted"
     exit 0
 fi
 
@@ -48,7 +49,7 @@ fi
 if [[ "${WORKSHOP_USER:-}" == "engineer" ]]; then
     step_ok "WORKSHOP_USER is the required engineer account"
 else
-    step_fail "WORKSHOP_USER must be engineer" "Set WORKSHOP_USER=\"engineer\" in learner-vm/lab-vm.conf; the planned preflight requires this account."
+    step_fail "WORKSHOP_USER must be engineer" "Set WORKSHOP_USER=\"engineer\" in learner-vm/lab-vm.conf; the planned preflight requires this account." "grep '^WORKSHOP_USER=' $(printf '%q' "$CONFIG_FILE")" "getent passwd engineer"
 fi
 
 compact_output() {
@@ -97,7 +98,7 @@ check_iso() {
                 step_ok "ISO device $iso_path mounted read-only; BaseOS/ and AppStream/ found"
             fi
         else
-            step_fail "mounted ISO lacks BaseOS/ or AppStream/" "Attach the RHEL 8.6 installation ISO named by ISO_PATH in learner-vm/lab-vm.conf."
+            step_fail "mounted ISO lacks BaseOS/ or AppStream/" "Attach the RHEL 8.6 installation ISO named by ISO_PATH in learner-vm/lab-vm.conf." "find $(printf '%q' "$mount_dir") -maxdepth 2 -type d" "findmnt $(printf '%q' "$mount_dir")"
         fi
     else
         step_skip "ISO could not be mounted" "check that $iso_path is attached and contains the RHEL 8.6 media"
@@ -109,13 +110,13 @@ check_iso() {
 }
 
 registry_diagnostics() {
-    local label="$1" request_url="$2" fallback_url="$3" host_quoted request_quoted fallback_quoted tls_target
+    local label="$1" request_url="$2" fallback_url="$3" fix_hint="$4" host_quoted request_quoted fallback_quoted tls_target
     printf -v host_quoted '%q' "$ART_HOST"
     printf -v request_quoted '%q' "$request_url"
     printf -v fallback_quoted '%q' "$fallback_url"
     tls_target="${REG_HOST}:443"
     if [[ "$REG_HOST" == *:* ]]; then tls_target="$REG_HOST"; fi
-    step_fail "$label" "Confirm DOCKER_REGISTRY in learner-vm/lab-vm.conf; escalate 401 as a design change and ensure 404 images are warm before script 60." \
+    step_fail "$label" "$fix_hint" \
         "getent hosts $host_quoted" \
         "curl -v --connect-timeout 10 --max-time 10 -o /dev/null $request_quoted 2>&1 | tail -n 10" \
         "printf '' | openssl s_client -connect ${tls_target} -servername ${REG_HOST%%:*} 2>/dev/null | openssl x509 -noout -subject -issuer" \
@@ -127,7 +128,6 @@ check_http_status() {
     local curl_args=(--connect-timeout 10 --max-time 10 -sS -o /dev/null -w '%{http_code}')
     if [[ -n "$accept_header" ]]; then curl_args+=(-H "Accept: $accept_header"); fi
     if status="$(curl "${curl_args[@]}" "$url" 2>/dev/null)"; then :; fi
-    HTTP_STATUS="$status"
     if [[ " $expected " == *" $status "* ]]; then
         step_ok "$label: HTTP $status"
     else
@@ -138,7 +138,7 @@ check_http_status() {
         elif [[ "$url" == "https://${ART_HOST}/" ]]; then
             fallback_url="https://${ART_HOST}/v2/"
         elif [[ "$url" == "https://${DOCKER_REGISTRY}"* ]]; then
-            fallback_path="${url#https://${DOCKER_REGISTRY}/v2}"
+            fallback_path="${url#https://"${DOCKER_REGISTRY}"/v2}"
             fallback_url="https://${ART_HOST}/v2${fallback_path}"
         fi
         case "$status" in
@@ -146,7 +146,7 @@ check_http_status() {
             404) fix_hint="The image is not cached or the registry path is wrong; confirm DOCKER_REGISTRY and warm the image before script 60." ;;
             *) fix_hint="Check ART_HOST, DOCKER_REGISTRY, the OS CA trust store, and the Artifactory route." ;;
         esac
-        registry_diagnostics "$label: HTTP $status" "$url" "$fallback_url"
+        registry_diagnostics "$label: HTTP $status" "$url" "$fallback_url" "$fix_hint"
     fi
 }
 
@@ -202,7 +202,7 @@ if require_or_skip id "workshop user inventory"; then
         if [[ " $user_groups " == *" wheel "* ]]; then
             step_ok "$WORKSHOP_USER exists and belongs to wheel"
         else
-            step_fail "$WORKSHOP_USER is not a wheel member" "Check WORKSHOP_USER in learner-vm/lab-vm.conf and add the user to wheel using the approved base-image process."
+            step_fail "$WORKSHOP_USER is not a wheel member" "Check WORKSHOP_USER in learner-vm/lab-vm.conf and add the user to wheel using the approved base-image process." "id $(printf '%q' "$WORKSHOP_USER")" "getent group wheel"
         fi
         if grep -R -E "^[[:space:]]*${WORKSHOP_USER}[[:space:]].*NOPASSWD|^[[:space:]]*%wheel[[:space:]].*NOPASSWD" /etc/sudoers /etc/sudoers.d 2>/dev/null; then
             step_skip "passwordless sudo is already configured" "script 50 normally configures it; wrappers require it"
@@ -210,7 +210,7 @@ if require_or_skip id "workshop user inventory"; then
             step_skip "passwordless sudo is absent as expected" "script 50 will configure it because auto-elevate wrappers require non-interactive sudo"
         fi
     else
-        step_fail "$WORKSHOP_USER does not exist" "Create $WORKSHOP_USER in the base image and add it to wheel."
+        step_fail "$WORKSHOP_USER does not exist" "Create $WORKSHOP_USER in the base image and add it to wheel." "getent passwd $(printf '%q' "$WORKSHOP_USER")" "grep '^WORKSHOP_USER=' $(printf '%q' "$CONFIG_FILE")"
     fi
 fi
 if require_or_skip visudo "sudoers syntax validator"; then step_ok "visudo is installed"; fi
@@ -315,22 +315,15 @@ if command -v docker >/dev/null 2>&1; then
     elif [[ "$docker_owner" == podman-docker-* ]]; then
         step_ok "docker command is provided by podman-docker: $docker_path ($docker_owner)"
     else
-        step_fail "UNEXPECTED real Docker binary at $docker_real; a second runtime is not allowed" "Remove Docker CE and install the podman-docker shim using the planned provisioning scripts." "rpm -qf $(printf '%q' "$docker_path")" "ps -ef | grep -E '[d]ockerd|[c]ontainerd'"
+        step_fail "docker-compatible command does not resolve to the Podman shim: $docker_real" "Ensure /usr/local/bin/docker or the podman-docker package resolves to the rootful Podman runtime." "rpm -qf $(printf '%q' "$docker_path")" "readlink -f $(printf '%q' "$docker_path")" "head -n 12 $(printf '%q' "$docker_path")"
     fi
 else
     step_skip "docker command is absent as expected on the base image" "script 20 installs the podman-docker shim"
 fi
 if [[ -S /var/run/docker.sock ]]; then
-    step_fail "UNEXPECTED Docker API socket is present at /var/run/docker.sock" "Remove the second-runtime socket; only rootful Podman is allowed by this design." "stat /var/run/docker.sock" "ps -ef | grep -E '[d]ockerd|[c]ontainerd'"
+    step_fail "unexpected container API socket is present at /var/run/docker.sock" "Remove the socket before using the Podman-only runtime configuration." "stat /var/run/docker.sock" "ss -lxnp | grep -F /var/run/docker.sock"
 else
-    step_ok "no Docker API socket is present"
-fi
-if require_or_skip pgrep "Docker daemon process inventory"; then
-    if pgrep -x dockerd >/dev/null 2>&1; then
-        step_fail "UNEXPECTED dockerd process is running" "Remove Docker CE; the learner VM must use rootful Podman only." "ps -ef | grep -E '[d]ockerd|[c]ontainerd'"
-    else
-        step_ok "no dockerd process is running"
-    fi
+    step_ok "no container API socket is present"
 fi
 if require_or_skip rpm "podman-docker package state"; then
     if rpm -q podman-docker >/dev/null 2>&1; then
@@ -378,7 +371,7 @@ fi
 if [[ -d "$REPO_ROOT" ]]; then
     step_ok "repository root present: $REPO_ROOT"
 else
-    step_fail "repository root is absent: $REPO_ROOT" "Transfer the complete repository to the learner VM."
+    step_fail "repository root is absent: $REPO_ROOT" "Transfer the complete repository to the learner VM." "pwd" "ls -ld $(printf '%q' "$REPO_ROOT")"
 fi
 tracks=(opentelemetry otel-developers prometheus fluentbit perses)
 for track in "${tracks[@]}"; do
@@ -390,63 +383,78 @@ for track in "${tracks[@]}"; do
         if ((${#lab_files[@]} > 0)); then
             step_ok "content repo $track: ${#lab_files[@]} lab*.html file(s)"
         else
-            step_fail "content repo $track has no lab*.html files" "Restore content/repos/$track from the online capture."
+            step_fail "content repo $track has no lab*.html files" "Restore content/repos/$track from the online capture." "find $(printf '%q' "$repo_track") -maxdepth 2 -type f" "ls -la $(printf '%q' "$repo_track")"
         fi
     else
-        step_fail "content repo is absent: $repo_track" "Transfer content/repos/$track from the online capture."
+        step_fail "content repo is absent: $repo_track" "Transfer content/repos/$track from the online capture." "ls -ld $(printf '%q' "$repo_track")" "find $(printf '%q' "$REPOS_ROOT") -maxdepth 1 -type d"
     fi
     docs_track="$DOCS_ROOT/$track"
     landing_page="$(find "$docs_track" -type f \( -name index.html -o -name index.htm \) -print -quit 2>/dev/null || true)"
     if [[ -n "$landing_page" ]]; then
         step_ok "docs landing page present for $track: ${landing_page#"$REPO_ROOT/"}"
     else
-        step_fail "docs landing page is absent for $track" "Transfer the mirrored content/docs/$track tree from the online capture."
+        step_fail "docs landing page is absent for $track" "Transfer the mirrored content/docs/$track tree from the online capture." "find $(printf '%q' "$docs_track") -type f -name index.html -o -name index.htm" "ls -la $(printf '%q' "$docs_track")"
     fi
 done
 
-lock_sha256() {
-    local key="$1" value
-    value="$(awk -v key="$key" '$1 == key { print $2; exit }' "$REPO_ROOT/versions.lock" 2>/dev/null || true)"
-    printf '%s' "${value#sha256:}"
+manual_sha256() {
+    local artifact="$1" catalog="$REPO_ROOT/content/vendor/manual-fetch.json"
+    [[ -r "$catalog" ]] || return 1
+    python3 - "$catalog" "$artifact" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding="utf-8") as source:
+    entries = json.load(source)
+entry = next((item for item in entries if item.get("category") == "payload" and item.get("name") == sys.argv[2]), None)
+if entry and isinstance(entry.get("sha256"), str):
+    print(entry["sha256"])
+else:
+    raise SystemExit(1)
+PY
 }
 
-payload_root="/var/tmp/o11y-lab-vm-transfer/payload/k3s"
-k3s_payload="$payload_root/k3s"
-k3s_expected="$(lock_sha256 learner-k3s-binary-amd64)"
+k3s_payload="$MANUAL_FETCH_DIR/k3s/k3s"
+k3s_expected=""
+if command -v python3 >/dev/null 2>&1; then
+    if k3s_expected="$(manual_sha256 k3s/k3s 2>/dev/null)"; then :; else k3s_expected=""; fi
+fi
 if [[ -s "$k3s_payload" ]]; then
     if [[ ! "$k3s_expected" =~ ^[0-9a-f]{64}$ ]]; then
-        step_fail "pinned k3s payload checksum is unavailable" "Restore the learner-k3s-binary-amd64 SHA-256 record in versions.lock."
+        step_fail "pinned k3s payload checksum is unavailable" "Restore the k3s/k3s payload entry in content/vendor/manual-fetch.json." "python3 -m json.tool $(printf '%q' "$REPO_ROOT/content/vendor/manual-fetch.json")" "grep -n 'k3s/k3s' $(printf '%q' "$REPO_ROOT/content/vendor/manual-fetch.json")"
     elif ! command -v sha256sum >/dev/null 2>&1; then
-        step_fail "sha256sum is unavailable for k3s payload verification" "Install the RHEL coreutils package before provisioning."
+        step_fail "sha256sum is unavailable for k3s payload verification" "Install the RHEL coreutils package before provisioning." "command -v sha256sum" "rpm -q coreutils"
     else
         if k3s_actual="$(sha256sum "$k3s_payload" 2>/dev/null | awk '{print $1}')"; then :; else k3s_actual="unavailable"; fi
         if [[ "$k3s_actual" == "$k3s_expected" ]]; then
             step_ok "required k3s payload is present and checksum-valid"
         else
-            step_fail "k3s payload checksum-invalid: expected $k3s_expected, actual $k3s_actual" "Re-transfer and extract payload/k3s/k3s to $payload_root/k3s."
+            step_fail "k3s payload checksum-invalid: expected $k3s_expected, actual $k3s_actual" "See Section B of content/vendor/MANUAL-FETCH.md and stage the verified file at $k3s_payload." "sha256sum $(printf '%q' "$k3s_payload")" "grep -n 'k3s/k3s' $(printf '%q' "$REPO_ROOT/content/vendor/manual-fetch.json")"
         fi
     fi
 else
-    step_fail "required k3s binary payload is absent" "Transfer the payload archive and extract it into /var/tmp/o11y-lab-vm-transfer so payload/k3s/k3s is present."
+    step_fail "required k3s binary payload is absent" "See Section B of content/vendor/MANUAL-FETCH.md and transfer the verified file to $k3s_payload." "ls -l $(printf '%q' "$MANUAL_FETCH_DIR/k3s")" "grep -n 'k3s/k3s' $(printf '%q' "$REPO_ROOT/content/vendor/MANUAL-FETCH.md")"
 fi
 
-airgap_payload="$payload_root/k3s-airgap-images-amd64.tar.zst"
-airgap_expected="$(lock_sha256 learner-k3s-airgap-images-amd64.tar.zst)"
+airgap_payload="$MANUAL_FETCH_DIR/k3s/k3s-airgap-images-amd64.tar.zst"
+airgap_expected=""
+if command -v python3 >/dev/null 2>&1; then
+    if airgap_expected="$(manual_sha256 k3s/k3s-airgap-images-amd64.tar.zst 2>/dev/null)"; then :; else airgap_expected=""; fi
+fi
 if [[ -s "$airgap_payload" ]]; then
     if [[ ! "$airgap_expected" =~ ^[0-9a-f]{64}$ ]]; then
-        step_fail "pinned optional k3s airgap checksum is unavailable" "Restore the learner-k3s-airgap-images-amd64.tar.zst SHA-256 record in versions.lock."
+        step_fail "pinned optional k3s airgap checksum is unavailable" "Restore the k3s/k3s-airgap-images-amd64.tar.zst payload entry in content/vendor/manual-fetch.json." "python3 -m json.tool $(printf '%q' "$REPO_ROOT/content/vendor/manual-fetch.json")" "grep -n 'k3s-airgap-images' $(printf '%q' "$REPO_ROOT/content/vendor/manual-fetch.json")"
     elif ! command -v sha256sum >/dev/null 2>&1; then
-        step_fail "sha256sum is unavailable for the optional k3s airgap payload" "Install the RHEL coreutils package before provisioning."
+        step_fail "sha256sum is unavailable for the optional k3s airgap payload" "Install the RHEL coreutils package before provisioning." "command -v sha256sum" "rpm -q coreutils"
     else
         if airgap_actual="$(sha256sum "$airgap_payload" 2>/dev/null | awk '{print $1}')"; then :; else airgap_actual="unavailable"; fi
         if [[ "$airgap_actual" == "$airgap_expected" ]]; then
             step_ok "optional k3s airgap tarball is present and checksum-valid; fallback is available"
         else
-            step_fail "optional k3s airgap tarball checksum-invalid: expected $airgap_expected, actual $airgap_actual" "Re-transfer and extract the optional airgap tarball to $airgap_payload."
+            step_fail "optional k3s airgap tarball checksum-invalid: expected $airgap_expected, actual $airgap_actual" "See Section B of content/vendor/MANUAL-FETCH.md and stage the optional file at $airgap_payload." "sha256sum $(printf '%q' "$airgap_payload")" "grep -n 'k3s-airgap-images' $(printf '%q' "$REPO_ROOT/content/vendor/manual-fetch.json")"
         fi
     fi
 else
-    step_skip "optional k3s airgap tarball is absent; planned provisioning uses Artifactory pulls (not yet verified on the learner network)" "include --include-k3s-airgap-tarball when packaging only if the registry bootstrap fallback is required"
+    step_skip "optional k3s airgap tarball is absent; planned provisioning uses Artifactory pulls (not yet verified on the learner network)" "see Section B of content/vendor/MANUAL-FETCH.md if the optional fallback is required"
 fi
 
 k3s_probe="$REPO_ROOT/content/vendor/k3s/registry-probe.txt"
@@ -476,5 +484,5 @@ if require_or_skip rpm "GNOME display manager inventory"; then
     fi
 fi
 
-end_report "transcribe this report block; provisioning scripts (10-80) are finalised after this report is reviewed"
+end_report "review this diagnostic report, then run script 10 in dry-run mode before provisioning"
 exit 0
