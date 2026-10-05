@@ -40,6 +40,65 @@
           "localhost/hello-otel:prog",
           "docker.io/jaegertracing/all-in-one:1.76.0"
         ]
+      },
+      {
+        "name": "hello-otel-app",
+        "exec": "docker",
+        "image": "hello-otel:prog",
+        "ports": [
+          "8001:8000"
+        ],
+        "env": {
+          "FLASK_RUN_PORT": "8000"
+        },
+        "volumes": [],
+        "cmd": [],
+        "check": {
+          "type": "running",
+          "url": "http://localhost:8001/",
+          "reason": "The lab describes the root endpoint as a page-view counter; use container-running readiness because the displayed count changes per request."
+        },
+        "exec_adaptations": [
+          "Use the docker shim for the source Podman command; both resolve to the same rootful Podman image store.",
+          "-d added so the service remains available for verification.",
+          "Interactive/TTY flags removed because verification has no interactive terminal."
+        ],
+        "source": {
+          "file": "lab03.html",
+          "path_type": "docker",
+          "engine": "podman",
+          "raw": "$ podman run -i -p 8001:8000 -e FLASK_RUN_PORT=8000 hello-otel:prog",
+          "cwd": "."
+        }
+      },
+      {
+        "name": "otel-manifest",
+        "requires_k3s": true,
+        "exec": "kubectl",
+        "steps": [
+          "kubectl apply -f content/repos/opentelemetry/_vendored/app_pod.yaml",
+          "kubectl wait --for=condition=Ready pod/hello-otel --timeout=120s",
+          "kubectl port-forward --address 127.0.0.1 pod/hello-otel 18080:16686"
+        ],
+        "check": {
+          "url": "http://localhost:18080",
+          "expect": "Jaeger"
+        },
+        "exec_adaptations": [
+          "The lab's Rancher path runs kubectl against k3s; execution requires the planned k3s-enabled learner VM.",
+          "Manifest source path programmatic/app_pod.yaml is replaced by the verified vendored path.",
+          "Manifest provides pod name 'hello-otel'; it defines no namespace (default namespace) and no labels (none), so wait targets the named Pod directly.",
+          "Manifest Jaeger containerPort 16686 is forwarded to collision-free host port 18080; source manifest hostPort is not used for the host check."
+        ],
+        "source": {
+          "file": "lab04-rancher.html",
+          "path_type": "rancher",
+          "engine": "kubectl",
+          "raw": "$ kubectl apply -f programmatic/app_pod.yaml",
+          "manifest": "content/repos/opentelemetry/_vendored/app_pod.yaml",
+          "manifest_source": "https://gitlab.com/o11y-workshops/intro-to-instrumentation/-/archive/v1.4/intro-to-instrumentation-v1.4.zip",
+          "manifest_sha256": "47e8ded410413f08de1ae446c7a89f6c47a21d035375e0df16ae4b770a4cd597"
+        }
       }
     ],
     "unresolved": [],

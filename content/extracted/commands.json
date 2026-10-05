@@ -33,6 +33,12 @@
             "runtime_download": false,
             "base_images": [
               "python:3.13-bullseye"
+            ],
+            "context_exists": true,
+            "preload_status": "PRELOADABLE-VIA-VENDORED-CONTEXT",
+            "preloadable": true,
+            "preload_steps": [
+              "docker build -t hello-otel:base -f _vendored/intro-to-instrumentation-v1.4/Buildfile _vendored/intro-to-instrumentation-v1.4"
             ]
           },
           {
@@ -80,6 +86,12 @@
             "runtime_download": false,
             "base_images": [
               "python:3.13-bullseye"
+            ],
+            "context_exists": true,
+            "preload_status": "PRELOADABLE-VIA-VENDORED-CONTEXT",
+            "preloadable": true,
+            "preload_steps": [
+              "docker build -t hello-otel:auto -f _vendored/intro-to-instrumentation-v1.4/automatic/Buildfile-auto _vendored/intro-to-instrumentation-v1.4"
             ]
           },
           {
@@ -138,6 +150,12 @@
             "runtime_download": false,
             "base_images": [
               "python:3.13-bullseye"
+            ],
+            "context_exists": true,
+            "preload_status": "PRELOADABLE-VIA-VENDORED-CONTEXT",
+            "preloadable": true,
+            "preload_steps": [
+              "docker build -t hello-otel:auto-manual -f _vendored/intro-to-instrumentation-v1.4/automatic/Buildfile-auto _vendored/intro-to-instrumentation-v1.4"
             ]
           },
           {
@@ -219,6 +237,12 @@
             "runtime_download": false,
             "base_images": [
               "python:3.13-bullseye"
+            ],
+            "context_exists": true,
+            "preload_status": "PRELOADABLE-VIA-VENDORED-CONTEXT",
+            "preloadable": true,
+            "preload_steps": [
+              "docker build -t hello-otel:base -f _vendored/intro-to-instrumentation-v1.4/Buildfile _vendored/intro-to-instrumentation-v1.4"
             ]
           },
           {
@@ -276,6 +300,12 @@
             "runtime_download": false,
             "base_images": [
               "python:3.13-bullseye"
+            ],
+            "context_exists": true,
+            "preload_status": "PRELOADABLE-VIA-VENDORED-CONTEXT",
+            "preloadable": true,
+            "preload_steps": [
+              "docker build -t hello-otel:auto -f _vendored/intro-to-instrumentation-v1.4/automatic/Buildfile-auto _vendored/intro-to-instrumentation-v1.4"
             ]
           },
           {
@@ -317,6 +347,12 @@
             "runtime_download": false,
             "base_images": [
               "python:3.13-bullseye"
+            ],
+            "context_exists": true,
+            "preload_status": "PRELOADABLE-VIA-VENDORED-CONTEXT",
+            "preloadable": true,
+            "preload_steps": [
+              "docker build -t hello-otel:auto-manual -f _vendored/intro-to-instrumentation-v1.4/automatic/Buildfile-auto _vendored/intro-to-instrumentation-v1.4"
             ]
           },
           {
@@ -386,6 +422,12 @@
             "runtime_download": false,
             "base_images": [
               "python:3.13-bullseye"
+            ],
+            "context_exists": true,
+            "preload_status": "PRELOADABLE-VIA-VENDORED-CONTEXT",
+            "preloadable": true,
+            "preload_steps": [
+              "docker build -t hello-otel:prog -f _vendored/intro-to-instrumentation-v1.4/programmatic/Buildfile-prog _vendored/intro-to-instrumentation-v1.4"
             ],
             "cwd_occurrences": [
               ".",
@@ -518,6 +560,12 @@
             "runtime_download": false,
             "base_images": [
               "python:3.13-bullseye"
+            ],
+            "context_exists": true,
+            "preload_status": "PRELOADABLE-VIA-VENDORED-CONTEXT",
+            "preloadable": true,
+            "preload_steps": [
+              "docker build -t hello-otel:prog -f _vendored/intro-to-instrumentation-v1.4/programmatic/Buildfile-prog _vendored/intro-to-instrumentation-v1.4"
             ],
             "cwd_occurrences": [
               ".",
@@ -669,6 +717,12 @@
             "base_images": [
               "python:3.13-bullseye"
             ],
+            "context_exists": true,
+            "preload_status": "PRELOADABLE-VIA-VENDORED-CONTEXT",
+            "preloadable": true,
+            "preload_steps": [
+              "docker build -t hello-otel:manual -f _vendored/intro-to-instrumentation-v1.4/manual/Buildfile-manual _vendored/intro-to-instrumentation-v1.4"
+            ],
             "cwd_occurrences": [
               ".",
               ".",
@@ -755,6 +809,12 @@
             "base_images": [
               "python:3.13-bullseye"
             ],
+            "context_exists": true,
+            "preload_status": "PRELOADABLE-VIA-VENDORED-CONTEXT",
+            "preloadable": true,
+            "preload_steps": [
+              "docker build -t hello-otel:manual -f _vendored/intro-to-instrumentation-v1.4/manual/Buildfile-manual _vendored/intro-to-instrumentation-v1.4"
+            ],
             "cwd_occurrences": [
               ".",
               ".",
@@ -835,6 +895,12 @@
             "runtime_download": false,
             "base_images": [
               "prom/prometheus:v3.13.1"
+            ],
+            "context_exists": true,
+            "preload_status": "PRELOADABLE-VIA-VENDORED-CONTEXT",
+            "preloadable": true,
+            "preload_steps": [
+              "docker build -t workshop-prometheus:v3.13.1 -f _vendored/intro-to-instrumentation-v1.4/metrics/prometheus/Buildfile-prom _vendored/intro-to-instrumentation-v1.4"
             ]
           },
           {
@@ -882,6 +948,12 @@
             "runtime_download": false,
             "base_images": [
               "python:3.13-bullseye"
+            ],
+            "context_exists": true,
+            "preload_status": "PRELOADABLE-VIA-VENDORED-CONTEXT",
+            "preloadable": true,
+            "preload_steps": [
+              "docker build -t hello-otel:metrics -f _vendored/intro-to-instrumentation-v1.4/metrics/Buildfile-metrics _vendored/intro-to-instrumentation-v1.4"
             ],
             "cwd_occurrences": [
               ".",
@@ -955,6 +1027,12 @@
             "runtime_download": false,
             "base_images": [
               "prom/prometheus:v3.13.1"
+            ],
+            "context_exists": true,
+            "preload_status": "PRELOADABLE-VIA-VENDORED-CONTEXT",
+            "preloadable": true,
+            "preload_steps": [
+              "docker build -t workshop-prometheus:v3.13.1 -f _vendored/intro-to-instrumentation-v1.4/metrics/prometheus/Buildfile-prom _vendored/intro-to-instrumentation-v1.4"
             ]
           }
         ]
@@ -986,6 +1064,12 @@
             "runtime_download": false,
             "base_images": [
               "prom/prometheus:v3.13.1"
+            ],
+            "context_exists": true,
+            "preload_status": "PRELOADABLE-VIA-VENDORED-CONTEXT",
+            "preloadable": true,
+            "preload_steps": [
+              "docker build -t workshop-prometheus:v3.13.1 -f _vendored/intro-to-instrumentation-v1.4/metrics/prometheus/Buildfile-prom _vendored/intro-to-instrumentation-v1.4"
             ]
           },
           {
@@ -1048,6 +1132,12 @@
             "base_images": [
               "python:3.13-bullseye"
             ],
+            "context_exists": true,
+            "preload_status": "PRELOADABLE-VIA-VENDORED-CONTEXT",
+            "preloadable": true,
+            "preload_steps": [
+              "docker build -t hello-otel:metrics -f _vendored/intro-to-instrumentation-v1.4/metrics/Buildfile-metrics _vendored/intro-to-instrumentation-v1.4"
+            ],
             "cwd_occurrences": [
               ".",
               "."
@@ -1100,6 +1190,12 @@
             "runtime_download": false,
             "base_images": [
               "prom/prometheus:v3.13.1"
+            ],
+            "context_exists": true,
+            "preload_status": "PRELOADABLE-VIA-VENDORED-CONTEXT",
+            "preloadable": true,
+            "preload_steps": [
+              "docker build -t workshop-prometheus:v3.13.1 -f _vendored/intro-to-instrumentation-v1.4/metrics/prometheus/Buildfile-prom _vendored/intro-to-instrumentation-v1.4"
             ]
           }
         ]
@@ -1152,8 +1248,15 @@
               "eclipse-temurin:21",
               "eclipse-temurin:21"
             ],
+            "context_exists": false,
             "runtime_download_sources": [
               "https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo/-/archive/v1.1/opentelemetry-java-tracing-demo-v1.1.zip"
+            ],
+            "preload_status": "PRELOADABLE-VIA-VENDORED-DOWNLOAD",
+            "preloadable": true,
+            "preload_steps": [
+              "extract content/vendor/downloads/otel-developers/opentelemetry-java-tracing-demo-v1.1.zip to content/repos/otel-developers (archive root opentelemetry-java-tracing-demo-v1.1)",
+              "docker build -t java-demo:auto -f content/repos/otel-developers/opentelemetry-java-tracing-demo-v1.1/Buildfile-AgentContainer content/repos/otel-developers/opentelemetry-java-tracing-demo-v1.1"
             ]
           },
           {
@@ -1216,8 +1319,15 @@
               "eclipse-temurin:21",
               "eclipse-temurin:21"
             ],
+            "context_exists": false,
             "runtime_download_sources": [
               "https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo/-/archive/v1.1/opentelemetry-java-tracing-demo-v1.1.zip"
+            ],
+            "preload_status": "PRELOADABLE-VIA-VENDORED-DOWNLOAD",
+            "preloadable": true,
+            "preload_steps": [
+              "extract content/vendor/downloads/otel-developers/opentelemetry-java-tracing-demo-v1.1.zip to content/repos/otel-developers (archive root opentelemetry-java-tracing-demo-v1.1)",
+              "docker build -t java-demo:java-tools -f content/repos/otel-developers/opentelemetry-java-tracing-demo-v1.1/Buildfile-AgentJavaTools content/repos/otel-developers/opentelemetry-java-tracing-demo-v1.1"
             ]
           },
           {
@@ -1320,8 +1430,15 @@
               "eclipse-temurin:21",
               "eclipse-temurin:21"
             ],
+            "context_exists": false,
             "runtime_download_sources": [
               "https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo/-/archive/v1.1/opentelemetry-java-tracing-demo-v1.1.zip"
+            ],
+            "preload_status": "PRELOADABLE-VIA-VENDORED-DOWNLOAD",
+            "preloadable": true,
+            "preload_steps": [
+              "extract content/vendor/downloads/otel-developers/opentelemetry-java-tracing-demo-v1.1.zip to content/repos/otel-developers (archive root opentelemetry-java-tracing-demo-v1.1)",
+              "docker build -t java-demo -f content/repos/otel-developers/opentelemetry-java-tracing-demo-v1.1/Buildfile content/repos/otel-developers/opentelemetry-java-tracing-demo-v1.1"
             ]
           },
           {
@@ -1393,8 +1510,15 @@
               "eclipse-temurin:21",
               "eclipse-temurin:21"
             ],
+            "context_exists": false,
             "runtime_download_sources": [
               "https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo/-/archive/v1.1/opentelemetry-java-tracing-demo-v1.1.zip"
+            ],
+            "preload_status": "PRELOADABLE-VIA-VENDORED-DOWNLOAD",
+            "preloadable": true,
+            "preload_steps": [
+              "extract content/vendor/downloads/otel-developers/opentelemetry-java-tracing-demo-v1.1.zip to content/repos/otel-developers (archive root opentelemetry-java-tracing-demo-v1.1)",
+              "docker build -t java-demo:base -f content/repos/otel-developers/opentelemetry-java-tracing-demo-v1.1/Buildfile content/repos/otel-developers/opentelemetry-java-tracing-demo-v1.1"
             ]
           },
           {
@@ -1464,8 +1588,15 @@
               "eclipse-temurin:21",
               "eclipse-temurin:21"
             ],
+            "context_exists": false,
             "runtime_download_sources": [
               "https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo/-/archive/v1.1/opentelemetry-java-tracing-demo-v1.1.zip"
+            ],
+            "preload_status": "PRELOADABLE-VIA-VENDORED-DOWNLOAD",
+            "preloadable": true,
+            "preload_steps": [
+              "extract content/vendor/downloads/otel-developers/opentelemetry-java-tracing-demo-v1.1.zip to content/repos/otel-developers (archive root opentelemetry-java-tracing-demo-v1.1)",
+              "docker build -t java-demo:auto -f content/repos/otel-developers/opentelemetry-java-tracing-demo-v1.1/Buildfile-AgentContainer content/repos/otel-developers/opentelemetry-java-tracing-demo-v1.1"
             ],
             "cwd_occurrences": [
               "opentelemetry-java-tracing-demo-{VERSION}",
@@ -1531,8 +1662,15 @@
               "eclipse-temurin:21",
               "eclipse-temurin:21"
             ],
+            "context_exists": false,
             "runtime_download_sources": [
               "https://gitlab.com/o11y-workshops/opentelemetry-java-tracing-demo/-/archive/v1.1/opentelemetry-java-tracing-demo-v1.1.zip"
+            ],
+            "preload_status": "PRELOADABLE-VIA-VENDORED-DOWNLOAD",
+            "preloadable": true,
+            "preload_steps": [
+              "extract content/vendor/downloads/otel-developers/opentelemetry-java-tracing-demo-v1.1.zip to content/repos/otel-developers (archive root opentelemetry-java-tracing-demo-v1.1)",
+              "docker build -t java-demo:java-tools -f content/repos/otel-developers/opentelemetry-java-tracing-demo-v1.1/Buildfile-AgentJavaTools content/repos/otel-developers/opentelemetry-java-tracing-demo-v1.1"
             ]
           },
           {
@@ -1654,6 +1792,10 @@
             "interactive_context": false,
             "runtime_download": false,
             "base_images": [],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": [],
             "cwd_occurrences": [
               ".",
               ".",
@@ -1718,7 +1860,11 @@
             "runtime_download": false,
             "base_images": [
               "prom/prometheus:v3.13.1"
-            ]
+            ],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "run",
@@ -1769,7 +1915,11 @@
             "runtime_download": false,
             "base_images": [
               "prom/prometheus:v3.13.1"
-            ]
+            ],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "build",
@@ -1794,7 +1944,11 @@
             "runtime_download": false,
             "base_images": [
               "prom/prometheus:v3.13.1"
-            ]
+            ],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "other",
@@ -1965,13 +2119,19 @@
             "volumes": [],
             "pod": null,
             "tag": "workshop-prometheus:v3.13",
-            "context": "workshop-prometheus",
-            "dockerfile": "workshop-prometheus/Buildfile",
+            "context": "_vendored/workshop-prometheus",
+            "dockerfile": "_vendored/workshop-prometheus/Buildfile",
             "dockerfile_arg": "Buildfile",
-            "interactive_context": true,
+            "interactive_context": false,
             "runtime_download": false,
             "base_images": [
               "prom/prometheus:v3.13.1"
+            ],
+            "context_exists": true,
+            "preload_status": "PRELOADABLE-VIA-VENDORED-CONTEXT",
+            "preloadable": true,
+            "preload_steps": [
+              "docker build -t workshop-prometheus:v3.13 -f _vendored/workshop-prometheus/Buildfile _vendored/workshop-prometheus"
             ]
           },
           {
@@ -2032,13 +2192,19 @@
             "volumes": [],
             "pod": null,
             "tag": "workshop-prometheus:bad-target",
-            "context": "workshop-prometheus",
-            "dockerfile": "workshop-prometheus/Buildfile",
+            "context": "_vendored/workshop-prometheus",
+            "dockerfile": "_vendored/workshop-prometheus/Buildfile",
             "dockerfile_arg": "Buildfile",
-            "interactive_context": true,
+            "interactive_context": false,
             "runtime_download": false,
             "base_images": [
               "prom/prometheus:v3.13.1"
+            ],
+            "context_exists": true,
+            "preload_status": "PRELOADABLE-VIA-VENDORED-CONTEXT",
+            "preloadable": true,
+            "preload_steps": [
+              "docker build -t workshop-prometheus:bad-target -f _vendored/workshop-prometheus/Buildfile _vendored/workshop-prometheus"
             ]
           },
           {
@@ -2102,7 +2268,11 @@
             "runtime_download": false,
             "base_images": [
               "prom/prometheus:v3.13.1"
-            ]
+            ],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "other",
@@ -2156,21 +2326,27 @@
             "volumes": [],
             "pod": null,
             "tag": "workshop-prometheus:v3.13",
-            "context": ".",
-            "dockerfile": "Buildfile",
+            "context": "_vendored/workshop-prometheus",
+            "dockerfile": "_vendored/workshop-prometheus/Buildfile",
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
             "base_images": [
               "prom/prometheus:v3.13.1"
             ],
+            "context_exists": true,
+            "preload_status": "PRELOADABLE-VIA-VENDORED-CONTEXT",
+            "preloadable": true,
+            "preload_steps": [
+              "docker build -t workshop-prometheus:v3.13 -f _vendored/workshop-prometheus/Buildfile _vendored/workshop-prometheus"
+            ],
             "cwd_occurrences": [
               ".",
               "."
             ],
             "context_occurrences": [
-              ".",
-              "."
+              "_vendored/workshop-prometheus",
+              "_vendored/workshop-prometheus"
             ]
           },
           {
@@ -2247,8 +2423,15 @@
             "interactive_context": false,
             "runtime_download": true,
             "base_images": [],
+            "context_exists": false,
             "runtime_download_sources": [
               "https://gitlab.com/o11y-workshops/prometheus-service-demo-installer/-/archive/v1.0/prometheus-service-demo-installer-v1.0.zip"
+            ],
+            "preload_status": "PRELOADABLE-VIA-VENDORED-DOWNLOAD",
+            "preloadable": true,
+            "preload_steps": [
+              "extract content/vendor/downloads/prometheus/prometheus-service-demo-installer-v1.0.zip to content/repos/prometheus (archive root prometheus-service-demo-installer-v1.0)",
+              "docker build -t prometheus_services_demo:v1 -f content/repos/prometheus/prometheus-service-demo-installer-v1.0/installs/demo/Buildfile content/repos/prometheus/prometheus-service-demo-installer-v1.0/installs/demo"
             ]
           },
           {
@@ -2272,7 +2455,11 @@
             "dockerfile_arg": null,
             "interactive_context": false,
             "runtime_download": false,
-            "base_images": []
+            "base_images": [],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "other",
@@ -2484,7 +2671,11 @@
             "dockerfile_arg": "installs/demo/Buildfile",
             "interactive_context": false,
             "runtime_download": false,
-            "base_images": []
+            "base_images": [],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "other",
@@ -2590,8 +2781,15 @@
             "interactive_context": false,
             "runtime_download": true,
             "base_images": [],
+            "context_exists": false,
             "runtime_download_sources": [
               "https://gitlab.com/o11y-workshops/prometheus-service-demo-installer/-/archive/v1.0/prometheus-service-demo-installer-v1.0.zip"
+            ],
+            "preload_status": "PRELOADABLE-VIA-VENDORED-DOWNLOAD",
+            "preloadable": true,
+            "preload_steps": [
+              "extract content/vendor/downloads/prometheus/prometheus-service-demo-installer-v1.0.zip to content/repos/prometheus (archive root prometheus-service-demo-installer-v1.0)",
+              "docker build -t prometheus_services_demo:v1 -f content/repos/prometheus/prometheus-service-demo-installer-v1.0/installs/demo/Buildfile content/repos/prometheus/prometheus-service-demo-installer-v1.0/installs/demo"
             ]
           },
           {
@@ -2657,13 +2855,19 @@
             "volumes": [],
             "pod": null,
             "tag": "workshop-prometheus:v3.13",
-            "context": ".",
-            "dockerfile": "Buildfile",
+            "context": "_vendored/workshop-prometheus",
+            "dockerfile": "_vendored/workshop-prometheus/Buildfile",
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
             "base_images": [
               "prom/prometheus:v3.13.1"
+            ],
+            "context_exists": true,
+            "preload_status": "PRELOADABLE-VIA-VENDORED-CONTEXT",
+            "preloadable": true,
+            "preload_steps": [
+              "docker build -t workshop-prometheus:v3.13 -f _vendored/workshop-prometheus/Buildfile _vendored/workshop-prometheus"
             ]
           },
           {
@@ -2717,16 +2921,19 @@
             "volumes": [],
             "pod": null,
             "tag": "basic-java-metrics",
-            "context": "prometheus-java-metrics-demo-v0.5",
-            "dockerfile": "prometheus-java-metrics-demo-v0.5/Buildfile",
+            "context": "_vendored/workshop-prometheus",
+            "dockerfile": "_vendored/workshop-prometheus/Buildfile",
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
-            "runtime_download": true,
+            "runtime_download": false,
             "base_images": [
-              "eclipse-temurin:21"
+              "prom/prometheus:v3.13.1"
             ],
-            "runtime_download_sources": [
-              "https://gitlab.com/o11y-workshops/prometheus-java-metrics-demo/-/archive/v0.5/prometheus-java-metrics-demo-v0.5.zip"
+            "context_exists": true,
+            "preload_status": "PRELOADABLE-VIA-VENDORED-CONTEXT",
+            "preloadable": true,
+            "preload_steps": [
+              "docker build -t basic-java-metrics -f _vendored/workshop-prometheus/Buildfile _vendored/workshop-prometheus"
             ],
             "cwd_occurrences": [
               "prometheus-java-metrics-demo-v0.5",
@@ -2739,14 +2946,14 @@
               "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5"
             ],
             "context_occurrences": [
-              "prometheus-java-metrics-demo-v0.5",
-              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5"
+              "_vendored/workshop-prometheus",
+              "_vendored/workshop-prometheus",
+              "_vendored/workshop-prometheus",
+              "_vendored/workshop-prometheus",
+              "_vendored/workshop-prometheus",
+              "_vendored/workshop-prometheus",
+              "_vendored/workshop-prometheus",
+              "_vendored/workshop-prometheus"
             ]
           },
           {
@@ -2785,16 +2992,19 @@
             "volumes": [],
             "pod": null,
             "tag": "workshop-prometheus:v3.13",
-            "context": "prometheus-java-metrics-demo-v0.5",
-            "dockerfile": "prometheus-java-metrics-demo-v0.5/Buildfile",
+            "context": "_vendored/workshop-prometheus",
+            "dockerfile": "_vendored/workshop-prometheus/Buildfile",
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
-            "runtime_download": true,
+            "runtime_download": false,
             "base_images": [
-              "eclipse-temurin:21"
+              "prom/prometheus:v3.13.1"
             ],
-            "runtime_download_sources": [
-              "https://gitlab.com/o11y-workshops/prometheus-java-metrics-demo/-/archive/v0.5/prometheus-java-metrics-demo-v0.5.zip"
+            "context_exists": true,
+            "preload_status": "PRELOADABLE-VIA-VENDORED-CONTEXT",
+            "preloadable": true,
+            "preload_steps": [
+              "docker build -t workshop-prometheus:v3.13 -f _vendored/workshop-prometheus/Buildfile _vendored/workshop-prometheus"
             ],
             "cwd_occurrences": [
               "prometheus-java-metrics-demo-v0.5",
@@ -2802,9 +3012,9 @@
               "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5"
             ],
             "context_occurrences": [
-              "prometheus-java-metrics-demo-v0.5",
-              "prometheus-java-metrics-demo-v0.5",
-              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5"
+              "_vendored/workshop-prometheus",
+              "_vendored/workshop-prometheus",
+              "_vendored/workshop-prometheus"
             ]
           },
           {
@@ -2885,16 +3095,19 @@
             "volumes": [],
             "pod": null,
             "tag": "basic-java-metrics",
-            "context": "prometheus-java-metrics-demo-v0.5",
-            "dockerfile": "prometheus-java-metrics-demo-v0.5/Buildfile",
+            "context": "_vendored/workshop-prometheus",
+            "dockerfile": "_vendored/workshop-prometheus/Buildfile",
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
-            "runtime_download": true,
+            "runtime_download": false,
             "base_images": [
-              "eclipse-temurin:21"
+              "prom/prometheus:v3.13.1"
             ],
-            "runtime_download_sources": [
-              "https://gitlab.com/o11y-workshops/prometheus-java-metrics-demo/-/archive/v0.5/prometheus-java-metrics-demo-v0.5.zip"
+            "context_exists": true,
+            "preload_status": "PRELOADABLE-VIA-VENDORED-CONTEXT",
+            "preloadable": true,
+            "preload_steps": [
+              "docker build -t basic-java-metrics -f _vendored/workshop-prometheus/Buildfile _vendored/workshop-prometheus"
             ],
             "cwd_occurrences": [
               "prometheus-java-metrics-demo-v0.5",
@@ -2907,14 +3120,14 @@
               "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5"
             ],
             "context_occurrences": [
-              "prometheus-java-metrics-demo-v0.5",
-              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5",
-              "prometheus-java-metrics-demo-v0.5/prometheus-java-metrics-demo-v0.5"
+              "_vendored/workshop-prometheus",
+              "_vendored/workshop-prometheus",
+              "_vendored/workshop-prometheus",
+              "_vendored/workshop-prometheus",
+              "_vendored/workshop-prometheus",
+              "_vendored/workshop-prometheus",
+              "_vendored/workshop-prometheus",
+              "_vendored/workshop-prometheus"
             ]
           },
           {
@@ -2941,8 +3154,15 @@
             "base_images": [
               "eclipse-temurin:21"
             ],
+            "context_exists": false,
             "runtime_download_sources": [
               "https://gitlab.com/o11y-workshops/prometheus-java-metrics-demo/-/archive/v0.5/prometheus-java-metrics-demo-v0.5.zip"
+            ],
+            "preload_status": "PRELOADABLE-VIA-VENDORED-DOWNLOAD",
+            "preloadable": true,
+            "preload_steps": [
+              "extract content/vendor/downloads/prometheus/prometheus-java-metrics-demo-v0.5.zip to content/repos/prometheus (archive root prometheus-java-metrics-demo-v0.5)",
+              "docker build -t <untagged> -f content/repos/prometheus/prometheus-java-metrics-demo-v0.5/Dockerfile content/repos/prometheus/prometheus-java-metrics-demo-v0.5"
             ]
           },
           {
@@ -3136,7 +3356,11 @@
             "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ]
+            ],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "run",
@@ -3179,7 +3403,11 @@
             "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ]
+            ],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "run",
@@ -3224,7 +3452,11 @@
             "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ]
+            ],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "run",
@@ -3275,7 +3507,11 @@
             "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ]
+            ],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "run",
@@ -3318,7 +3554,11 @@
             "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ]
+            ],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "run",
@@ -3361,7 +3601,11 @@
             "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ]
+            ],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "run",
@@ -3404,7 +3648,11 @@
             "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ]
+            ],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "run",
@@ -3455,7 +3703,11 @@
             "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ]
+            ],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "run",
@@ -3564,7 +3816,11 @@
             "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ]
+            ],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "run",
@@ -3618,7 +3874,11 @@
             "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ]
+            ],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "run",
@@ -3677,7 +3937,11 @@
             "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ]
+            ],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "run",
@@ -3733,7 +3997,11 @@
             "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ]
+            ],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "run",
@@ -3776,7 +4044,11 @@
             "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ]
+            ],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "run",
@@ -3826,6 +4098,10 @@
             "base_images": [
               "otel/opentelemetry-collector-contrib:0.159.0"
             ],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": [],
             "cwd_occurrences": [
               ".",
               "."
@@ -3878,7 +4154,11 @@
             "runtime_download": false,
             "base_images": [
               "otel/opentelemetry-collector-contrib:0.159.0"
-            ]
+            ],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "run",
@@ -4184,7 +4464,11 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
-            "base_images": []
+            "base_images": [],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "run",
@@ -4269,7 +4553,11 @@
             "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ]
+            ],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "run",
@@ -4312,7 +4600,11 @@
             "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ]
+            ],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "run",
@@ -4357,7 +4649,11 @@
             "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ]
+            ],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "run",
@@ -4400,7 +4696,11 @@
             "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ]
+            ],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "run",
@@ -4445,7 +4745,11 @@
             "runtime_download": false,
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
-            ]
+            ],
+            "context_exists": true,
+            "preload_status": "INTERACTIVE",
+            "preloadable": false,
+            "preload_steps": []
           },
           {
             "type": "run",

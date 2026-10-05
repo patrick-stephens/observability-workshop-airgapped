@@ -27,3 +27,9 @@
 19. `step_fail` always runs its attached diagnostic commands and includes capped output of no more than 15 lines per command in the report.
 20. On every edit to a learner-vm script, bump `SCRIPT_VERSION` and add a one-line comment above it describing the change.
 21. Before touching learner-vm code, read `feedback/airgap-run-*.md` newest first and inspect the current `SCRIPT_VERSION` comments.
+
+## Learner VM K3s Decision
+
+The learner VM will include k3s.
+Kubernetes-dependent lab steps are runnable once k3s is provisioned by the planned script 45.
+The fully preloaded guarantee extends to k3s workloads: script 62 loads manifest images into the k3s containerd store, and script 80 verifies k3s pods while the registry is blocked.

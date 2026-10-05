@@ -169,6 +169,52 @@ def main():
             else:
                 unresolved.append("Searched all content/repos/opentelemetry/lab*.html; no Jaeger run or play-kube command was extracted.")
 
+            app_run = choose(track, commands, lambda lab, item: item["type"] == "run" and item.get("image") == "hello-otel:prog", ("lab03.html",))
+            if app_run:
+                lab, command = app_run
+                runs.append(make_entry("hello-otel-app", lab, command, command["image"], {"type": "running", "url": "http://localhost:8001/", "reason": "The lab describes the root endpoint as a page-view counter; use container-running readiness because the displayed count changes per request."}))
+            else:
+                unresolved.append("Searched content/repos/opentelemetry/lab03.html; it contains the podman build tag hello-otel:prog but no parsed `podman run` for that image.")
+
+            manifest_path = ROOT / "content/repos/opentelemetry/_vendored/app_pod.yaml"
+            manifest_text = manifest_path.read_text(encoding="utf-8", errors="replace") if manifest_path.is_file() else ""
+            manifest_name_match = re.search(r"(?ms)^metadata:\s*\n\s+name:\s*([^\s#]+)", manifest_text)
+            pod_name = manifest_name_match.group(1) if manifest_name_match else None
+            jaeger_port_match = re.search(r"(?ms)- name: jaeger-all-in-one\s+image:.*?ports:\s+- containerPort:\s*(\d+)", manifest_text)
+            jaeger_port = jaeger_port_match.group(1) if jaeger_port_match else None
+            has_namespace = re.search(r"(?m)^\s+namespace:\s*\S+", manifest_text) is not None
+            labels_present = re.search(r"(?m)^\s+labels:\s*$", manifest_text) is not None
+            if manifest_name_match and jaeger_port_match:
+                manifest_exec = {
+                    "name": "otel-manifest",
+                    "requires_k3s": True,
+                    "exec": "kubectl",
+                    "steps": [
+                        "kubectl apply -f content/repos/opentelemetry/_vendored/app_pod.yaml",
+                        f"kubectl wait --for=condition=Ready pod/{pod_name} --timeout=120s",
+                        f"kubectl port-forward --address 127.0.0.1 pod/{pod_name} 18080:{jaeger_port}",
+                    ],
+                    "check": {"url": "http://localhost:18080", "expect": "Jaeger"},
+                    "exec_adaptations": [
+                        "The lab's Rancher path runs kubectl against k3s; execution requires the planned k3s-enabled learner VM.",
+                        "Manifest source path programmatic/app_pod.yaml is replaced by the verified vendored path.",
+                        f"Manifest provides pod name {pod_name!r}; it defines no namespace ({'found' if has_namespace else 'default namespace'}) and no labels ({'present' if labels_present else 'none'}), so wait targets the named Pod directly.",
+                        f"Manifest Jaeger containerPort {jaeger_port} is forwarded to collision-free host port 18080; source manifest hostPort is not used for the host check.",
+                    ],
+                    "source": {
+                        "file": "lab04-rancher.html",
+                        "path_type": "rancher",
+                        "engine": "kubectl",
+                        "raw": "$ kubectl apply -f programmatic/app_pod.yaml",
+                        "manifest": "content/repos/opentelemetry/_vendored/app_pod.yaml",
+                        "manifest_source": "https://gitlab.com/o11y-workshops/intro-to-instrumentation/-/archive/v1.4/intro-to-instrumentation-v1.4.zip",
+                        "manifest_sha256": "47e8ded410413f08de1ae446c7a89f6c47a21d035375e0df16ae4b770a4cd597",
+                    },
+                }
+                runs.append(manifest_exec)
+            else:
+                unresolved.append("Searched content/repos/opentelemetry/_vendored/app_pod.yaml for metadata.name and the jaeger-all-in-one containerPort; required fields were not found, so the k3s apply/wait/port-forward steps were not guessed.")
+
         elif track == "otel-developers":
             match = choose(track, commands, lambda lab, item: item["type"] == "run" and "jaegertracing/all-in-one" in (item.get("image") or ""), ("lab03.html",))
             if match:

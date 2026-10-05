@@ -189,6 +189,11 @@ The script records source SHAs, mirror dates, and the Compose source and checksu
 Run `python3 scripts/dev/parse-labs.py` to extract every Docker and Podman command path, cwd, base image, and runtime download into `content/extracted/`.
 Run `python3 scripts/dev/patch-docs.py` to patch both mirrored documentation and repository lab pages, `python3 scripts/dev/curate.py` to generate the curated service run set, and `python3 scripts/dev/check-docs.py` to verify local page and asset references.
 `check-docs.py` retries missing `otel-developers` mirror assets once and records any remaining gaps in `content/extracted/docs-gaps.txt`.
+Run `python3 scripts/dev/create-reviewer-packet.py` after regenerating parser and curation outputs to assemble the bounded k3s, build-status, runtime-download, and curation evidence in `content/extracted/reviewer-packet.md`.
+Run `bash scripts/dev/vendor-k3s.sh` online to fetch and verify the pinned k3s binary, airgap image archive, installer, system-image list, and RHEL 8 SELinux RPM.
+Run `python3 scripts/dev/vendor-runtime-downloads.py` online to vendor lab-linked ZIPs needed for preloading attendee-created build contexts and record their hashes in `versions.lock`.
+Run `python3 scripts/dev/write-vendored-files.py` after capture to refresh the source and SHA-256 inventory for vendored and generated content.
+The k3s image probe is recorded at `content/vendor/k3s/registry-probe.txt`; script 62 must use explicit `$DOCKER_REGISTRY` pulls and `k3s ctr images tag`, because `ctr` does not honor `registries.conf` mirrors.
 The complete `content/` tree is an online-produced committed artifact for the learner VM; these development scripts are not provisioning scripts and must not be run on the airgapped VM.
 
 ## Enterprise Mirrors and Proxies

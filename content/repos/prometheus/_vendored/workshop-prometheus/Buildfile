@@ -1,0 +1,2 @@
+FROM prom/prometheus:v3.13.1
+ADD workshop-prometheus.yml /etc/prometheus

@@ -1,2 +1,0 @@
-prometheus/lab02-podman.html: context=workshop-prometheus cwd=workshop-prometheus command=$ podman build -t workshop-prometheus:v3.13 -f Buildfile
-prometheus/lab02-podman.html: context=workshop-prometheus cwd=workshop-prometheus command=$ podman build -t workshop-prometheus:bad-target -f Buildfile

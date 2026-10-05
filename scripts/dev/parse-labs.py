@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # v2: Simulate lab working directories, resolve contexts, deduplicate commands, and scan every code block for base images.
 import collections
+import hashlib
 import html
 import json
 import os
@@ -29,6 +30,7 @@ KNOWN_IMAGES = {
     "docker.io/prom/prometheus:v3.13.1",
     "quay.io/prometheus/node-exporter:v1.12.1",
 }
+DOWNLOADS_ROOT = CONTENT / "vendor" / "downloads"
 BUILD_FLAGS = {"--load", "--push", "--builder", "--provenance", "--sbom"}
 SYNTAX_PATTERNS = (
     ("heredoc", re.compile(r"<<-?\s*(?:'EOF'|\"EOF\"|EOF)\b")),
@@ -535,7 +537,61 @@ def resolve_dockerfile(repo, cwd_path, file_value):
     return file_path
 
 
-def command_fields(command, repo, embedded_blocks, creators, warnings, track, lab_name):
+def archive_root_from_url(url):
+    filename = Path(urlparse(url).path).name
+    for suffix in (".tar.gz", ".tar.bz2", ".tar.xz", ".tgz", ".zip", ".tar"):
+        if filename.endswith(suffix):
+            return filename[:-len(suffix)]
+    return Path(filename).stem
+
+
+def downloaded_asset(track, url):
+    filename = Path(urlparse(url).path).name
+    path = DOWNLOADS_ROOT / track / filename
+    if not path.is_file():
+        return path, None
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    return path, digest
+
+
+def preload_build_steps(track, tag, dockerfile_arg, context, status, runtime_url=None):
+    repo_prefix = f"content/repos/{track}"
+    context_path = context or "."
+    if status == "PRELOADABLE-VIA-VENDORED-DOWNLOAD" and runtime_url:
+        archive_root = archive_root_from_url(runtime_url)
+        archive_name = Path(urlparse(runtime_url).path).name
+        vendored_path = f"content/vendor/downloads/{track}/{archive_name}"
+        if context_path.startswith(archive_root + "/"):
+            build_context = context_path
+        elif context_path == archive_root or context_path in (".", "", Path(context_path).name) or "[VERSION]" in context_path or "{VERSION}" in context_path:
+            build_context = archive_root
+        else:
+            build_context = f"{archive_root}/{context_path.lstrip('./')}"
+        dockerfile_path = f"{archive_root}/{dockerfile_arg}" if dockerfile_arg else f"{build_context}/Dockerfile"
+        return [
+            f"extract {vendored_path} to {repo_prefix} (archive root {archive_root})",
+            f"docker build -t {tag} -f {repo_prefix}/{dockerfile_path} {repo_prefix}/{build_context}",
+        ]
+    if status in ("PRELOADABLE-VIA-VENDORED-CONTEXT", "BUILT-PRELOADABLE"):
+        dockerfile_path = dockerfile_arg or "Dockerfile"
+        return [f"docker build -t {tag} -f {dockerfile_path} {context_path}"]
+    return []
+
+
+def build_preload_status(repo, item, dockerfile_path, vendored_archive_context):
+    if item.get("runtime_download"):
+        urls = item.get("runtime_download_sources", [])
+        if urls and all(downloaded_asset(repo.name, url)[1] for url in urls):
+            return "PRELOADABLE-VIA-VENDORED-DOWNLOAD"
+        return "INTERACTIVE"
+    if vendored_archive_context and dockerfile_path and dockerfile_path.is_file():
+        return "PRELOADABLE-VIA-VENDORED-CONTEXT"
+    if item.get("context_exists") and dockerfile_path and dockerfile_path.is_file():
+        return "BUILT-PRELOADABLE"
+    return "INTERACTIVE"
+
+
+def command_fields(command, repo, embedded_blocks, creators, warnings, track, lab_name, archive_urls):
     tokens = command["tokens"]
     engine, kind, start = parse_engine(tokens)
     cwd_path = command["cwd_path"]
@@ -595,6 +651,24 @@ def command_fields(command, repo, embedded_blocks, creators, warnings, track, la
     resolved_path = normalise_path(repo, repo.resolve(), resolved_context)
     file_value = files[-1] if files else "Dockerfile"
     dockerfile_path = resolve_dockerfile(repo, cwd_path, file_value)
+    vendored_archive_context = False
+    if placeholders and (dockerfile_path is None or not dockerfile_path.is_file()):
+        for archive_url in archive_urls:
+            archive_root = archive_root_from_url(archive_url)
+            candidate_root = repo / "_vendored" / archive_root
+            candidate_dockerfile = candidate_root / file_value
+            if candidate_root.is_dir() and candidate_dockerfile.is_file():
+                resolved_context = relative_path(repo, candidate_root)
+                resolved_path = candidate_root
+                dockerfile_path = candidate_dockerfile
+                vendored_archive_context = True
+                assumptions.append({
+                    "type": "vendored-archive-placeholder",
+                    "placeholder": ",".join(placeholders),
+                    "resolved": resolved_context,
+                    "source_url": archive_url,
+                })
+                break
     if (dockerfile_path is None or not dockerfile_path.is_file()) and (repo / "_vendored").is_dir():
         expected_suffix = Path(file_value).as_posix().lstrip("./")
         vendored_candidates = [
@@ -613,6 +687,7 @@ def command_fields(command, repo, embedded_blocks, creators, warnings, track, la
                 "source_path": relative_path(repo, dockerfile_path),
                 "context": resolved_context,
             })
+            vendored_archive_context = True
     dockerfile_text = ""
     if dockerfile_path and dockerfile_path.is_file():
         try:
@@ -630,6 +705,7 @@ def command_fields(command, repo, embedded_blocks, creators, warnings, track, la
         "interactive_context": not resolved_path.is_dir(),
         "runtime_download": False,
         "base_images": dockerfile_images(dockerfile_text),
+        "context_exists": resolved_path.is_dir(),
     })
     for flag in dockerfile_syntax_flags(dockerfile_text):
         if flag not in item["syntax_flags"]:
@@ -658,6 +734,10 @@ def command_fields(command, repo, embedded_blocks, creators, warnings, track, la
             warnings.append(f"{track}/{lab_name}: missing context {resolved_context}; no earlier creator command matched")
     if not dockerfile_text:
         warnings.append(f"{track}/{lab_name}: no readable Dockerfile or embedded FROM block for context {resolved_context}")
+    runtime_url = next(iter(item.get("runtime_download_sources", [])), None)
+    item["preload_status"] = build_preload_status(repo, item, dockerfile_path, vendored_archive_context)
+    item["preloadable"] = item["preload_status"] != "INTERACTIVE"
+    item["preload_steps"] = preload_build_steps(track, item.get("tag") or "<untagged>", item.get("dockerfile_arg" if item["preload_status"] == "PRELOADABLE-VIA-VENDORED-DOWNLOAD" else "dockerfile"), item["context"], item["preload_status"], runtime_url)
     return item
 
 
@@ -774,7 +854,7 @@ def main():
                         if creator:
                             lab_creators.append(creator)
                         continue
-                    item = command_fields(command, repo, embedded_blocks, command.get("prior_creators", []), warnings, track, lab_path.name)
+                    item = command_fields(command, repo, embedded_blocks, command.get("prior_creators", []), warnings, track, lab_path.name, archive_urls)
                     commands.append(item)
                     if item["type"] == "pull":
                         pulls_by_track[track] += 1
@@ -784,7 +864,14 @@ def main():
                             expected_skips.append(f"{track}/{lab_path.name}: context={item['context']} cwd={item['cwd']} command={item['raw']}")
                         if item.get("runtime_download"):
                             urls = item.get("runtime_download_sources", [])
-                            runtime_downloads.append(f"{track}/{lab_path.name}: context={item['context']} urls={','.join(urls) if urls else 'creator command found; no source URL'}")
+                            for url in urls:
+                                asset_path, digest = downloaded_asset(track, url)
+                                runtime_downloads.append(
+                                    f"url={url} | sha256={digest or 'NOT_VENDORED'} | "
+                                    f"vendored path={relative_path(ROOT, asset_path)} | "
+                                    f"build={item.get('tag') or '<untagged>'} | {track}/{lab_path.name} | "
+                                    f"context={item['context']} | dockerfile={item.get('dockerfile_arg') or 'Dockerfile'}"
+                                )
                         if item.get("syntax_flags"):
                             syntax_risks.append(f"{track}/{lab_path.name}: flags={','.join(item['syntax_flags'])} context={item['context']} command={item['raw']}")
             unique_commands = deduplicate_commands(commands)
@@ -829,7 +916,7 @@ def main():
         for lab in data["labs"]:
             for command in lab["commands"]:
                 for assumption in command.get("assumptions", []):
-                    if assumption.get("type") in ("placeholder-resolution", "placeholder-runtime-download"):
+                    if assumption.get("type") in ("placeholder-resolution", "placeholder-runtime-download", "vendored-archive-placeholder"):
                         resolutions.append((track, assumption["placeholder"], assumption["resolved"], assumption.get("alternatives", [])))
     seen_resolutions = set()
     for track, placeholder, resolved, alternatives in resolutions:
@@ -855,6 +942,25 @@ def main():
     for filename, file_path_type, classification in opentelemetry_classifications:
         print(f"{filename} | {file_path_type} | {classification}")
     print(f"K8s/tooling references recorded: {len(k8s_references)} -> {EXTRACTED / 'k8s-references.txt'}")
+    print("BUILD STATUS TABLE (unique tags):")
+    status_priority = {
+        "BUILT-PRELOADABLE": 0,
+        "PRELOADABLE-VIA-VENDORED-DOWNLOAD": 1,
+        "PRELOADABLE-VIA-VENDORED-CONTEXT": 2,
+        "INTERACTIVE": 3,
+    }
+    status_counts = collections.Counter()
+    for track, data in result.items():
+        by_tag = collections.defaultdict(list)
+        for lab in data["labs"]:
+            for command in lab["commands"]:
+                if command["type"] == "build" and command.get("tag"):
+                    by_tag[command["tag"]].append(command.get("preload_status", "INTERACTIVE"))
+        for tag, statuses in sorted(by_tag.items()):
+            status = min(statuses, key=lambda value: status_priority.get(value, 9))
+            status_counts[status] += 1
+            print(f"{track} | {tag} | {status}")
+    print(f"build status counts: {dict(sorted(status_counts.items()))}")
     if sum(pulls_by_track.values()) == 0:
         print("Pull check: no docker/podman pull commands exist in any lab HTML; podman auto-pulls on run, and preload makes those pulls a no-op.")
     else:

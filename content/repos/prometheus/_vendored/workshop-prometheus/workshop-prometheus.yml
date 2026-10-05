@@ -1,0 +1,9 @@
+# workshop config
+global:
+  scrape_interval: 5s
+
+# Scraping only Prometheus.
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
