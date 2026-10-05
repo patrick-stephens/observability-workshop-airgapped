@@ -2,8 +2,8 @@
 set -euo pipefail
 
 SCRIPT_NAME="00-diagnose"
-# SCRIPT_VERSION 3: Diagnose the rootful Podman and single-registry offline design.
-SCRIPT_VERSION="3"
+# SCRIPT_VERSION 4: Diagnose detached k3s payloads and Artifactory-backed bootstrap readiness.
+SCRIPT_VERSION="4"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SELFTEST=false
 DRY_RUN=false
@@ -43,6 +43,12 @@ if [[ "$DRY_RUN" == "true" ]]; then
     step_skip "--dry-run requested" "read-only diagnostics were not executed"
     end_report "rerun without --dry-run to collect the read-only environment report"
     exit 0
+fi
+
+if [[ "${WORKSHOP_USER:-}" == "engineer" ]]; then
+    step_ok "WORKSHOP_USER is the required engineer account"
+else
+    step_fail "WORKSHOP_USER must be engineer" "Set WORKSHOP_USER=\"engineer\" in learner-vm/lab-vm.conf; the planned preflight requires this account."
 fi
 
 compact_output() {
@@ -398,16 +404,56 @@ for track in "${tracks[@]}"; do
     fi
 done
 
-compose_binary="$VENDOR_BIN/docker-compose-v2"
-compose_checksum="$VENDOR_BIN/docker-compose-v2.sha256"
-if [[ -s "$compose_binary" && -s "$compose_checksum" ]]; then
-    if (cd "$VENDOR_BIN" && sha256sum -c docker-compose-v2.sha256 >/dev/null 2>&1); then
-        step_ok "vendored docker-compose-v2 SHA-256 matches"
+lock_sha256() {
+    local key="$1" value
+    value="$(awk -v key="$key" '$1 == key { print $2; exit }' "$REPO_ROOT/versions.lock" 2>/dev/null || true)"
+    printf '%s' "${value#sha256:}"
+}
+
+payload_root="/var/tmp/o11y-lab-vm-transfer/payload/k3s"
+k3s_payload="$payload_root/k3s"
+k3s_expected="$(lock_sha256 learner-k3s-binary-amd64)"
+if [[ -s "$k3s_payload" ]]; then
+    if [[ ! "$k3s_expected" =~ ^[0-9a-f]{64}$ ]]; then
+        step_fail "pinned k3s payload checksum is unavailable" "Restore the learner-k3s-binary-amd64 SHA-256 record in versions.lock."
+    elif ! command -v sha256sum >/dev/null 2>&1; then
+        step_fail "sha256sum is unavailable for k3s payload verification" "Install the RHEL coreutils package before provisioning."
     else
-        step_fail "vendored docker-compose-v2 SHA-256 mismatch" "Restore content/bin/docker-compose-v2 and its .sha256 file from the online capture." "cd $(printf '%q' "$VENDOR_BIN") && sha256sum -c docker-compose-v2.sha256"
+        if k3s_actual="$(sha256sum "$k3s_payload" 2>/dev/null | awk '{print $1}')"; then :; else k3s_actual="unavailable"; fi
+        if [[ "$k3s_actual" == "$k3s_expected" ]]; then
+            step_ok "required k3s payload is present and checksum-valid"
+        else
+            step_fail "k3s payload checksum-invalid: expected $k3s_expected, actual $k3s_actual" "Re-transfer and extract payload/k3s/k3s to $payload_root/k3s."
+        fi
     fi
 else
-    step_fail "vendored docker-compose-v2 or checksum is missing" "Transfer content/bin/docker-compose-v2 and content/bin/docker-compose-v2.sha256 from the online capture."
+    step_fail "required k3s binary payload is absent" "Transfer the payload archive and extract it into /var/tmp/o11y-lab-vm-transfer so payload/k3s/k3s is present."
+fi
+
+airgap_payload="$payload_root/k3s-airgap-images-amd64.tar.zst"
+airgap_expected="$(lock_sha256 learner-k3s-airgap-images-amd64.tar.zst)"
+if [[ -s "$airgap_payload" ]]; then
+    if [[ ! "$airgap_expected" =~ ^[0-9a-f]{64}$ ]]; then
+        step_fail "pinned optional k3s airgap checksum is unavailable" "Restore the learner-k3s-airgap-images-amd64.tar.zst SHA-256 record in versions.lock."
+    elif ! command -v sha256sum >/dev/null 2>&1; then
+        step_fail "sha256sum is unavailable for the optional k3s airgap payload" "Install the RHEL coreutils package before provisioning."
+    else
+        if airgap_actual="$(sha256sum "$airgap_payload" 2>/dev/null | awk '{print $1}')"; then :; else airgap_actual="unavailable"; fi
+        if [[ "$airgap_actual" == "$airgap_expected" ]]; then
+            step_ok "optional k3s airgap tarball is present and checksum-valid; fallback is available"
+        else
+            step_fail "optional k3s airgap tarball checksum-invalid: expected $airgap_expected, actual $airgap_actual" "Re-transfer and extract the optional airgap tarball to $airgap_payload."
+        fi
+    fi
+else
+    step_skip "optional k3s airgap tarball is absent; planned provisioning uses Artifactory pulls (not yet verified on the learner network)" "include --include-k3s-airgap-tarball when packaging only if the registry bootstrap fallback is required"
+fi
+
+k3s_probe="$REPO_ROOT/content/vendor/k3s/registry-probe.txt"
+if [[ -r "$k3s_probe" ]] && grep -Eq '\|[[:space:]]*000[[:space:]]*$' "$k3s_probe"; then
+    step_skip "online k3s registry probe was inconclusive (HTTP 000), not passed" "test registry mirror pulls on the learner network; inspect /var/lib/rancher/k3s/agent/containerd/containerd.log and the generated containerd hosts.toml files"
+else
+    step_skip "no successful k3s registry-probe result is recorded" "verify Artifactory mirror pulls during provisioning before claiming registry readiness"
 fi
 missing_content=()
 for artifact in commands.json external-images.txt curated.json; do

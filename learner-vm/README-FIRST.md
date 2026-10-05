@@ -1,46 +1,117 @@
 # Learner VM: First Run
 
-This directory contains the operator configuration and read-only diagnostics for the RHEL 8.6 offline observability workshop VM.
-The root-level scripts manage a separate Ubuntu K3s replay VM.
+This guide describes the connected-upstream packaging and RHEL 8.6 learner-VM hand-off.
+The VM is prepared while Artifactory is reachable, then handed to attendees with its required images already present.
+No container image or other dependency may be pulled from a network service during attendee runtime.
 
-The learner VM uses rootful Podman only; the `docker` command is the `podman-docker` shim installed by script 20.
-All lab images are preloaded into the same rootful image store, so workshop operation requires no runtime pulls.
-All upstream registries use the single Artifactory endpoint in `lab-vm.conf`; pulls are anonymous and images remain under their original references.
-The base image supplies OS CA trust, DNF repositories, hostname, and network configuration; script 30 installs the Podman registry CA file.
+## Transfer Files
 
-## Transfer and Run Order
+The online packager creates a repository ZIP and a separate payload archive under `payload/`.
+Transfer both archives, both `.sha256` sidecars, and `payload/payload-manifest.txt` to the VM using the approved file-transfer method.
+Git, Git LFS, and access to an online Git service are not required on the VM.
 
-On the connected machine, prepare and commit the complete repository and the `content/` artifacts before transferring them to the VM.
-Copy the repository, including `learner-vm/`, `content/`, and `versions.lock`, to the RHEL VM.
-Edit `learner-vm/lab-vm.conf` only when an operator-tunable value differs from the supplied default; content paths are derived from the repository location and must not be configured here.
-Run the scripts as the human operator, with `sudo`, in this order: `00-diagnose.sh`, `10-preflight.sh`, `20-install-tooling.sh`, `30-ca-and-trust.sh`, `40-podman-config.sh`, `50-user-setup.sh`, `60-load-images.sh`, `70-quickstart.sh`, and `80-verify-offline.sh`.
-The later numbered provisioning scripts are authored and reviewed as artifacts; they are not run by an AI agent on the VM.
-Review each report and follow its `NEXT` line before continuing; after script 80 passes, shut down cleanly and snapshot the VM as the shipped artifact.
+From the directory containing the transferred files, verify the archives before extracting them:
+
+```bash
+sha256sum -c o11y-lab-vm-repository.zip.sha256
+(cd payload && sha256sum -c o11y-lab-vm-payload.tar.gz.sha256)
+```
+
+Extract the repository and payload to their expected locations:
+
+```bash
+mkdir -p "$HOME/o11y-lab"
+unzip -q o11y-lab-vm-repository.zip -d "$HOME/o11y-lab"
+sudo install -d -m 0700 /var/tmp/o11y-lab-vm-transfer
+sudo tar -xzf payload/o11y-lab-vm-payload.tar.gz -C /var/tmp/o11y-lab-vm-transfer
+```
+
+The payload staging directory is `/var/tmp/o11y-lab-vm-transfer/`.
+Confirm the k3s binary hash against the `REQUIRED` row in `payload/payload-manifest.txt` and `versions.lock`, then install it with the destination mode and ownership expected by the planned installer:
+
+```bash
+sha256sum /var/tmp/o11y-lab-vm-transfer/payload/k3s/k3s
+sudo install -o root -g root -m 0700 /var/tmp/o11y-lab-vm-transfer/payload/k3s/k3s /usr/local/bin/k3s
+```
+
+The optional airgap tarball is included only when the connected operator used `--include-k3s-airgap-tarball`.
+If present, verify its hash against the `OPTIONAL` row in `payload/payload-manifest.txt`, then copy it before the first k3s start:
+
+```bash
+sha256sum /var/tmp/o11y-lab-vm-transfer/payload/k3s/k3s-airgap-images-amd64.tar.zst
+sudo install -D -o root -g root -m 0600 /var/tmp/o11y-lab-vm-transfer/payload/k3s/k3s-airgap-images-amd64.tar.zst /var/lib/rancher/k3s/agent/images/k3s-airgap-images-amd64.tar.zst
+```
+
+The airgap tarball is a recovery option if Artifactory-based bootstrap proves unreliable.
+K3s imports images found in its agent image directory during bootstrap, avoiding registry pulls for those system images.
+
+## Provisioning Design
+
+Install operating-system CA trust for the configured registry before starting k3s.
+Then write `/etc/rancher/k3s/registries.yaml` before the k3s service starts so its containerd instance uses the approved Artifactory mirror for both `docker.io` and `registry.k8s.io`.
+The pinned v1.37.1+k3s1 release supports mirror endpoint URLs with a path prefix and per-endpoint `tls.ca_file` configuration.
+
+The following illustrates the supported registry structure using values from `learner-vm/lab-vm.conf`:
+
+```bash
+set -a
+source "$HOME/o11y-lab/learner-vm/lab-vm.conf"
+set +a
+sudo install -d -m 0755 /etc/rancher/k3s
+sudo tee /etc/rancher/k3s/registries.yaml >/dev/null <<EOF
+mirrors:
+  docker.io:
+    endpoint:
+      - "https://${DOCKER_REGISTRY}"
+  registry.k8s.io:
+    endpoint:
+      - "https://${DOCKER_REGISTRY}"
+configs:
+  "${ART_HOST}":
+    tls:
+      ca_file: "${CA_CERT_SOURCE}"
+EOF
+```
+
+The pinned k3s binary provides `k3s crictl pull`, which uses the containerd CRI image service and its registry configuration.
+Use that CRI path for pull diagnostics; `k3s ctr images pull` is not the mirror-aware test path.
+Inspect images with `sudo /usr/local/bin/k3s crictl images` and inspect the containerd registry host configuration under `/var/lib/rancher/k3s/agent/etc/containerd/certs.d/`.
+For failures, inspect `/var/lib/rancher/k3s/agent/containerd/containerd.log` and `sudo journalctl -u k3s -b --no-pager`.
+
+The intended provisioning order is to establish CA trust, write the mirror configuration, install the checksum-verified k3s executable, and start k3s while Artifactory is reachable.
+Then verify that system pods are Ready and inspect the k3s image store using `k3s kubectl get pods -A` and `k3s crictl images`.
+The mirror format is documented in the [K3s private registry guide](https://docs.k3s.io/installation/private-registry) and verified against the pinned [v1.37.1+k3s1 containerd configuration source](https://github.com/k3s-io/k3s/blob/v1.37.1%2Bk3s1/pkg/agent/containerd/config.go).
+The registry must be tested on the learner network before this path is considered validated.
+The connected-machine probe reported HTTP 000 because its resolver could not resolve the configured registry host; this is not evidence of an image miss or a successful mirror pull.
+
+After bootstrap, provision workshop images into the separate k3s containerd store as well as the rootful Podman store when both runtimes need them.
+The k3s and Podman image stores are independent.
+Before hand-off, block Artifactory access and verify that both stores contain every image required by their respective labs.
+Attendees must not need Artifactory or any other network service at runtime.
+
+## Diagnosis and Run Order
+
+Run `sudo "$HOME/o11y-lab/learner-vm/scripts/00-diagnose.sh"` after extraction to check the repository, required payload, optional fallback, and environment without changing system state.
+The diagnostic reports the previous online registry probe as inconclusive when its recorded status is HTTP 000.
+Its report is read-only evidence and does not establish that mirror pulls have been tested on the learner network.
+
+The package currently includes diagnostics and operator instructions; the later numbered provisioning scripts are authored and reviewed as separate artifacts.
+Run only the reviewed provisioning scripts in their documented order when they are supplied.
+Do not infer that an absent or planned script was executed or validated by this packaging workflow.
+
+## Removed Files and Recovery
+
+The cleanup manifest is `scripts/dev/obsolete-artifacts.txt`.
+It removes an unused compatibility executable and sidecar, the separately transferred k3s executable, and the optional airgap tarball from the repository working tree.
+The small k3s installer, image list, and SELinux RPM remain in Git and are checksummed by `content/vendor/k3s/SHA256SUMS`.
+Large payloads are generated on the connected machine by `scripts/dev/package-vm-transfer.sh` and are not committed.
+
+The upstream freeze tag `workshop-lvm-prep-v2` is the recovery point for removed Git files.
+From an upstream clone, restore an individual path with `git checkout workshop-lvm-prep-v2 -- <path>`.
 
 ## Transcription Protocol
 
-For each run, copy the complete text from `==================== REPORT BEGIN ====================` through `==================== REPORT END ======================` into the online feedback record without editing the report.
+For each operator run, copy the complete text from `==================== REPORT BEGIN ====================` through `==================== REPORT END ======================` into the online feedback record without editing the report.
 Transcribe, do not improvise: follow the `NEXT` line and report evidence rather than making undocumented VM changes.
 If a script reports a failure, transcribe the block and stop until the online team reviews it.
-Every provisioning script is idempotent; reruns are safe after following the report guidance.
-
-Example report block:
-
-```text
-==================== REPORT BEGIN ====================
-SCRIPT: 00-diagnose 3
-HOST: o11y-lab.internal 2026-10-04T12:00:00Z git: 0123456
-RESULT: FAILED (ok=2 failed=1 skipped=1)
-F1: registry unavailable | FIX: Check DOCKER_REGISTRY in learner-vm/lab-vm.conf | DIAG[getent hosts artifactory.internal]: 192.0.2.10 artifactory.internal
-OK: 2 steps - full log: /var/log/lab-setup/00-diagnose.log
-SKIPPED (1): optional binary absent (skopeo inventory)
-NEXT: transcribe this report block; provisioning scripts (10-80) are finalised after this report is reviewed
-==================== REPORT END ======================
-```
-
-## Online Feedback
-
-On the connected side, create `feedback/airgap-run-00N.md` for each operator VM run, incrementing `00N` for each new record.
-Record the date, VM/RHEL version, relevant configuration changes, and the exact `SCRIPT_VERSION` values run.
-Paste each complete report block and add concise operator observations outside it; do not replace report evidence with a summary.
-Before changing learner-VM scripts, read feedback records newest first and inspect the current version comment in each affected script.
+Provisioning scripts are idempotent artifacts; only the human operator runs them on the learner VM.

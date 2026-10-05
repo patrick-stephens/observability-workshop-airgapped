@@ -2,11 +2,12 @@
 artifact | version/URL | SHA-256 | status
 --- | --- | --- | ---
 k3s release | v1.37.1+k3s1 amd64; https://github.com/k3s-io/k3s/releases/tag/v1.37.1%2Bk3s1 | n/a | pinned
-learner-k3s-binary-amd64 | https://github.com/k3s-io/k3s/releases/download/v1.37.1%2Bk3s1/k3s | 92b94582eb7b34a8cf532e6006842b9ed215a6783cf56a3dd6271fd35243b2c0 | vendored and SHA-256 verified
-learner-k3s-airgap-images-amd64.tar.zst | https://github.com/k3s-io/k3s/releases/download/v1.37.1%2Bk3s1/k3s-airgap-images-amd64.tar.zst | 865b2a63ad7a63fc0db17b7fc2985bf4ae11d5ae93ca1472be6218d20aeb6b23 | vendored and SHA-256 verified
-learner-k3s-install.sh | https://get.k3s.io | e5cc3b3d9dfc1662c2d9be6da5abc9a4cd317d6abc3a5ffc02e3dd3248207fee | vendored and SHA-256 verified
-learner-k3s-images.txt | https://github.com/k3s-io/k3s/releases/download/v1.37.1%2Bk3s1/k3s-images.txt | 377307d4039ccd04f0e27d2906595a8c7b7d49a79f7553c311f6f960ff3efb58 | vendored and SHA-256 verified
-learner-k3s-selinux-rpm | 1.6-1.el8; https://rpm.rancher.io/k3s/stable/common/centos/8/noarch/k3s-selinux-1.6-1.el8.noarch.rpm | a1e24b0d82b1a6806cd420e2c0398a1796b055efe368fa4aebc8bb173850934f | vendored and SHA-256 verified
+learner-k3s-binary-amd64 | https://github.com/k3s-io/k3s/releases/download/v1.37.1%2Bk3s1/k3s | 92b94582eb7b34a8cf532e6006842b9ed215a6783cf56a3dd6271fd35243b2c0 | REQUIRED separate payload; not committed
+learner-k3s-airgap-images-amd64.tar.zst | https://github.com/k3s-io/k3s/releases/download/v1.37.1%2Bk3s1/k3s-airgap-images-amd64.tar.zst | 865b2a63ad7a63fc0db17b7fc2985bf4ae11d5ae93ca1472be6218d20aeb6b23 | OPTIONAL separate payload; not committed
+learner-k3s-install.sh | https://get.k3s.io | e5cc3b3d9dfc1662c2d9be6da5abc9a4cd317d6abc3a5ffc02e3dd3248207fee | small pinned input retained in Git
+learner-k3s-images.txt | https://github.com/k3s-io/k3s/releases/download/v1.37.1%2Bk3s1/k3s-images.txt | 377307d4039ccd04f0e27d2906595a8c7b7d49a79f7553c311f6f960ff3efb58 | small pinned input retained in Git
+learner-k3s-selinux-rpm | 1.6-1.el8; https://rpm.rancher.io/k3s/stable/common/centos/8/noarch/k3s-selinux-1.6-1.el8.noarch.rpm | a1e24b0d82b1a6806cd420e2c0398a1796b055efe368fa4aebc8bb173850934f | small pinned input retained in Git
+registry mirror | pinned v1.37.1+k3s1 CRI path | n/a | planned; learner-network verification pending
 Registry probe (all eight HTTP 000 responses are connectivity failures: artifactory.internal is unresolved here, not image-not-found evidence):
 image | tag | code
 docker.io/rancher/klipper-helm:v0.13.3-build20260727 | v0.13.3-build20260727 | 000
@@ -17,8 +18,8 @@ docker.io/rancher/mirrored-library-busybox:1.37.0 | 1.37.0 | 000
 docker.io/rancher/mirrored-library-traefik:3.7.13 | 3.7.13 | 000
 docker.io/rancher/mirrored-metrics-server:v0.9.0 | v0.9.0 | 000
 docker.io/rancher/mirrored-pause:3.10.2 | 3.10.2 | 000
-Runtime constraint: k3s ctr does not honour registries.conf mirrors. Script 62 must explicitly pull through $DOCKER_REGISTRY, then run k3s ctr images tag to recreate the original image reference in k3s containerd.
-Probe interpretation and ctr strategy are recorded in versions.lock; the probe measures mirror warm-cache confidence only.
+Runtime constraint: configure registries.yaml before k3s starts; k3s crictl pull and kubelet image pulls use the CRI mirror configuration, while ctr is not the mirror-aware pull path.
+The HTTP 000 probe is not a result about image presence or mirror readiness; validate CRI pulls on the learner network.
 === END k3s-vendoring ===
 === BEGIN build-status-table ===
 OpenTelemetry VERSION/[VERSION] contexts resolve to the vendored intro-to-instrumentation v1.4 archive root; the hello-otel builds are PRELOADABLE-VIA-VENDORED-CONTEXT.
@@ -217,7 +218,7 @@ ART_HOST_IP=""
 CA_CERT_SOURCE="/etc/pki/ca-trust/source/anchors/airgap-ca.crt"
 # ISO file path or CD-ROM device path attached to the VM.
 ISO_PATH="/dev/cdrom"
-# Existing workshop account used by the provisioning scripts.
+# Existing engineer account used by the provisioning scripts.
 WORKSHOP_USER="engineer"
 # Required by the non-interactive auto-elevate wrappers in script 50.
 PASSWORDLESS_SUDO="yes"
@@ -234,10 +235,11 @@ runtime-download.prometheus.prometheus-java-metrics-demo-v0.5.zip sha256:806746b
 runtime-download.prometheus.prometheus-service-demo-installer-v1.0.zip sha256:a8098f487d651997ec8cf3a5322a8b70b3a3ac60d9edee4c740bf8b2351b0af1 - source=https://gitlab.com/o11y-workshops/prometheus-service-demo-installer/-/archive/v1.0/prometheus-service-demo-installer-v1.0.zip path=content/vendor/downloads/prometheus/prometheus-service-demo-installer-v1.0.zip
 workshop.reveal.js-menu 2.1.0 - source=https://registry.npmjs.org/reveal.js-menu/-/reveal.js-menu-2.1.0.tgz menu.js-sha256=975e1d92515c5b99966abeb0ffd29a5b47d655eadfde662bed6b74fab5f31400; copied into all five documentation mirrors and all five repository trees.
 learner-k3s v1.37.1+k3s1 - official release https://github.com/k3s-io/k3s/releases/tag/v1.37.1%2Bk3s1; stable amd64 pin for learner VM.
-learner-k3s-binary-amd64 sha256:92b94582eb7b34a8cf532e6006842b9ed215a6783cf56a3dd6271fd35243b2c0 - source=https://github.com/k3s-io/k3s/releases/download/v1.37.1%2Bk3s1/k3s path=content/vendor/k3s/k3s.
-learner-k3s-airgap-images-amd64.tar.zst sha256:865b2a63ad7a63fc0db17b7fc2985bf4ae11d5ae93ca1472be6218d20aeb6b23 - source=https://github.com/k3s-io/k3s/releases/download/v1.37.1%2Bk3s1/k3s-airgap-images-amd64.tar.zst path=content/vendor/k3s/k3s-airgap-images-amd64.tar.zst.
-learner-k3s-install.sh sha256:e5cc3b3d9dfc1662c2d9be6da5abc9a4cd317d6abc3a5ffc02e3dd3248207fee - source=https://get.k3s.io path=content/vendor/k3s/install.sh; vendored for offline provisioning, not executed here.
+learner-k3s-binary-amd64 sha256:92b94582eb7b34a8cf532e6006842b9ed215a6783cf56a3dd6271fd35243b2c0 - source=https://github.com/k3s-io/k3s/releases/download/v1.37.1%2Bk3s1/k3s delivery=payload/k3s/k3s REQUIRED; not committed; install to /usr/local/bin/k3s mode 0700 root.
+learner-k3s-airgap-images-amd64.tar.zst sha256:865b2a63ad7a63fc0db17b7fc2985bf4ae11d5ae93ca1472be6218d20aeb6b23 - source=https://github.com/k3s-io/k3s/releases/download/v1.37.1%2Bk3s1/k3s-airgap-images-amd64.tar.zst delivery=payload/k3s/k3s-airgap-images-amd64.tar.zst OPTIONAL; package only with --include-k3s-airgap-tarball; not committed.
+learner-k3s-install.sh sha256:e5cc3b3d9dfc1662c2d9be6da5abc9a4cd317d6abc3a5ffc02e3dd3248207fee - source=https://get.k3s.io path=content/vendor/k3s/install.sh; small installer input retained in Git.
 learner-k3s-images.txt sha256:377307d4039ccd04f0e27d2906595a8c7b7d49a79f7553c311f6f960ff3efb58 - source=https://github.com/k3s-io/k3s/releases/download/v1.37.1%2Bk3s1/k3s-images.txt path=content/vendor/k3s/k3s-images.txt.
 learner-k3s-selinux-rpm sha256:a1e24b0d82b1a6806cd420e2c0398a1796b055efe368fa4aebc8bb173850934f - version=1.6-1.el8 source=https://rpm.rancher.io/k3s/stable/common/centos/8/noarch/k3s-selinux-1.6-1.el8.noarch.rpm path=content/vendor/k3s/k3s-selinux-1.6-1.el8.noarch.rpm.
-learner-k3s-registry-probe all-8-http-000 - online host cannot resolve artifactory.internal; see content/vendor/k3s/registry-probe.txt. Script 62 must explicitly pull from $DOCKER_REGISTRY then use k3s ctr images tag to the original reference; ctr does NOT honor registries.conf mirrors. Probe outcome measures mirror warm-cache confidence only.
+learner-k3s-registry-probe not-probed (all eight HTTP 000) - connected host could not resolve the configured registry host; see content/vendor/k3s/registry-probe.txt. Do not treat this as an image miss or successful probe.
+learner-k3s-registry-delivery registries.yaml CRI mirror - pinned v1.37.1+k3s1 reads /etc/rancher/k3s/registries.yaml before start; kubelet and k3s crictl pulls use the containerd CRI mirror configuration. Use k3s crictl pull/images for diagnostics; k3s ctr is not the mirror-aware pull path.
 === END versions.lock-delta ===

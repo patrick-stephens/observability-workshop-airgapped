@@ -47,7 +47,8 @@ For offline use on another node, transfer the pre-commit cache from `$HOME/.cach
 Before completing a change, run `pre-commit run --all-files` and confirm it passes.
 This runs all applicable file hooks; the Conventional Commits hook is run for commit messages when a commit is created.
 The generic JSON key sorter excludes the npm-generated `slides/package-lock.json` to preserve npm's lockfile serialization; JSON syntax and other file checks still run.
-Byte-rewriting hooks, source-mode/name checks, YAML style checks, and the generic large-file threshold exclude `content/` so upstream snapshots and generated outputs remain intact; gitleaks, JSON checks, and other applicable validation still run, while the vendored Compose binary is verified by its SHA-256 file.
+Byte-rewriting hooks, source-mode/name checks, YAML style checks, and the generic large-file threshold exclude `content/` so upstream snapshots and generated outputs remain intact; gitleaks, JSON checks, and other applicable validation still run.
+The learner VM receives a repository ZIP and a separately checksummed k3s payload archive, so Git and Git LFS are not required on that VM.
 
 ## Host Prerequisites
 
@@ -184,13 +185,15 @@ The full replay procedure is in `bundle/README.md`.
 
 ## Learner Workshop Content Capture
 
-On the connected online machine, run `scripts/dev/import-content.sh` to clone or reuse the five public workshop repositories, mirror their documentation, and download the pinned official Linux x86_64 Docker Compose v2.40.3 binary.
-The script records source SHAs, mirror dates, and the Compose source and checksum in `versions.lock`; use `--refresh` to replace the captured sources and documentation.
+On the connected online machine, run `scripts/dev/import-content.sh` to clone or reuse the five public workshop repositories and mirror their documentation.
+The script records source SHAs and mirror dates in `versions.lock`; use `--refresh` to replace the captured sources and documentation.
 Run `python3 scripts/dev/parse-labs.py` to extract every Docker and Podman command path, cwd, base image, and runtime download into `content/extracted/`.
 Run `python3 scripts/dev/patch-docs.py` to patch both mirrored documentation and repository lab pages, `python3 scripts/dev/curate.py` to generate the curated service run set, and `python3 scripts/dev/check-docs.py` to verify local page and asset references.
 `check-docs.py` retries missing `otel-developers` mirror assets once and records any remaining gaps in `content/extracted/docs-gaps.txt`.
 Run `python3 scripts/dev/create-reviewer-packet.py` after regenerating parser and curation outputs to assemble the bounded k3s, build-status, runtime-download, and curation evidence in `content/extracted/reviewer-packet.md`.
-Run `bash scripts/dev/vendor-k3s.sh` online to fetch and verify the pinned k3s binary, airgap image archive, installer, system-image list, and RHEL 8 SELinux RPM.
+Run `bash scripts/dev/vendor-k3s.sh` online to fetch and verify the small pinned installer, system-image list, and RHEL 8 SELinux RPM; the large executable and optional image archive are not stored in the repository.
+Run `bash scripts/dev/package-vm-transfer.sh --dry-run` to review the guarded transfer and cleanup actions, then run it without `--dry-run` to fetch and verify the required executable, build the ZIP and payload archive, and stage obsolete-file removals.
+Use `--include-k3s-airgap-tarball` only when the optional bootstrap fallback is needed; see [content/vendor/README.md](content/vendor/README.md) and [learner-vm/README-FIRST.md](learner-vm/README-FIRST.md) for transfer and verification instructions.
 Run `python3 scripts/dev/vendor-runtime-downloads.py` online to vendor lab-linked ZIPs needed for preloading attendee-created build contexts and record their hashes in `versions.lock`.
 Run `python3 scripts/dev/write-vendored-files.py` after capture to refresh the source and SHA-256 inventory for vendored and generated content.
 The k3s image probe is recorded at `content/vendor/k3s/registry-probe.txt`; script 62 must use explicit `$DOCKER_REGISTRY` pulls and `k3s ctr images tag`, because `ctr` does not honor `registries.conf` mirrors.

@@ -2,3 +2,9 @@
 !/bundle/.gitkeep
 !/bundle/README.md
 /app/bin/
+/dist/
+/content/vendor/k3s/payload-stage/
+/content/vendor/k3s/k3s
+/content/vendor/k3s/k3s-airgap-images-amd64.tar.zst
+/content/bin/docker-compose-v[2]
+/content/bin/docker-compose-v[2].sha[2]56

@@ -26,6 +26,9 @@ def k3s_evidence():
     for line in selected:
         if line.startswith("learner-k3s-registry-probe"):
             continue
+        if line.startswith("learner-k3s-registry-delivery"):
+            artifact_rows.append("registry mirror | pinned v1.37.1+k3s1 CRI path | n/a | planned; learner-network verification pending")
+            continue
         if line.startswith("learner-k3s "):
             artifact_rows.append("k3s release | v1.37.1+k3s1 amd64; https://github.com/k3s-io/k3s/releases/tag/v1.37.1%2Bk3s1 | n/a | pinned")
             continue
@@ -34,13 +37,19 @@ def k3s_evidence():
         source = next((field.removeprefix("source=") for field in remainder.split() if field.startswith("source=")), "n/a")
         version = next((field.removeprefix("version=") for field in remainder.split() if field.startswith("version=")), None)
         version_or_url = f"{version}; {source}" if version else source
-        artifact_rows.append(f"{artifact} | {version_or_url} | {digest} | vendored and SHA-256 verified")
+        if "REQUIRED" in remainder:
+            status = "REQUIRED separate payload; not committed"
+        elif "OPTIONAL" in remainder:
+            status = "OPTIONAL separate payload; not committed"
+        else:
+            status = "small pinned input retained in Git"
+        artifact_rows.append(f"{artifact} | {version_or_url} | {digest} | {status}")
     return [
         *artifact_rows,
         "Registry probe (all eight HTTP 000 responses are connectivity failures: artifactory.internal is unresolved here, not image-not-found evidence):",
         *probe,
-        "Runtime constraint: k3s ctr does not honour registries.conf mirrors. Script 62 must explicitly pull through $DOCKER_REGISTRY, then run k3s ctr images tag to recreate the original image reference in k3s containerd.",
-        "Probe interpretation and ctr strategy are recorded in versions.lock; the probe measures mirror warm-cache confidence only.",
+        "Runtime constraint: configure registries.yaml before k3s starts; k3s crictl pull and kubelet image pulls use the CRI mirror configuration, while ctr is not the mirror-aware pull path.",
+        "The HTTP 000 probe is not a result about image presence or mirror readiness; validate CRI pulls on the learner network.",
     ]
 
 

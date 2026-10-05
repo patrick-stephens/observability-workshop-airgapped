@@ -32,4 +32,7 @@
 
 The learner VM will include k3s.
 Kubernetes-dependent lab steps are runnable once k3s is provisioned by the planned script 45.
-The fully preloaded guarantee extends to k3s workloads: script 62 loads manifest images into the k3s containerd store, and script 80 verifies k3s pods while the registry is blocked.
+During provisioning, k3s system images are pulled through the Artifactory mirror configured in `/etc/rancher/k3s/registries.yaml` after CA trust is installed.
+The fully preloaded guarantee extends to k3s workloads: script 62 uses the CRI pull path, such as `k3s crictl pull`, to populate k3s containerd, and script 80 verifies k3s pods while the registry is blocked.
+Do not use `k3s ctr images pull` to test mirrors; `ctr` does not use the CRI registry configuration.
+The online registry probe returned HTTP 000 because the connected host could not resolve the configured registry hostname; treat it as not probed until the learner network is tested.
