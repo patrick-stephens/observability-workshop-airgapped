@@ -82,11 +82,17 @@ Rootless Podman is not enabled by these scripts; see [docs/rootless-podman.md](.
 
 ## Diagnosis and Run Order
 
-Run `sudo "$HOME/o11y-lab/learner-vm/scripts/00-diagnose.sh"` after extraction to check the repository, required payload, optional fallback, and environment without changing system state.
+After extraction, run only this read-only diagnostic from the repository's learner-vm directory:
+
+```bash
+cd "$HOME/o11y-lab/learner-vm"
+sudo bash scripts/00-diagnose.sh
+```
+
+Transcribe its complete REPORT block into the next `feedback/airgap-run-*.md` file and wait for the report to be reviewed.
 The diagnostic reports the previous online registry probe as inconclusive when its recorded status is HTTP 000.
 Its report is read-only evidence and does not establish that mirror pulls have been tested on the learner network.
-
-Run `sudo learner-vm/scripts/10-preflight.sh --dry-run` first to review target-specific prerequisites, then run the numbered provisioning scripts in the order above without `--dry-run` only on the learner VM. Finish with `sudo learner-vm/scripts/80-verify-offline.sh`; its Artifactory-blocked Part B is skipped unless safe, reversible per-IP firewall blocking can be established. A dry-run is only a plan and is not evidence of RHEL installation, successful mirror pulls, image preload, or offline operation.
+Do not run scripts 10–80 until the diagnostic report has been reviewed and the operator has been told to proceed.
 
 ## Removed Files and Recovery
 

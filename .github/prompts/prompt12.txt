@@ -1,0 +1,165 @@
+Prompt 12 — Build and verify the current learner-VM transfer package
+
+Context
+-------
+Read .github/copilot-instructions.md, README-FIRST.md, and the newest
+feedback/airgap-run-*.md files first. The operator reports there are
+currently no feedback files.
+
+This task runs on the connected upstream machine only. The learner VM
+is already installed, but must not be accessed by the agent. Do not run
+provisioning scripts against it.
+
+The latest learner-VM provisioning scripts 10–80 are implemented and
+validated with bash -n, ShellCheck, dry-runs, pre-commit, and
+00-diagnose.sh --selftest. Those changes remain uncommitted. Earlier
+transfer archives may be stale.
+
+Objective
+---------
+Produce a fresh repository ZIP and payload archive from the CURRENT
+working tree, including the uncommitted provisioning scripts, then
+verify their contents and checksums. Do not commit changes.
+
+The operator transfers these artifacts to the learner VM, extracts
+them, and runs only `scripts/00-diagnose.sh` there as the next VM-side
+action.
+
+Task 1 — inspect before packaging
+---------------------------------
+1. Run `git status --short` and record the result.
+2. Confirm the current files exist:
+   - scripts/00-diagnose.sh
+   - scripts/10-preflight.sh through scripts/80-verify-offline.sh
+   - scripts/lib.sh
+   - bin/run-workshop.sh and bin/stop-workshop.sh
+   - lab-vm.conf
+   - content/vendor/MANUAL-FETCH.md
+   - content/vendor/manual-fetch.json
+   - content/extracted/commands.json
+   - content/extracted/curated.json
+   - content/extracted/external-images.txt
+3. Confirm the four obsolete artifacts are absent:
+   - content/bin/docker-compose-v2
+   - content/bin/docker-compose-v2.sha256
+   - content/vendor/k3s/k3s
+   - content/vendor/k3s/k3s-airgap-images-amd64.tar.zst
+4. Confirm lab-vm.conf contains:
+   - WORKSHOP_USER="engineer"
+   - PASSWORDLESS_SUDO="yes"
+   - DOCS_PORT="8090"
+   - MANUAL_FETCH_DIR="/var/tmp/o11y-lab-vm-manual"
+   - DOCKER_REGISTRY="${ART_HOST}/artifactory/docker-registry"
+
+If a required file or value is missing, report it. Do not invent or
+silently repair configuration in this packaging task.
+
+Task 2 — ensure the packager includes the current working tree
+--------------------------------------------------------------
+Inspect `scripts/dev/package-vm-transfer.sh` before running it.
+
+The repository ZIP must reflect the CURRENT working tree, including
+staged and unstaged edits and intended non-ignored untracked source
+files. It must respect `.gitignore`, omit `.git/`, and omit the four
+obsolete artifacts. It must not be built from HEAD-only `git archive`
+if that would exclude the uncommitted provisioning scripts.
+
+If the packager does not meet these requirements, update it with a
+safe, explicit worktree-packaging mode. Do not stage or commit files
+as a workaround. Preserve unrelated untracked or modified files; do
+not include ignored files or generated output directories.
+
+Add a test or inspection step that proves the resulting ZIP contains
+the current provisioning scripts and configuration.
+
+Task 3 — create a fresh transfer package
+----------------------------------------
+Run the packager into a new, distinct output directory, for example:
+
+  dist/o11y-lab-vm-transfer-final/
+
+Include the optional k3s airgap images tarball in the payload package
+for this transfer. Do not generate the optional Podman or k3s fallback
+image bundles in this task.
+
+Before packaging, verify the k3s binary and optional tarball against
+the SHA-256 values in versions.lock. If either is unavailable or
+mismatched, stop and report the exact issue; do not delete or modify
+the source artifacts.
+
+The output must include:
+- Repository ZIP, containing the current provisioning scripts,
+  content, manuals, and configuration, but no large k3s binary,
+  k3s airgap tarball, Compose binary, `.git/`, or `dist/`.
+- Payload archive containing `k3s/k3s` and
+  `k3s/k3s-airgap-images-amd64.tar.zst`.
+- SHA-256 manifests for both archives.
+- Payload manifest and manual-fetch instructions.
+
+Task 4 — verify the package contents
+------------------------------------
+Verify and report:
+
+1. Repository ZIP checksum and payload archive checksum.
+2. Repository ZIP contains:
+   - scripts/00-diagnose.sh
+   - scripts/10-preflight.sh through scripts/80-verify-offline.sh
+   - scripts/lib.sh
+   - bin/run-workshop.sh and bin/stop-workshop.sh
+   - lab-vm.conf
+   - content/vendor/MANUAL-FETCH.md
+   - content/vendor/manual-fetch.json
+   - content/extracted/curated.json
+3. Repository ZIP does NOT contain:
+   - `.git/`
+   - `dist/`
+   - the four obsolete artifact paths listed in Task 1
+4. Payload archive contains the two expected k3s files at the expected
+   relative paths and their checksums match the payload manifest.
+5. The archive's root layout and the documented extraction paths agree
+   with MANUAL_FETCH_DIR="/var/tmp/o11y-lab-vm-manual".
+6. No credentials, private keys, local logs, or unrelated ignored
+   files were packaged.
+
+Task 5 — operator handoff
+-------------------------
+Update README-FIRST.md only if its transfer instructions do not match
+the verified package layout. Do not change provisioning behavior.
+
+Print exact receiving-side commands to:
+- verify both archive checksums;
+- extract the repository ZIP to the operator-selected repository
+  directory;
+- extract the payload archive under
+  `/var/tmp/o11y-lab-vm-manual/`;
+- run the diagnostic as root:
+    sudo bash scripts/00-diagnose.sh
+
+State explicitly that this diagnostic is read-only and that the
+operator should transcribe its complete REPORT block into the next
+feedback/airgap-run-*.md file. Do not suggest running scripts 10–80
+until the diagnostic report has been reviewed.
+
+Validation
+----------
+Run online:
+- `bash -n` and ShellCheck on any modified packager script.
+- `pre-commit run --all-files`.
+- the packager's dry-run.
+- the real packaging and archive-content checks described above.
+
+Do not execute any provisioning script against the learner VM. Do not
+claim that RHEL package installation, Artifactory pulls, k3s, image
+preloading, or offline operation has been verified there.
+
+Acceptance
+----------
+1. Paste the `git status --short` result before and after packaging.
+2. Paste the fresh package filenames, sizes, and SHA-256 values.
+3. Paste the package-content verification results, including checks
+   that required files are present and obsolete/large files are absent.
+4. Paste the exact receiving-side commands.
+5. Report bash syntax, ShellCheck, pre-commit, and packager dry-run
+   results.
+6. Confirm changes remain uncommitted and the learner VM was not
+   accessed.

@@ -287,9 +287,11 @@ if [[ "$CLEAN_ONLY" == false ]]; then
 		mkdir -p "$repo_stage"
 		while IFS= read -r -d '' path; do
 			[[ -n "${OBSOLETE_SET[$path]+x}" ]] && continue
+			[[ "$path" == dist || "$path" == dist/* ]] && continue
 			case "$path" in
-				.git|.git/*|*/.git|*/.git/*|.git/lfs|.git/lfs/*|dist|dist/*|*/__pycache__/*|*.pyc|*.log|*/.cache/*|.cache/*|*/.pytest_cache/*|.pytest_cache/*|*/.mypy_cache/*|.mypy_cache/*|*/.ruff_cache/*|.ruff_cache/*|*/logs/*|logs/*) continue ;;
+				*/__pycache__/*|.cache|.cache/*|*/.cache|*/.cache/*|.pytest_cache|.pytest_cache/*|*/.pytest_cache|*/.pytest_cache/*|.mypy_cache|.mypy_cache/*|*/.mypy_cache|*/.mypy_cache/*|.ruff_cache|.ruff_cache/*|*/.ruff_cache|*/.ruff_cache/*|logs|logs/*|*/logs|*/logs/*) continue ;;
 			esac
+			[[ "$path" == *.pyc || "$path" == *.log ]] && continue
 			[[ -f "$ROOT_DIR/$path" || -L "$ROOT_DIR/$path" ]] || die "indexed source disappeared before packaging: $path"
 			mkdir -p "$repo_stage/$(dirname "$path")"
 			cp -a -- "$ROOT_DIR/$path" "$repo_stage/$path"
@@ -464,4 +466,4 @@ done
 printf 'operator verification commands:\n  (cd %s && sha256sum -c %s)\n  (cd %s && sha256sum -c %s)\n' \
 	"${OUT_DIR#"$ROOT_DIR/"}" "$(basename "$REPO_ZIP").sha256" \
 	"${PAYLOAD_DIR#"$ROOT_DIR/"}" "$(basename "$PAYLOAD_ARCHIVE").sha256"
-printf 'receiving sequence: verify both archives; extract the repository ZIP; extract the payload archive to /var/tmp/o11y-lab-vm-transfer; verify the payload-manifest.txt hashes; install /usr/local/bin/k3s; then follow learner-vm/README-FIRST.md and the reviewed provisioning order.\n'
+printf 'receiving sequence: verify both archive checksums; extract the repository ZIP to the chosen repository directory; extract the payload archive with --strip-components=1 into /var/tmp/o11y-lab-vm-manual; verify both staged payload hashes against payload/payload-manifest.txt; from <repository>/learner-vm run sudo bash scripts/00-diagnose.sh; transcribe its complete REPORT block and wait for review before running scripts 10-80.\n'
