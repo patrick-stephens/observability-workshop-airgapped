@@ -1,0 +1,116 @@
+Context
+-------
+Read .github/copilot-instructions.md, README-FIRST.md, and check for
+existing feedback/airgap-run-*.md files (none expected yet).
+
+The learner-VM workflow is now repo-only. The operator transfers the
+repository, sets K3S_BINARY_URL on the VM, and runs
+scripts/00-diagnose.sh first. README-FIRST.md instructs the operator
+to transcribe the diagnostic's REPORT block into
+feedback/airgap-run-001.md, but that file does not exist yet.
+
+This task runs on the connected machine. Do not access the learner
+VM.
+
+Also apply one small correction to content/vendor/MANUAL-FETCH.md:
+in Section C, the sentence beginning "Scripts 20 and 30 also fetch
+RHEL packages…" is inaccurate — script 30 is CA and trust
+installation, not package fetching. The RHEL package and repository
+metadata fetch is script 20 only. Reword the sentence accordingly.
+Leave the rest of the file as it is.
+
+Objective
+---------
+Create the feedback scaffold so transcriptions are consistent and
+machine-parseable in later agent runs.
+
+Deliverables
+------------
+1. feedback/README.md
+2. feedback/airgap-run-template.md
+3. feedback/airgap-run-001.md — pre-filled metadata, empty report
+   block awaiting the operator
+
+feedback/README.md — one page:
+  - purpose of the feedback directory
+  - naming: airgap-run-00N.md, incrementing per VM run
+  - rule: transcribe verbatim; paste the complete REPORT BEGIN/END
+    block; observations go outside the block; do not summarise or
+    replace evidence with prose
+  - "the agent reads these newest-first before changing any learner-VM
+    script or 00-diagnose"
+  - standard metadata fields for every record: date, operator, VM
+    RHEL version, repository commit SHA, lab-vm.conf deviations from
+    defaults, whether K3S_BINARY_URL is set (yes/no — do not paste
+    the URL value), SCRIPT_VERSION values run, VM-side commands run
+  - interpretation guidance:
+      * EXPECTED at this stage: SKIPPED / ARROW lines about packages
+        not yet installed, network not yet configured, k3s not yet
+        installed, K3S_BINARY_URL unset — all normal on a fresh
+        minimal base
+      * FAIL lines worth escalating: registry/Artifactory unreachable
+        at $DOCKER_REGISTRY, CA not in the OS trust store, DNF repo
+        failures, ISO mount failures, missing in-repo content, payload
+        checksum mismatch on the manually staged binary
+      * Paste the block even when it contains fails — the fails are
+        the point of the scaffold, not a reason to hide the block
+  - a pointer to airgap-run-template.md
+
+feedback/airgap-run-template.md — same structure as
+airgap-run-001.md below, every field empty, a one-line description
+above each field.
+
+feedback/airgap-run-001.md — pre-filled metadata only where stated;
+the report block is empty:
+
+  # Airgap run 001 — 00-diagnose
+
+  ## Metadata
+  - Date: <operator fills in>
+  - Operator: <operator fills in>
+  - VM / RHEL version: <operator fills in>
+  - Repository commit SHA: <operator runs `git rev-parse HEAD` in
+    the cloned repository and pastes the result>
+  - Transfer method (how the repo reached the airgapped network):
+    <operator fills in>
+  - lab-vm.conf deviations from defaults: <operator fills in>
+  - K3S_BINARY_URL set: <yes | no — do not paste the URL value>
+  - Script versions run: 00-diagnose v4
+  - Purpose of this run: confirm environment before provisioning
+
+  ## Report block
+
+  <operator pastes the complete REPORT BEGIN/END block here,
+   verbatim, as a single block>
+
+  ## Operator observations
+  <anything outside the block: what they noticed, timing, prompts
+  they had to answer, unexpected messages>
+
+  ## Follow-up required
+  <whether 10-preflight will be run next, any blocker>
+
+## Constraints
+- Do not modify provisioning scripts, lab-vm.conf, README-FIRST.md,
+MANUAL-FETCH.md (other than the one Section C correction above),
+or manual-fetch.json.
+- Do not pre-fill any report block content. An obviously empty
+placeholder line is required, not fabricated output.
+- If feedback/airgap-run-001.md already exists, increment to the
+next free number and say so.
+- Do not stage or commit unless explicitly asked.
+## Validation (connected machine only)
+- Confirm all three feedback files exist.
+- Confirm the report block placeholder is clearly empty and marked.
+- Confirm feedback/README.md names the protocol rules and the
+interpretation guidance in full.
+- Confirm the Section C correction is applied and no other
+MANUAL-FETCH.md content changed.
+## Acceptance
+1. Paste all three feedback files in full.
+2. Paste the corrected Section C paragraph from MANUAL-FETCH.md.
+3. Confirm no provisioning script, lab-vm.conf, or README-FIRST.md
+was modified.
+4. Confirm the learner VM was not accessed and the diagnostic has
+not been run.
+5. Leave changes uncommitted and unstaged.

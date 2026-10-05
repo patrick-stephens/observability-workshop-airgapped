@@ -1,21 +1,17 @@
 # Learner VM Feedback Protocol
 
-The `feedback/` directory stores verbatim learner-VM report transcriptions and operator observations so later work can use actual VM evidence.
+The `feedback/` directory stores learner-VM report transcriptions and operator observations as evidence for later review.
 
-Name each record `airgap-run-00N.md`, incrementing per VM run; do not overwrite an existing run record.
+Name records `airgap-run-00N.md`, incrementing N for each VM run; never overwrite an existing record.
 
-Transcribe verbatim; paste the full REPORT BEGIN/END block; observations go outside the block; do not summarise or replace evidence with prose.
-The agent reads these files newest-first before changing any learner-VM script or `00-diagnose`.
+Transcribe verbatim: paste the complete REPORT BEGIN/END block, put observations outside the block, and do not summarise or replace evidence with prose.
+The agent reads these records newest-first before changing any learner-VM script or `00-diagnose`.
 
-Every record includes these metadata fields: date, operator, VM / RHEL version, repository revision, approved repository transfer method, `lab-vm.conf` deviations from defaults, `SCRIPT_VERSION` values run, purpose of run, and VM-side commands run.
-Start from [airgap-run-template.md](airgap-run-template.md).
-The run-001 record is [airgap-run-001.md](airgap-run-001.md).
+Every record includes: date; operator; VM / RHEL version; repository commit SHA; `lab-vm.conf` deviations from defaults; whether `K3S_BINARY_URL` is set (yes/no only, never paste its value); `SCRIPT_VERSION` values run; purpose of the run; and VM-side commands run.
+Start new records from [airgap-run-template.md](airgap-run-template.md).
 
 ## Interpreting the First Diagnostic
 
-- A COMPOSE-related line should be absent entirely; if one appears, treat it as a bug and escalate it.
-- A missing staged k3s binary is not itself a failure when `K3S_BINARY_URL` is configured and the bounded Artifactory HEAD probe succeeds.
-- A missing staged binary with an unset URL, a staged checksum mismatch, or a failed Artifactory response is a REAL FAIL to escalate.
-- Real failures to escalate include `$DOCKER_REGISTRY` catalogue/registry unreachability, the CA missing from the OS trust store, DNF repository failures, ISO mount failures, and missing repository/docs/extracted content.
-- Arrow and SKIPPED lines are informational, not failures.
-- Paste the complete report even when it contains expected failures; the FAILED result is the point of the initial diagnostic run.
+- EXPECTED on a fresh minimal base: SKIPPED or ARROW lines saying packages are not yet installed, network is not yet configured, k3s is not yet installed, or `K3S_BINARY_URL` is unset.
+- FAIL lines worth escalating: `$DOCKER_REGISTRY` registry or Artifactory unreachability; the CA absent from the OS trust store; DNF repository failures; ISO mount failures; missing in-repository content; or a checksum mismatch on the manually staged k3s binary.
+- Paste the complete REPORT block even when it contains FAIL lines; those failures are the point of the scaffold, not a reason to omit the block.

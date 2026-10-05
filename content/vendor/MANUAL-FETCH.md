@@ -54,7 +54,7 @@ If the download fails or the checksum differs, do not install the file. Preserve
 
 ## Section C — Container Images, Fetched at Provisioning Time
 
-Scripts 20 and 30 also fetch RHEL packages and repository metadata from the configured Artifactory DNF repositories.
+Script 20 fetches RHEL packages and repository metadata from the configured Artifactory DNF repositories.
 If package or metadata fetches fail, capture `dnf -v repolist`, `dnf -v makecache`, repository configuration, ART_HOST DNS results, and CA/TLS diagnostics, then contact the Artifactory administrator.
 
 | runtime package source | endpoint | status | used by | recovery |
