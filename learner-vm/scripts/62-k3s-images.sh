@@ -2,8 +2,8 @@
 set -euo pipefail
 
 SCRIPT_NAME="62-k3s-images"
-# CHANGE: Remove second-transfer bundle fallback and report Artifactory CRI pull diagnostics for original references.
-SCRIPT_VERSION="3"
+# CHANGE: Conditionally import catalogued local image archives targeting k3s before CRI pulls.
+SCRIPT_VERSION="4"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRY_RUN=false
 UNKNOWN_ARGUMENTS=()
@@ -106,6 +106,11 @@ else
 fi
 if ((${#K3S_IMAGES[@]} == 0)); then
 	step_fail "no k3s image references were discovered" "Restore the pinned k3s system image list and curated Kubernetes manifest." "cat $(printf %q "$SYSTEM_IMAGES")" "grep -n 'image:' $(printf %q "$MANIFEST")"
+fi
+
+if ! load_image_archives k3s; then
+	end_report "Correct the local image archive in MANUAL-FETCH.md Section C before retrying; no CRI pulls were attempted."
+	exit 1
 fi
 
 if [[ "$DRY_RUN" == true ]]; then

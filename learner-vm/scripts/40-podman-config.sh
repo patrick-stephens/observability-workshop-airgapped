@@ -2,7 +2,8 @@
 set -euo pipefail
 
 SCRIPT_NAME="40-podman-config"
-SCRIPT_VERSION="1"
+# CHANGE: Accept the shared library's normalised host-only or path-form registry endpoint.
+SCRIPT_VERSION="2"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRY_RUN=false
 UNKNOWN_ARGUMENTS=()
@@ -25,8 +26,8 @@ elif ((EUID != 0)); then
 	step_skip "root is required for real configuration; dry-run continues" "rerun with sudo on the learner VM"
 fi
 
-if [[ "$DOCKER_REGISTRY" == *://* || "$DOCKER_REGISTRY" != */* ]]; then
-	step_fail "DOCKER_REGISTRY must be a host/path without a URL scheme" "Set DOCKER_REGISTRY=\"\${ART_HOST}/artifactory/docker-registry\" in learner-vm/lab-vm.conf." "grep '^DOCKER_REGISTRY=' $(printf '%q' "$CONFIG_FILE")" "grep '^ART_HOST=' $(printf '%q' "$CONFIG_FILE")"
+if ! validate_docker_registry "$DOCKER_REGISTRY"; then
+	step_fail "DOCKER_REGISTRY must be a registry host or host/path" "Use docker-registry.\${ART_REPO_DOMAIN}, or the deployment's verified Artifactory registry path." "grep '^ART_REPO_DOMAIN=' $(printf '%q' "$CONFIG_FILE")"
 	end_report "correct DOCKER_REGISTRY before writing registries.conf"
 	exit 1
 fi

@@ -1,7 +1,7 @@
 # Learner VM: First Run
 
 This guide describes the RHEL 8.6 learner-VM repository workflow.
-The Git repository is the only transfer artefact; no other files are transferred.
+The Git repository carries the source; optional approved image archives may also be supplied locally for recovery.
 Vendored workshop sources, documentation mirrors, build-context archives, and small k3s support files are already in the repository.
 Network-fetched runtime dependencies use Artifactory, with no public-internet fallback.
 The operator sets `K3S_BINARY_URL` on the VM before provisioning.
@@ -31,14 +31,9 @@ The binary SHA-256 authority is the `learner-k3s-binary-amd64` record in `versio
 
 ## Runtime Recovery
 
-Script 45 checks checksum-verified files under `$MANUAL_FETCH_DIR` before it probes or fetches their configured Artifactory URLs; an invalid local checksum is a hard failure and is never overwritten.
-If no valid file is staged, the required binary is fetched from `K3S_BINARY_URL`, while the optional airgap archive is fetched only when `K3S_AIRGAP_IMAGES_URL` is set.
-See [MANUAL-FETCH.md](../content/vendor/MANUAL-FETCH.md) for staging paths, checksum recovery, and the registry-mirror fallback.
-
-Scripts 60 and 62 fetch external workshop images through the configured Artifactory mirror.
-Podman and k3s containerd have separate image stores; use `podman pull` for external Podman images, `k3s crictl pull` for external Kubernetes images, and `podman save` plus `k3s ctr -n k8s.io images import` only for locally built images.
-If Artifactory is unavailable or an image is missing, capture the image reference, endpoint, command output, DNS/CA diagnostics, k3s version, and relevant journals, then contact the Artifactory administrator.
-Do not try a public-internet fallback.
+Standalone files use local-first resolution; invalid staged checksums fail without a network fallback, and absent files use their configured Artifactory URL where applicable.
+Scripts 60 and 62 prefer catalogued local `image-archive` files before mirror pulls into their separate Podman and k3s stores; see [MANUAL-FETCH.md](../content/vendor/MANUAL-FETCH.md) Section C for save/load commands, small-image vendoring, and approval escalation.
+Prefer the derived `docker-registry.${ART_REPO_DOMAIN}` endpoint, or configure the deployment's supported path form, and retain SELinux enforcing while script 20 performs the planned firewalld change.
 
 ## Report Protocol
 

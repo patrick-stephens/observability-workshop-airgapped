@@ -2,9 +2,9 @@
 set -euo pipefail
 
 SCRIPT_NAME="00-diagnose"
-# CHANGE: Use the shared artifact catalog for local checks and read-only Artifactory availability probes.
-# SCRIPT_VERSION 12: Probe every standalone runtime artifact without downloading it.
-SCRIPT_VERSION="12"
+# CHANGE: Treat pull-through cache misses as informational and fail only for an unreachable registry.
+# SCRIPT_VERSION 13: Report endpoint form, optional Skopeo, SELinux, and firewalld accurately.
+SCRIPT_VERSION="13"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SELFTEST=false
 DRY_RUN=false
@@ -31,6 +31,11 @@ done
 if [[ "$SELFTEST" == "true" ]]; then
     step_ok "synthetic self-test check one"
     step_ok "synthetic self-test check two"
+    REGISTRY_RESPONSES=0
+    registry_probe_result 'synthetic busybox manifest' 404
+    registry_probe_result 'synthetic restricted manifest' 403
+    registry_probe_result 'synthetic cached manifest' 200
+    [[ "$REGISTRY_RESPONSES" == 3 ]] || exit 1
     step_fail "synthetic dependency failure" "Install the missing dependency from learner-vm/lab-vm.conf." \
         "printf 'synthetic diagnostic output\\n'" \
         "lab-selftest-command-that-does-not-exist"
@@ -111,7 +116,7 @@ check_iso() {
 
 registry_diagnostics() {
     local label="$1" request_url="$2" fallback_url="$3" fix_hint="$4" host_quoted request_quoted fallback_quoted tls_target
-    printf -v host_quoted '%q' "$ART_HOST"
+    printf -v host_quoted '%q' "${REG_HOST%%:*}"
     printf -v request_quoted '%q' "$request_url"
     printf -v fallback_quoted '%q' "$fallback_url"
     tls_target="${REG_HOST}:443"
@@ -151,7 +156,7 @@ check_http_status() {
 }
 
 check_manifest() {
-    local reference="$1" reference_path first_component last_component repository tag manifest_path url
+    local reference="$1" reference_path first_component last_component repository tag manifest_path url status='000'
     [[ -n "$reference" && "$reference" != \#* ]] || return 0
     reference_path="$reference"
     first_component="${reference_path%%/*}"
@@ -168,7 +173,21 @@ check_manifest() {
     repository="${reference_path%:*}"
     manifest_path="/$repository/manifests/$tag"
     url="https://${DOCKER_REGISTRY}/v2${manifest_path}"
-    check_http_status "registry manifest $reference" "$url" "200" "application/vnd.docker.distribution.manifest.v2+json"
+    if status="$(curl --connect-timeout 5 --max-time 10 -sS -o /dev/null -w '%{http_code}' -H 'Accept: application/vnd.docker.distribution.manifest.v2+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.oci.image.index.v1+json' "$url" 2>/dev/null)"; then :; else status='000'; fi
+    registry_probe_result "$reference" "$status"
+    if [[ "$status" == 000 ]]; then
+        local tls_connect="$REG_HOST"
+        [[ "$REG_HOST" == *:* ]] || tls_connect="$REG_HOST:443"
+        artifact_network_summary "${REG_HOST%%:*}" "$tls_connect"
+    fi
+    if command -v skopeo >/dev/null 2>&1; then
+        if timeout 15 skopeo inspect --tls-verify=true --no-creds "docker://${DOCKER_REGISTRY}/${reference_path}" >/dev/null 2>&1; then
+            ((REGISTRY_RESPONSES += 1))
+            step_skip "secondary Skopeo inspection succeeded with TLS validation and no credentials" "$reference"
+        else
+            step_skip "secondary Skopeo inspection unavailable or restricted; not a provisioning gate" "$reference"
+        fi
+    fi
 }
 
 image_repository() {
@@ -219,7 +238,14 @@ check_iso
 
 if require_or_skip curl "Artifactory and registry HTTPS probes"; then
     check_http_status "Artifactory root" "https://${ART_HOST}/" "200 302"
-    check_http_status "registry v2 endpoint" "https://${DOCKER_REGISTRY}/v2/" "200"
+    step_skip "derived registry endpoint=$DOCKER_REGISTRY; REG_HOST=$REG_HOST; form=$REGISTRY_FORM" "registry configuration (informational)"
+    REGISTRY_RESPONSES=0
+    registry_status='000'
+    if registry_status="$(curl --connect-timeout 5 --max-time 10 -sS -o /dev/null -w '%{http_code}' "https://${DOCKER_REGISTRY}/v2/" 2>/dev/null)"; then :; else registry_status='000'; fi
+    registry_probe_result 'v2 endpoint' "$registry_status"
+    if ! command -v skopeo >/dev/null 2>&1; then
+        step_skip "skopeo absent: expected on minimal base; script 20 installs it" "secondary registry inspection"
+    fi
     external_images="$REPO_ROOT/content/extracted/external-images.txt"
     declare -A probed_images=()
     known_images=(
@@ -245,6 +271,9 @@ if require_or_skip curl "Artifactory and registry HTTPS probes"; then
         step_ok "additional tagged images from external-images.txt were included in registry probes"
     else
         step_skip "external image inventory is unavailable" "transfer content/extracted/external-images.txt from the online capture"
+    fi
+    if ((REGISTRY_RESPONSES == 0)); then
+        registry_diagnostics "registry endpoint unreachable or refuses TLS; no registry probe received an HTTP response" "https://${DOCKER_REGISTRY}/v2/" "https://${DOCKER_REGISTRY}/v2/" "Check DNS, TLS trust, and the configured registry endpoint; per-image cache misses are not failures."
     fi
 fi
 
@@ -424,8 +453,11 @@ else
     step_skip "missing extracted content: ${missing_content[*]}" "produced by prompt 10s online; transfer is incomplete without it, and script 60 consumes commands.json"
 fi
 
-if require_or_skip getenforce "SELinux mode"; then step_ok "SELinux mode: $(getenforce 2>/dev/null || printf 'unavailable')"; fi
-if require_or_skip systemctl "firewalld state"; then step_ok "firewalld state: $(systemctl is-active firewalld 2>&1 || printf 'inactive or unavailable')"; fi
+if require_or_skip getenforce "SELinux mode"; then step_skip "SELinux mode: $(getenforce 2>/dev/null || printf 'unavailable'); enforcing is retained by design" "informational security state"; fi
+if require_or_skip systemctl "firewalld state"; then
+    firewall_state="$(systemctl is-active firewalld 2>/dev/null || true)"
+    step_skip "firewalld state: ${firewall_state:-unavailable}; script 20 owns its planned provisioning-time disablement" "informational firewall state"
+fi
 if require_or_skip systemctl "systemd default target"; then step_ok "default target: $(systemctl get-default 2>&1 || printf 'unavailable')"; fi
 if require_or_skip rpm "GNOME display manager inventory"; then
     if rpm -q gdm >/dev/null 2>&1; then

@@ -195,7 +195,10 @@ Run `python3 scripts/dev/patch-docs.py` to patch both mirrored documentation and
 `check-docs.py` retries missing `otel-developers` mirror assets once and records any remaining gaps in `content/extracted/docs-gaps.txt`.
 Run `python3 scripts/dev/create-reviewer-packet.py` after regenerating parser and curation outputs to assemble the bounded k3s, build-status, runtime-download, and curation evidence in `content/extracted/reviewer-packet.md`.
 Run `bash scripts/dev/vendor-k3s.sh` online to fetch and verify the small pinned installer, system-image list, and RHEL 8 SELinux RPM.
-Bring the Git repository onto the approved network path; no other artefact is transferred.
+Bring the Git repository onto the approved network path; no custom transfer package is required.
+Optional approved image archives may be provided at the catalogued local paths or, when small, committed under `content/vendor/images/`; see [content/vendor/MANUAL-FETCH.md](content/vendor/MANUAL-FETCH.md) Section C.
+Prefer the dedicated `docker-registry.${ART_REPO_DOMAIN}` registry endpoint; explicit path-form endpoints remain supported.
+Run `bash scripts/dev/test-artifact-resolver.sh` on the connected machine to validate local-first resolution, filesystem-only archives, mocked manifest/load verification, and registry-host derivation without network access.
 On the learner VM, set `K3S_BINARY_URL` in `learner-vm/lab-vm.conf` to the exact generic-file URL supplied by the Artifactory administrator before provisioning.
 See [learner-vm/README-FIRST.md](learner-vm/README-FIRST.md) for the diagnostic gate and run order, and [content/vendor/MANUAL-FETCH.md](content/vendor/MANUAL-FETCH.md) for runtime recovery.
 Run `python3 scripts/dev/vendor-runtime-downloads.py` online to vendor lab-linked ZIPs needed for preloading attendee-created build contexts and record their hashes in `versions.lock`.

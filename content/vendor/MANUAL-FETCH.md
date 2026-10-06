@@ -64,6 +64,50 @@ The archive is not present in Git and is not transferred separately; if intentio
 
 ## Section C — Container Images, Fetched at Provisioning Time
 
+Preferred: pull external images during provisioning through the Artifactory mirror using `podman pull <original-reference>` or `k3s crictl pull <original-reference>`.
+Set `ART_REPO_DOMAIN` to the base domain and leave `DOCKER_REGISTRY` empty to derive `docker-registry.${ART_REPO_DOMAIN}` (preferred); the explicit `${ART_REPO_DOMAIN}/artifactory/docker-registry` path form remains accepted.
+A manifest HTTP 404 is informational: the image may not be cached and may warm on first pull; only an actual pull establishes availability.
+
+### Operator-Provided Image Archives
+
+Fallback: place an approved image archive at `$MANUAL_FETCH_DIR/images/<filename>.tar` using the corresponding `image-archive` row in `learner-vm/artifacts.tsv`.
+On a connected machine that is authorised to obtain the original image, run:
+
+```bash
+podman pull <original-reference>
+podman save --format oci-archive \
+  -o <filename>.tar <original-reference>
+```
+
+`--format oci-archive` is interoperable with `podman load -i <path>` on the learner VM.
+The archive resolver is filesystem-only: it never probes or fetches a URL; an operator-recorded SHA-256 in `versions.lock` is verified, a mismatch is fatal, and an absent pin produces an explicit verification-skipped line.
+The loader validates embedded manifest/blob hashes and checks the loaded image references/config IDs when present, then checks each required image before deciding whether to pull it.
+
+| archive ID | local staging path | optional checksum lock key | store target |
+|---|---|---|---|
+| image-busybox | $MANUAL_FETCH_DIR/images/busybox-1.36.tar | image-archive.busybox-1.36 | podman |
+| image-image-bundle | $MANUAL_FETCH_DIR/images/saved-images.tar | image-archive.saved-images | podman |
+| image-node-exporter | $MANUAL_FETCH_DIR/images/node-exporter-v1.12.1.tar | image-archive.node-exporter-v1.12.1 | podman |
+
+No archive is supplied by the repository by default; the three slots above are optional operator choices, not approval workarounds.
+For a supplied archive also needed by k3s, set its catalog install target to `both` (or `k3s-containerd`) so script 62 conditionally imports it into namespace `k8s.io` before CRI pulls.
+
+### Small-Image Vendoring
+
+Alternatively commit an approved small archive under `content/vendor/images/`, using the same catalogued filename; local `$MANUAL_FETCH_DIR` files always take precedence over the repository copy.
+Below 30 MB per image is reasonable; above 100 MB is strongly discouraged, and large images must not be committed.
+Do not bypass the repository's large-file or secret checks; obtain review before adding an archive.
+
+### Image Approval Escalation
+
+The following images are not approved for this environment yet and require escalation to the Artifactory administrator before provisioning can complete for their affected workshops:
+
+- `docker.io/jaegertracing/all-in-one:1.76.0`: affects the OpenTelemetry and OTel-for-Java workshops.
+- `docker.io/persesdev/perses:v0.54.0`: affects the Perses workshop.
+
+If an approval is not expected, discuss with the workshop organisers whether those workshops can be supported with an alternative image that is already approved.
+Image archives and vendoring do not grant approval; no substitute or workaround is implemented.
+
 Script 20 fetches RHEL packages and repository metadata from the configured Artifactory DNF repositories.
 If package or metadata fetches fail, capture `dnf -v repolist`, `dnf -v makecache`, repository configuration, ART_HOST DNS results, and CA/TLS diagnostics, then contact the Artifactory administrator.
 

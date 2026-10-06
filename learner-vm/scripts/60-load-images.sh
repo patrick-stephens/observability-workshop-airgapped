@@ -2,8 +2,8 @@
 set -euo pipefail
 
 SCRIPT_NAME="60-load-images"
-# CHANGE: Remove separately transferred Podman bundles and pull external images through the configured Artifactory mirror.
-SCRIPT_VERSION="2"
+# CHANGE: Load catalogued local image archives before checking the store or pulling through Artifactory.
+SCRIPT_VERSION="3"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRY_RUN=false
 UNKNOWN_ARGUMENTS=()
@@ -115,6 +115,11 @@ while IFS= read -r image; do
 done <<< "$curated_images"
 mapfile -t REQUIRED_IMAGES < <(printf '%s\n' "${REQUIRED_IMAGES[@]}" | sort -u)
 
+if ! load_image_archives podman; then
+	end_report "Correct the local image archive described in MANUAL-FETCH.md Section C before retrying; no image pulls were attempted."
+	exit 1
+fi
+
 if [[ "$DRY_RUN" == true ]]; then
 	log "external references are pulled through the configured Artifactory mirror; no image bundle transfer is required"
 	for image in "${REQUIRED_IMAGES[@]}"; do
@@ -186,9 +191,12 @@ if [[ "$DRY_RUN" == false ]]; then
 				pull_status=$?
 				if [[ -w "$LOG_FILE" || -w "$(dirname "$LOG_FILE")" ]]; then { printf '[%s] pull output for %s (exit %s)\n' "$SCRIPT_NAME" "$image" "$pull_status"; cat "$pull_log"; } >> "$LOG_FILE" 2>/dev/null || true; fi
 				printf '%s | pull | failed | exit %s\n' "$image" "$pull_status" >> "$IMAGE_REPORT_TMP"
-				step_fail "required external image pull failed through the configured Artifactory mirror: $image" "Check DNS, CA trust, anonymous image availability, and DOCKER_REGISTRY=${DOCKER_REGISTRY}; retry podman pull for this original reference. No second image-bundle transfer is used." "tail -n 15 $(printf '%q' "$pull_log")" "podman info --debug 2>&1 | tail -n 15" "getent hosts $(printf '%q' "$ART_HOST")" "sed -n '1,100p' /etc/containers/registries.conf"
+				step_fail "required external image pull failed through the configured Artifactory mirror: $image" "Check DNS, CA trust, approval, and DOCKER_REGISTRY=${DOCKER_REGISTRY}; see MANUAL-FETCH.md Section C. An operator archive can be staged at $MANUAL_FETCH_DIR/images/saved-images.tar." "tail -n 15 $(printf '%q' "$pull_log")" "podman info --debug 2>&1 | tail -n 15" "getent hosts $(printf '%q' "$REG_HOST")" "sed -n '1,100p' /etc/containers/registries.conf"
 			fi
 			rm -f -- "$pull_log"
+			if ! podman image exists "$image" >/dev/null 2>&1; then
+				step_fail "image is absent after local-archive loading and mirror pull: $image" "See MANUAL-FETCH.md Section C; stage its approved saved image at $MANUAL_FETCH_DIR/images/saved-images.tar and retry." "podman images --no-trunc"
+			fi
 		fi
 	done
 

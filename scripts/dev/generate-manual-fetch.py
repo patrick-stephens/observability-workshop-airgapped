@@ -176,18 +176,26 @@ def runtime_entries():
         seen.add(artifact_id)
         if required_text not in ("yes", "no"):
             raise ValueError(f"invalid required value for artifact {artifact_id}: {required_text}")
-        record = lock_record(lock_key)
-        upstream_reference = lock_field(record, "source", r"\bsource=([^\s]+)")
-        digest = lock_field(record, "sha256", r"\bsha256:([0-9a-f]{64})")
+        filesystem_image = kind == "image-archive"
+        if filesystem_image:
+            if url_variable != "-" or required_text != "no":
+                raise ValueError(f"image archive {artifact_id} must be optional and filesystem-only")
+            record = next((line for line in LOCK.read_text(encoding="utf-8").splitlines() if line.startswith(lock_key + " ")), None)
+            upstream_reference = None
+            digest = lock_field(record, "sha256", r"\bsha256:([0-9a-f]{64})") if record else None
+        else:
+            record = lock_record(lock_key)
+            upstream_reference = lock_field(record, "source", r"\bsource=([^\s]+)")
+            digest = lock_field(record, "sha256", r"\bsha256:([0-9a-f]{64})")
         required = required_text == "yes"
         result.append({
             "name": artifact_id,
             "id": artifact_id,
-            "category": "runtime",
+            "category": "image-archive" if filesystem_image else "runtime",
             "kind": kind,
-            "source": "operator-supplied Artifactory generic-file URL",
-            "runtime_source": url_variable,
-            "url_variable": url_variable,
+            "source": "operator-provided filesystem archive" if filesystem_image else "operator-supplied Artifactory generic-file URL",
+            "runtime_source": "filesystem-only" if filesystem_image else url_variable,
+            "url_variable": None if filesystem_image else url_variable,
             "upstream_reference": upstream_reference,
             "sha256_lock_key": lock_key,
             "lock_key": lock_key,
@@ -199,8 +207,8 @@ def runtime_entries():
             "install_target": install_target,
             "required": required,
             "used_by": consumer_script,
-            "purpose": f"{consumer_script} resolves this {kind} from a checksum-verified local file first, otherwise from {url_variable}, and verifies versions.lock record {lock_key}.",
-            "recovery": f"Stage a verified file at $MANUAL_FETCH_DIR/{staging_relative_path}; {url_variable} is the Artifactory fallback. See MANUAL-FETCH.md Section B.",
+            "purpose": "Load an operator-provided image archive before mirror pulls; verify an optional operator-recorded archive SHA and embedded manifest hashes when present." if filesystem_image else f"{consumer_script} resolves this {kind} from a checksum-verified local file first, otherwise from {url_variable}, and verifies versions.lock record {lock_key}.",
+            "recovery": f"Provide $MANUAL_FETCH_DIR/{staging_relative_path} or content/vendor/{staging_relative_path}; see MANUAL-FETCH.md Section C. No URL is probed or fetched." if filesystem_image else f"Stage a verified file at $MANUAL_FETCH_DIR/{staging_relative_path}; {url_variable} is the Artifactory fallback. See MANUAL-FETCH.md Section B.",
         })
     if not found_header:
         raise ValueError("learner-vm/artifacts.tsv has no valid header")
@@ -232,6 +240,9 @@ def image_entries():
             "stores": image["stores"],
             "expected_size": image["expected_size"],
         })
+        if image["name"] in {"docker.io/jaegertracing/all-in-one:1.76.0", "docker.io/persesdev/perses:v0.54.0"}:
+            result[-1]["approval_status"] = "not approved; escalate to the Artifactory administrator before provisioning the affected workshops"
+            result[-1]["affected_workshops"] = ["OpenTelemetry", "OTel-for-Java"] if "jaegertracing" in image["name"] else ["Perses"]
     return result
 
 
@@ -273,6 +284,7 @@ def human_document(entries):
     runtime = [entry for entry in entries if entry["category"] == "runtime"]
     images = [entry for entry in entries if entry["category"] == "image"]
     systems = [entry for entry in entries if entry["category"] == "system"]
+    image_archives = [entry for entry in entries if entry["category"] == "image-archive"]
     runtime_rows = [
         "| " + " | ".join((
             entry["id"], entry["kind"], "REQUIRED" if entry["required"] else "OPTIONAL",
@@ -362,6 +374,48 @@ def human_document(entries):
         "The archive is not present in Git and is not transferred separately; if intentionally staged locally, place it at `$MANUAL_FETCH_DIR/k3s/k3s-airgap-images-amd64.tar.zst`, verify lock key `learner-k3s-airgap-images-amd64.tar.zst`, and rerun script 45 so it stages the file under `/var/lib/rancher/k3s/agent/images/` before startup.",
         "",
         "## Section C — Container Images, Fetched at Provisioning Time",
+        "",
+        "Preferred: pull external images during provisioning through the Artifactory mirror using `podman pull <original-reference>` or `k3s crictl pull <original-reference>`.",
+        "Set `ART_REPO_DOMAIN` to the base domain and leave `DOCKER_REGISTRY` empty to derive `docker-registry.${ART_REPO_DOMAIN}` (preferred); the explicit `${ART_REPO_DOMAIN}/artifactory/docker-registry` path form remains accepted.",
+        "A manifest HTTP 404 is informational: the image may not be cached and may warm on first pull; only an actual pull establishes availability.",
+        "",
+        "### Operator-Provided Image Archives",
+        "",
+        "Fallback: place an approved image archive at `$MANUAL_FETCH_DIR/images/<filename>.tar` using the corresponding `image-archive` row in `learner-vm/artifacts.tsv`.",
+        "On a connected machine that is authorised to obtain the original image, run:",
+        "",
+        "```bash",
+        "podman pull <original-reference>",
+        "podman save --format oci-archive \\",
+        "  -o <filename>.tar <original-reference>",
+        "```",
+        "",
+        "`--format oci-archive` is interoperable with `podman load -i <path>` on the learner VM.",
+        "The archive resolver is filesystem-only: it never probes or fetches a URL; an operator-recorded SHA-256 in `versions.lock` is verified, a mismatch is fatal, and an absent pin produces an explicit verification-skipped line.",
+        "The loader validates embedded manifest/blob hashes and checks the loaded image references/config IDs when present, then checks each required image before deciding whether to pull it.",
+        "",
+        "| archive ID | local staging path | optional checksum lock key | store target |",
+        "|---|---|---|---|",
+        *["| " + " | ".join((entry["id"], entry["path"], entry["sha256_lock_key"], entry["install_target"])) + " |" for entry in image_archives],
+        "",
+        "No archive is supplied by the repository by default; the three slots above are optional operator choices, not approval workarounds.",
+        "For a supplied archive also needed by k3s, set its catalog install target to `both` (or `k3s-containerd`) so script 62 conditionally imports it into namespace `k8s.io` before CRI pulls.",
+        "",
+        "### Small-Image Vendoring",
+        "",
+        "Alternatively commit an approved small archive under `content/vendor/images/`, using the same catalogued filename; local `$MANUAL_FETCH_DIR` files always take precedence over the repository copy.",
+        "Below 30 MB per image is reasonable; above 100 MB is strongly discouraged, and large images must not be committed.",
+        "Do not bypass the repository's large-file or secret checks; obtain review before adding an archive.",
+        "",
+        "### Image Approval Escalation",
+        "",
+        "The following images are not approved for this environment yet and require escalation to the Artifactory administrator before provisioning can complete for their affected workshops:",
+        "",
+        "- `docker.io/jaegertracing/all-in-one:1.76.0`: affects the OpenTelemetry and OTel-for-Java workshops.",
+        "- `docker.io/persesdev/perses:v0.54.0`: affects the Perses workshop.",
+        "",
+        "If an approval is not expected, discuss with the workshop organisers whether those workshops can be supported with an alternative image that is already approved.",
+        "Image archives and vendoring do not grant approval; no substitute or workaround is implemented.",
         "",
         "Script 20 fetches RHEL packages and repository metadata from the configured Artifactory DNF repositories.",
         "If package or metadata fetches fail, capture `dnf -v repolist`, `dnf -v makecache`, repository configuration, ART_HOST DNS results, and CA/TLS diagnostics, then contact the Artifactory administrator.",

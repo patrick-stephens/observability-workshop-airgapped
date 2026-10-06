@@ -16,7 +16,12 @@
       "k3s",
       "podman"
     ],
-    "expected_size": null
+    "expected_size": null,
+    "approval_status": "not approved; escalate to the Artifactory administrator before provisioning the affected workshops",
+    "affected_workshops": [
+      "OpenTelemetry",
+      "OTel-for-Java"
+    ]
   },
   {
     "name": "docker.io/library/busybox:1.36",
@@ -135,7 +140,11 @@
     "stores": [
       "podman"
     ],
-    "expected_size": null
+    "expected_size": null,
+    "approval_status": "not approved; escalate to the Artifactory administrator before provisioning the affected workshops",
+    "affected_workshops": [
+      "Perses"
+    ]
   },
   {
     "name": "docker.io/prom/prometheus:v3.13.1",
@@ -205,6 +214,72 @@
       "podman"
     ],
     "expected_size": null
+  },
+  {
+    "name": "image-busybox",
+    "id": "image-busybox",
+    "category": "image-archive",
+    "kind": "image-archive",
+    "source": "operator-provided filesystem archive",
+    "runtime_source": "filesystem-only",
+    "url_variable": null,
+    "upstream_reference": null,
+    "sha256_lock_key": "image-archive.busybox-1.36",
+    "lock_key": "image-archive.busybox-1.36",
+    "expected_sha256": null,
+    "sha256": null,
+    "staging_relative_path": "images/busybox-1.36.tar",
+    "path": "$MANUAL_FETCH_DIR/images/busybox-1.36.tar",
+    "consumer_script": "scripts/60-load-images.sh",
+    "install_target": "podman",
+    "required": false,
+    "used_by": "scripts/60-load-images.sh",
+    "purpose": "Load an operator-provided image archive before mirror pulls; verify an optional operator-recorded archive SHA and embedded manifest hashes when present.",
+    "recovery": "Provide $MANUAL_FETCH_DIR/images/busybox-1.36.tar or content/vendor/images/busybox-1.36.tar; see MANUAL-FETCH.md Section C. No URL is probed or fetched."
+  },
+  {
+    "name": "image-image-bundle",
+    "id": "image-image-bundle",
+    "category": "image-archive",
+    "kind": "image-archive",
+    "source": "operator-provided filesystem archive",
+    "runtime_source": "filesystem-only",
+    "url_variable": null,
+    "upstream_reference": null,
+    "sha256_lock_key": "image-archive.saved-images",
+    "lock_key": "image-archive.saved-images",
+    "expected_sha256": null,
+    "sha256": null,
+    "staging_relative_path": "images/saved-images.tar",
+    "path": "$MANUAL_FETCH_DIR/images/saved-images.tar",
+    "consumer_script": "scripts/60-load-images.sh",
+    "install_target": "podman",
+    "required": false,
+    "used_by": "scripts/60-load-images.sh",
+    "purpose": "Load an operator-provided image archive before mirror pulls; verify an optional operator-recorded archive SHA and embedded manifest hashes when present.",
+    "recovery": "Provide $MANUAL_FETCH_DIR/images/saved-images.tar or content/vendor/images/saved-images.tar; see MANUAL-FETCH.md Section C. No URL is probed or fetched."
+  },
+  {
+    "name": "image-node-exporter",
+    "id": "image-node-exporter",
+    "category": "image-archive",
+    "kind": "image-archive",
+    "source": "operator-provided filesystem archive",
+    "runtime_source": "filesystem-only",
+    "url_variable": null,
+    "upstream_reference": null,
+    "sha256_lock_key": "image-archive.node-exporter-v1.12.1",
+    "lock_key": "image-archive.node-exporter-v1.12.1",
+    "expected_sha256": null,
+    "sha256": null,
+    "staging_relative_path": "images/node-exporter-v1.12.1.tar",
+    "path": "$MANUAL_FETCH_DIR/images/node-exporter-v1.12.1.tar",
+    "consumer_script": "scripts/60-load-images.sh",
+    "install_target": "podman",
+    "required": false,
+    "used_by": "scripts/60-load-images.sh",
+    "purpose": "Load an operator-provided image archive before mirror pulls; verify an optional operator-recorded archive SHA and embedded manifest hashes when present.",
+    "recovery": "Provide $MANUAL_FETCH_DIR/images/node-exporter-v1.12.1.tar or content/vendor/images/node-exporter-v1.12.1.tar; see MANUAL-FETCH.md Section C. No URL is probed or fetched."
   },
   {
     "name": "Artifactory registry CA certificate",

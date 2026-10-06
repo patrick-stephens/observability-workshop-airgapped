@@ -1,8 +1,8 @@
 # shellcheck shell=bash
 set -euo pipefail
 
-# CHANGE: Add validated local-first artifact catalog resolution for diagnostics and provisioning.
-LIB_VERSION="5"
+# CHANGE: Support both registry endpoint forms and filesystem-only, manifest-validated image archives.
+LIB_VERSION="6"
 : "${SCRIPT_NAME:?Set SCRIPT_NAME before sourcing scripts/lib.sh}"
 : "${SCRIPT_VERSION:?Set SCRIPT_VERSION before sourcing scripts/lib.sh}"
 
@@ -39,18 +39,18 @@ declare -a FAIL_ENTRIES=()
 declare -a SKIP_ENTRIES=()
 
 validate_docker_registry() {
-    local registry="${1:-${DOCKER_REGISTRY:-}}" host path
-    if [[ "$registry" != */* ]]; then
-        printf '[%s] FATAL: DOCKER_REGISTRY must contain a host and path: %s. FIX: correct DOCKER_REGISTRY in learner-vm/lab-vm.conf.\n' "$SCRIPT_NAME" "${registry:-<empty>}" >&2
-        return 1
-    fi
+    local registry="${1:-${DOCKER_REGISTRY:-docker-registry.${ART_REPO_DOMAIN:-artifactory.internal}}}" host path=''
+    if [[ "$registry" == *://* ]]; then registry="${registry#*://}"; fi
     host="${registry%%/*}"
-    path="${registry#*/}"
-    if [[ -z "$host" || -z "$path" || "$path" == /* || "$path" == */ || "$host" =~ [[:space:]] || "$path" =~ [[:space:]] || ! "$host" =~ ^[[:alnum:].-]+(:[0-9]+)?$ ]]; then
-        printf '[%s] FATAL: malformed DOCKER_REGISTRY host or path: %s. FIX: correct DOCKER_REGISTRY in learner-vm/lab-vm.conf.\n' "$SCRIPT_NAME" "$registry" >&2
+    if [[ "$registry" == */* ]]; then path="${registry#*/}"; fi
+    if [[ ! "$host" =~ ^[[:alnum:].-]+(:[0-9]+)?$ || "$path" == /* || "$registry" == */ || "$path" == *..* || ( -n "$path" && ! "$path" =~ ^[[:alnum:]_./-]+$ ) ]]; then
+        printf '[%s] FATAL: malformed registry endpoint; correct DOCKER_REGISTRY in learner-vm/lab-vm.conf (value withheld).\n' "$SCRIPT_NAME" >&2
         return 1
     fi
     REG_HOST="$host"
+    DOCKER_REGISTRY="$registry"
+    REGISTRY_FORM='subdomain'
+    [[ -z "$path" ]] || REGISTRY_FORM='path'
 }
 
 if [[ "$SELFTEST_MODE" != "true" ]]; then
@@ -192,6 +192,168 @@ artifact_lock_sha256() {
     awk -v key="$key" '$1 == key {for (i=1;i<=NF;i++) if ($i ~ /^sha256:/) {sub(/^sha256:/,"",$i); print $i; exit}}' "$REPO_ROOT/versions.lock"
 }
 
+registry_probe_result() {
+    local reference="$1" status="$2"
+    if [[ "$status" =~ ^[1-5][0-9][0-9]$ ]]; then
+        REGISTRY_RESPONSES=$((${REGISTRY_RESPONSES:-0} + 1))
+    fi
+    case "$status" in
+        200) step_skip "HTTP 200: image cached" "registry probe $reference (informational)" ;;
+        401|403) step_skip "HTTP $status: registry requires auth or has restricted access" "registry probe $reference (informational)" ;;
+        404) step_skip "HTTP 404: image not cached - will warm on first pull; pull availability is not established by this probe" "registry probe $reference (informational)" ;;
+        000|'') step_skip "endpoint unreachable or DNS/TLS failure; evaluating all registry responses before reporting failure" "registry probe $reference (HTTP 000)" ;;
+        *) step_skip "HTTP $status: endpoint responded; use a mirror pull to establish image availability" "registry probe $reference (informational)" ;;
+    esac
+}
+
+image_archive_ids() {
+    awk -F '\t' '$0 !~ /^#/ && $2 == "image-archive" {print $1}' "$REPO_ROOT/learner-vm/artifacts.tsv"
+}
+
+image_archive_manifest() {
+    python3 - "$1" <<'PY'
+import hashlib
+import json
+import re
+import sys
+import tarfile
+
+with tarfile.open(sys.argv[1], "r:*") as archive:
+    members = {}
+    for member in archive.getmembers():
+        name = member.name[2:] if member.name.startswith("./") else member.name
+        if name in members:
+            raise ValueError("duplicate archive member")
+        members[name] = member
+
+    def read_member(name):
+        member = members[name]
+        if not member.isfile():
+            raise ValueError("manifest/blob is not a regular file")
+        return archive.extractfile(member)
+
+    def read_json(name):
+        with read_member(name) as source:
+            return json.load(source)
+
+    def verify_descriptor(descriptor):
+        digest = descriptor["digest"]
+        if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+            raise ValueError("unsupported descriptor digest")
+        name = "blobs/sha256/" + digest.split(":", 1)[1]
+        checksum = hashlib.sha256()
+        size = 0
+        with read_member(name) as source:
+            for block in iter(lambda: source.read(1024 * 1024), b""):
+                checksum.update(block)
+                size += len(block)
+        if checksum.hexdigest() != digest.split(":", 1)[1] or size != descriptor["size"]:
+            raise ValueError("OCI descriptor checksum/size mismatch")
+        return name
+
+    def emit(reference, config, manifest):
+        if not reference or re.search(r"[\s|]", reference):
+            raise ValueError("missing/unsafe image reference in archive")
+        first = reference.split("/", 1)[0]
+        if "/" not in reference:
+            reference = "docker.io/library/" + reference
+        elif "." not in first and ":" not in first and first != "localhost":
+            reference = "docker.io/" + reference
+        print(reference + "\t" + config + "\t" + manifest)
+
+    def visit(descriptor, inherited_reference=""):
+        name = verify_descriptor(descriptor)
+        document = read_json(name)
+        annotations = descriptor.get("annotations", {})
+        reference = annotations.get("io.containerd.image.name") or annotations.get("org.opencontainers.image.ref.name") or inherited_reference
+        if "manifests" in document:
+            for child in document["manifests"]:
+                visit(child, reference)
+        else:
+            verify_descriptor(document["config"])
+            for layer in document.get("layers", []):
+                verify_descriptor(layer)
+            emit(reference, document["config"]["digest"], descriptor["digest"])
+
+    if "index.json" in members and "oci-layout" in members:
+        for descriptor in read_json("index.json")["manifests"]:
+            visit(descriptor)
+    elif "manifest.json" in members:
+        for image in read_json("manifest.json"):
+            with read_member(image["Config"]) as source:
+                config = "sha256:" + hashlib.sha256(source.read()).hexdigest()
+            filename_digest = image["Config"].split("/")[-1]
+            if filename_digest.endswith(".json"):
+                filename_digest = filename_digest[:-5]
+            if re.fullmatch(r"[0-9a-f]{64}", filename_digest) and config != "sha256:" + filename_digest:
+                raise ValueError("Docker config checksum mismatch")
+            for layer in image["Layers"]:
+                with read_member(layer) as source:
+                    checksum = hashlib.sha256()
+                    for block in iter(lambda: source.read(1024 * 1024), b""):
+                        checksum.update(block)
+                config_document = read_json(image["Config"])
+                diff_ids = config_document.get("rootfs", {}).get("diff_ids", [])
+                position = image["Layers"].index(layer)
+                if diff_ids and (position >= len(diff_ids) or "sha256:" + checksum.hexdigest() != diff_ids[position]):
+                    raise ValueError("Docker layer diff-ID mismatch")
+            for reference in image.get("RepoTags") or []:
+                emit(reference, config, "-")
+PY
+}
+
+load_image_archives() {
+    local store="$1" artifact_id result archive_path manifest reference config_digest manifest_digest actual
+    while IFS= read -r artifact_id; do
+        artifact_metadata "$artifact_id" || return 1
+        case "$store:$ARTIFACT_INSTALL_TARGET" in
+            podman:podman|podman:both|k3s:k3s-containerd|k3s:both) ;;
+            *) continue ;;
+        esac
+        if resolve_artifact "$artifact_id"; then :; else
+            result=$?
+            ((result == 2)) && continue
+            return 1
+        fi
+        archive_path="$ARTIFACT_RESOLVED_PATH"
+        if ! manifest="$(image_archive_manifest "$archive_path" 2>/dev/null)"; then
+            step_fail "image archive $artifact_id contains an invalid manifest or blob checksum" "Correct $archive_path; see MANUAL-FETCH.md Section C. No network fallback is attempted for a corrupt archive."
+            return 1
+        fi
+        if [[ "$DRY_RUN" == true ]]; then
+            log "[dry-run] image-archive stage: $store would load $archive_path; embedded manifest validated when present"
+            continue
+        fi
+        if [[ "$store" == podman ]]; then
+            if ! podman load -i "$archive_path"; then
+                step_fail "could not load $artifact_id into Podman" "Check $archive_path and the rootful store; see MANUAL-FETCH.md Section C."
+                return 1
+            fi
+        elif ! /usr/local/bin/k3s ctr -n k8s.io images import "$archive_path"; then
+            step_fail "could not import $artifact_id into k3s" "Check $archive_path and the k8s.io namespace; see MANUAL-FETCH.md Section C."
+            return 1
+        fi
+        while IFS=$'\t' read -r reference config_digest manifest_digest; do
+            [[ -n "$reference" ]] || continue
+            if [[ "$store" == podman ]]; then
+                actual="$(podman image inspect --format '{{.Id}}' "$reference" 2>/dev/null || true)"
+                actual="sha256:${actual#sha256:}"
+                if [[ "$actual" != "$config_digest" ]]; then
+                    step_fail "loaded image config digest mismatch for $reference: expected $config_digest, actual $actual" "Correct $archive_path before provisioning; see MANUAL-FETCH.md Section C."
+                    return 1
+                fi
+            else
+                actual="$(/usr/local/bin/k3s ctr -n k8s.io images list | awk -v ref="$reference" '$1 == ref {print $3; exit}')"
+                if [[ -z "$actual" || ( "$manifest_digest" != - && "$actual" != "$manifest_digest" ) ]]; then
+                    step_fail "imported k3s image reference/digest mismatch for $reference" "Correct $archive_path; see MANUAL-FETCH.md Section C."
+                    return 1
+                fi
+            fi
+        done <<< "$manifest"
+        step_ok "loaded local image archive $artifact_id into $store; embedded references and hashes checked when present"
+    done < <(image_archive_ids)
+}
+
 artifact_metadata() {
     local requested_id="$1" catalog="$REPO_ROOT/learner-vm/artifacts.tsv"
     local id kind required relative_path url_variable lock_key consumer install_target extra row_sha line_number=0 found=0 header_seen=0 expected_header actual_header
@@ -227,7 +389,7 @@ artifact_metadata() {
             return 1
         }
         seen_ids["$id"]=1
-        [[ "$kind" =~ ^(binary|archive|rpm|file)$ ]] || {
+        [[ "$kind" =~ ^(binary|archive|rpm|file|image-archive)$ ]] || {
             printf '[%s] FATAL: artifact %s has an unsupported kind.\n' "$SCRIPT_NAME" "$id" >&2
             return 1
         }
@@ -235,11 +397,15 @@ artifact_metadata() {
             printf '[%s] FATAL: artifact %s required must be yes or no.\n' "$SCRIPT_NAME" "$id" >&2
             return 1
         }
+        if [[ "$kind" == image-archive && ( "$required" != no || "$url_variable" != - || ! "$install_target" =~ ^(podman|k3s-containerd|both)$ ) ]]; then
+            printf '[%s] FATAL: image archive %s must be optional, filesystem-only, and target an image store.\n' "$SCRIPT_NAME" "$id" >&2
+            return 1
+        fi
         [[ "$relative_path" =~ ^[A-Za-z0-9._/-]+$ && "$relative_path" != /* && "$relative_path" != */ && "/$relative_path/" != *"/../"* && "/$relative_path/" != *"//"* ]] || {
             printf '[%s] FATAL: artifact %s has an unsafe staging path.\n' "$SCRIPT_NAME" "$id" >&2
             return 1
         }
-        [[ "$url_variable" =~ ^[A-Z_][A-Z0-9_]*$ ]] || {
+        [[ "$url_variable" =~ ^[A-Z_][A-Z0-9_]*$ || ( "$kind" == image-archive && "$url_variable" == - ) ]] || {
             printf '[%s] FATAL: artifact %s has an invalid URL variable name.\n' "$SCRIPT_NAME" "$id" >&2
             return 1
         }
@@ -248,7 +414,11 @@ artifact_metadata() {
             return 1
         }
         row_sha="$(artifact_lock_sha256 "$lock_key")"
-        [[ "$row_sha" =~ ^[0-9a-f]{64}$ ]] || {
+        if [[ "$kind" == image-archive && -z "$row_sha" ]] && awk -v key="$lock_key" '$1 == key {found=1} END {exit !found}' "$REPO_ROOT/versions.lock"; then
+            printf '[%s] FATAL: operator-recorded image archive pin %s lacks a valid checksum.\n' "$SCRIPT_NAME" "$lock_key" >&2
+            return 1
+        fi
+        [[ "$row_sha" =~ ^[0-9a-f]{64}$ || ( "$kind" == image-archive && -z "$row_sha" ) ]] || {
             printf '[%s] FATAL: artifact %s checksum key is missing or invalid in versions.lock.\n' "$SCRIPT_NAME" "$id" >&2
             return 1
         }
@@ -256,7 +426,7 @@ artifact_metadata() {
             printf '[%s] FATAL: artifact %s consumer script is invalid or missing.\n' "$SCRIPT_NAME" "$id" >&2
             return 1
         }
-        [[ "$install_target" == /* && "$install_target" != *"/../"* ]] || {
+        [[ ( "$install_target" == /* && "$install_target" != *"/../"* ) || ( "$kind" == image-archive && "$install_target" =~ ^(podman|k3s-containerd|both)$ ) ]] || {
             printf '[%s] FATAL: artifact %s install target must be a safe absolute path.\n' "$SCRIPT_NAME" "$id" >&2
             return 1
         }
@@ -281,7 +451,7 @@ artifact_metadata() {
         printf '[%s] FATAL: artifact ID is not catalogued: %s\n' "$SCRIPT_NAME" "$requested_id" >&2
         return 1
     }
-    [[ "$ARTIFACT_EXPECTED_SHA256" =~ ^[0-9a-f]{64}$ ]] || {
+    [[ "$ARTIFACT_EXPECTED_SHA256" =~ ^[0-9a-f]{64}$ || ( "$ARTIFACT_KIND" == image-archive && -z "$ARTIFACT_EXPECTED_SHA256" ) ]] || {
         printf '[%s] FATAL: artifact %s has an invalid SHA-256 lock value.\n' "$SCRIPT_NAME" "$requested_id" >&2
         return 1
     }
@@ -338,6 +508,36 @@ resolve_artifact() {
     ARTIFACT_SAFE_URL=''
     ARTIFACT_HOST=''
     ARTIFACT_CONNECT=''
+
+    if [[ "$ARTIFACT_KIND" == image-archive ]]; then
+        if [[ ! -e "$local_path" && ! -L "$local_path" ]]; then
+            local_path="$REPO_ROOT/content/vendor/$ARTIFACT_RELATIVE_PATH"
+        fi
+        if [[ ! -e "$local_path" && ! -L "$local_path" ]]; then
+            ARTIFACT_RESOLUTION_STATUS='ABSENT'
+            step_skip "image archive $ARTIFACT_ID ABSENT at $MANUAL_FETCH_DIR/$ARTIFACT_RELATIVE_PATH and content/vendor/$ARTIFACT_RELATIVE_PATH" "filesystem-only optional input; no network request"
+            return 2
+        fi
+        if [[ ! -f "$local_path" || -L "$local_path" ]]; then
+            step_fail "image archive $ARTIFACT_ID is not a regular file: $local_path" "Provide a regular archive; see MANUAL-FETCH.md Section C. No network fallback is attempted."
+            return 1
+        fi
+        if [[ -n "$ARTIFACT_EXPECTED_SHA256" ]]; then
+            actual_sha="$(sha256sum "$local_path" | awk '{print $1}')"
+            if [[ "$actual_sha" != "$ARTIFACT_EXPECTED_SHA256" ]]; then
+                step_fail "FATAL image archive $ARTIFACT_ID checksum mismatch: expected $ARTIFACT_EXPECTED_SHA256, actual $actual_sha" "Correct the local archive or operator-recorded versions.lock pin; see MANUAL-FETCH.md Section C. No network request is attempted."
+                return 1
+            fi
+        else
+            step_skip "image archive $ARTIFACT_ID has no operator-recorded checksum at $ARTIFACT_LOCK_KEY" "archive SHA-256 verification skipped; loader verifies embedded manifest hashes when present"
+        fi
+        ARTIFACT_RESOLVED_PATH="$local_path"
+        ARTIFACT_RESOLVED_SOURCE='manual'
+        [[ "$local_path" != "$REPO_ROOT/"* ]] || ARTIFACT_RESOLVED_SOURCE='repository'
+        ARTIFACT_RESOLUTION_STATUS='PRESENT'
+        step_ok "image archive $ARTIFACT_ID PRESENT at $local_path; source $ARTIFACT_RESOLVED_SOURCE; no network request"
+        return 0
+    fi
 
     if [[ -e "$local_path" || -L "$local_path" ]]; then
         if [[ ! -f "$local_path" || -L "$local_path" ]]; then

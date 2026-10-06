@@ -13,6 +13,10 @@ For same-VM recovery instructions, use [MANUAL-FETCH.md](MANUAL-FETCH.md), Secti
 
 ## Container Images at Provisioning
 
+Optional filesystem-only `image-archive` rows in `learner-vm/artifacts.tsv` are resolved from `$MANUAL_FETCH_DIR/images/` first, then `content/vendor/images/`, before mirror pulls.
+No image archive is included by default; archive pins may be recorded by the operator in `versions.lock`, and manifest/blob integrity is checked when present.
+See [MANUAL-FETCH.md](MANUAL-FETCH.md), Section C, for approved small-image vendoring and the Jaeger/Perses approval escalation.
+
 The Podman and k3s containerd stores are separate.
 Script 60 pulls external Podman images through `registries.conf`; script 62 uses `k3s crictl pull` for external Kubernetes images through k3s's `registries.yaml`.
 Locally built images needed by k3s use `podman save` followed by `k3s ctr -n k8s.io images import`.

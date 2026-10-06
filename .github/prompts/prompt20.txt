@@ -1,0 +1,300 @@
+Prompt 20 — Correct the registry probe and support optional
+small-image vendoring
+
+Context
+-------
+Read .github/copilot-instructions.md and the newest
+feedback/airgap-run-*.md files. Inspect scripts/00-diagnose.sh,
+scripts/60-load-images.sh, scripts/62-k3s-images.sh, lab-vm.conf,
+learner-vm/artifacts.tsv, content/extracted/external-images.txt,
+and the latest learner-VM diagnostic report.
+
+Findings from the current diagnostic that this prompt responds to:
+
+1. The Artifactory Docker registry can be reached as a dedicated
+   subdomain, e.g. `docker-registry.<ART_REPO_DOMAIN>`, or through
+   the path form the repository currently uses. The path form is
+   less standard. Support both, prefer the subdomain form in
+   documentation.
+
+2. The diagnostic's manifest probes returned HTTP 404 for several
+   images that the operator CAN pull successfully on the same VM
+   via `docker pull`. This is consistent with a pull-through
+   registry that warms on first request. The manifest probe is
+   not a reliable availability check.
+
+3. Two images are not approved for use yet:
+     docker.io/jaegertracing/all-in-one:1.76.0
+     docker.io/persesdev/perses:v0.54.0
+   This is an organisational approval gap, not a technical one.
+   Document it as an escalation item. Do not add workarounds.
+
+4. `skopeo` is not installed on the base image and was reported as
+   SKIPPED. This is expected on a minimal base and not a failure.
+   Script 20 installs it. The probe helper must not depend on
+   skopeo being present.
+
+5. SELinux enforcing and firewalld active were reported as expected
+   states. Keep SELinux enforcing in the plan. Script 20 disables
+   firewalld; confirm this is still the intent and the diagnostic
+   reports both states accurately.
+
+6. The operator can download individual files independently and
+   place them at $MANUAL_FETCH_DIR for local-first resolution.
+   Container images can use the same mechanism if the operator
+   saves them locally. Small images may also be committed to the
+   repository directly; large ones must not be.
+
+This task runs on the connected upstream machine only. Do not access
+the learner VM or run provisioning against it.
+
+Objective
+---------
+Correct the registry probe to reflect what actually works, add
+support for locally-provided container image archives through the
+existing resolver, and document the unapproved-image escalation.
+
+Task 1 — make the registry endpoint configurable in both forms
+--------------------------------------------------------------
+Update learner-vm/lab-vm.conf:
+
+  ART_REPO_DOMAIN="artifactory.internal"
+  # Base domain for Artifactory and its services.
+
+  DOCKER_REGISTRY=""
+  # Container registry endpoint. Preferred form is the dedicated
+  # subdomain, e.g. "docker-registry.${ART_REPO_DOMAIN}". The path
+  # form "${ART_REPO_DOMAIN}/artifactory/docker-registry" also works
+  # on some Artifactory deployments and is accepted. Leave empty to
+  # derive the subdomain form from ART_REPO_DOMAIN.
+
+  ART_HOST="${ART_REPO_DOMAIN}"
+  # Generic Artifactory host for package repositories and simple
+  # file URLs.
+
+Derive DOCKER_REGISTRY in scripts/lib.sh if empty:
+  DOCKER_REGISTRY="${DOCKER_REGISTRY:-docker-registry.${ART_REPO_DOMAIN}}"
+
+REG_HOST (used for /etc/containers/certs.d/ and registries.conf
+entries) must be derived from DOCKER_REGISTRY: strip any URL scheme,
+then take the host portion up to the first slash. Both the
+subdomain form and the path form must produce a correct REG_HOST.
+For the subdomain form REG_HOST is the subdomain itself; for the
+path form it is the base domain.
+
+Update scripts/30-ca-and-trust.sh, 40-podman-config.sh, and
+45-k3s-install.sh if they assume a particular DOCKER_REGISTRY shape.
+Do not break the existing path-form configuration.
+
+Task 2 — correct the diagnostic registry probe
+---------------------------------------------
+Update scripts/00-diagnose.sh. Bump SCRIPT_VERSION and add a CHANGE
+comment.
+
+Replace the manifest-probe section with a probe that does not
+misrepresent pull-through behaviour:
+
+a. Report the derived DOCKER_REGISTRY and REG_HOST values and which
+   form is in use.
+b. Test that the registry endpoint answers, in this order:
+     - If the manifest probe returns 200: report "image cached".
+     - If it returns 401 or 403: report "registry requires auth or
+       has restricted access" — treat as informational, not failure.
+     - If it returns 404: report "image not cached — will warm on
+       first pull", treat as informational.
+     - If it returns 000 or a timeout: report "endpoint unreachable
+       or DNS failure", with DNS and TLS diagnostics, and treat as
+       a real failure only if no DOCKER_REGISTRY responds to any
+       image in the set.
+c. Do not gate overall diagnostic success on per-image probe
+   results. The only registry failure that is a real failure is
+   "the registry endpoint itself is unreachable or refuses TLS".
+d. Keep sending the correct Accept headers for both Docker v2
+   and OCI manifest types:
+     Accept: application/vnd.docker.distribution.manifest.v2+json,
+             application/vnd.docker.distribution.manifest.list.v2+json,
+             application/vnd.oci.image.manifest.v1+json,
+             application/vnd.oci.image.index.v1+json
+e. If `skopeo` is present, add a secondary check via
+   `skopeo inspect --tls-verify=true --no-creds`. If skopeo is
+   absent, skip that check with a clearly labelled SKIPPED line —
+   it is expected on the minimal base.
+f. Report the derived REG_HOST's CA cert path
+   (/etc/containers/certs.d/$REG_HOST/ca.crt) and whether it exists.
+
+Preserve read-only behaviour, the report-block protocol, --selftest,
+and all other existing checks.
+
+Task 3 — support locally-provided container image archives
+----------------------------------------------------------
+Extend the artifact catalog so image tarballs can also be provided
+locally through the same local-first mechanism as the k3s binary.
+
+Add a new `kind` value to artifacts.tsv: `image-archive`.
+
+Add catalog entries for any image the operator is likely to provide
+locally, including at minimum:
+
+  image-busybox
+    kind: image-archive
+    required: no
+    staging path: images/busybox-1.36.tar
+    URL variable: (none — provided filesystem path only)
+    checksum: to be filled by the operator
+    consumer: scripts/60-load-images.sh
+    install target: local Podman store
+
+  image-node-exporter
+    kind: image-archive
+    required: no
+    staging path: images/node-exporter-v1.12.1.tar
+    URL variable: (none)
+    consumer: scripts/60-load-images.sh
+    install target: local Podman store
+
+  image-image-bundle
+    kind: image-archive
+    required: no
+    staging path: images/saved-images.tar
+    URL variable: (none)
+    consumer: scripts/60-load-images.sh
+    install target: local Podman store
+
+The exact set of catalog entries is the operator's choice. Use one
+row per image archive the operator chooses to provide.
+
+Update the resolver so `image-archive` entries:
+  - Use $MANUAL_FETCH_DIR/<staging_relative_path>.
+  - Do NOT probe a URL. Image archives are filesystem-only.
+  - Do NOT require a checksum, but if the operator records one in
+    versions.lock under the catalogued sha256_lock_key, verify it.
+    If the operator has not recorded one, skip verification with a
+    clear informational line.
+  - Report PRESENT or ABSENT only.
+
+The exact set is flexible. Do not invent image archives the operator
+has not indicated they will provide.
+
+Task 4 — consume locally-provided image archives
+-----------------------------------------------
+Update scripts/60-load-images.sh and scripts/62-k3s-images.sh.
+Bump both SCRIPT_VERSION values and add CHANGE comments.
+
+Add a pre-pull stage to 60-load-images.sh:
+1. If any catalogued `image-archive` file exists at its
+   $MANUAL_FETCH_DIR path, load it with
+   `docker load -i <path>` (through the wrapper) or
+   `podman load -i <path>`, verifying the transported image hashes
+   are consistent with the loaded references if the archive includes
+   a manifest.
+2. After loading, run the existing per-image presence check against
+   the Podman store.
+3. For images that remain absent, pull through the mirror as today.
+4. If an image is still absent after both, fail with a fix-hint
+   naming MANUAL-FETCH.md Section C and the expected
+   $MANUAL_FETCH_DIR/images/<filename> path.
+
+Add an equivalent pre-import stage to 62-k3s-images.sh for any
+image-archive that is also required in k3s containerd (typically
+none unless the operator provides one; keep the stage conditional).
+
+Keep the existing precedence: local files override network. Do not
+attempt network pulls for artifacts that have been locally provided
+and successfully verified.
+
+Task 5 — document image vendoring and unapproved images
+------------------------------------------------------
+Update content/vendor/MANUAL-FETCH.md:
+
+a. Section C must describe two mechanisms:
+   - Preferred: `podman pull` through the Artifactory mirror during
+     provisioning (the default).
+   - Fallback: operator-provided image archives at
+     $MANUAL_FETCH_DIR/images/<filename>.tar. Document the exact
+     `podman save` command an operator uses on a connected machine:
+       podman pull <original-reference>
+       podman save --format oci-archive \
+         -o <filename>.tar <original-reference>
+     Note that `--format oci-archive` is interoperable with the
+     `podman load` used on the learner VM.
+   - Document the alternative for small images: commit them under
+     content/vendor/images/ and load them from there. Note the
+     size threshold guidance (below 30 MB per image is reasonable;
+     anything above 100 MB is strongly discouraged).
+
+b. Add a callout about unapproved images:
+     "The following images are not approved for this environment
+      yet and require escalation to the Artifactory administrator
+      before provisioning can complete for their affected
+      workshops:
+        docker.io/jaegertracing/all-in-one:1.76.0
+          - affects the OpenTelemetry and OTel-for-Java workshops
+        docker.io/persesdev/perses:v0.54.0
+          - affects the Perses workshop
+      If an approval is not expected, discuss with the workshop
+      organisers whether those workshops can be supported with an
+      alternative image that is already approved."
+
+Regenerate content/vendor/manual-fetch.json to match the new
+artifacts.tsv and Section C wording.
+
+Update README-FIRST.md's runtime recovery section in at most three
+sentences to reference Section C and the image-archive mechanism.
+
+Task 6 — note SELinux and firewalld in the diagnostic
+-----------------------------------------------------
+Do not change behaviour in this task beyond what is already planned.
+
+Confirm scripts/00-diagnose.sh reports:
+  - SELinux mode (`getenforce`) with no pass/fail.
+  - firewalld state with no pass/fail.
+  - Both are informational. Script 20 (or an existing script) is
+    the one that disables firewalld at provisioning time.
+  - Do not add SELinux disabling anywhere. k3s runs under enforcing
+    by design.
+
+If a provisioning script other than 20 already changes firewalld
+state, consolidate that decision into script 20 and cite it in the
+diagnostic output.
+
+Task 7 — validation
+-------------------
+On the connected machine only:
+
+- `bash -n` and error-level ShellCheck on all changed scripts.
+- `pre-commit run --all-files`.
+- `scripts/00-diagnose.sh --selftest`.
+- Confirm the resolver handles an `image-archive` row correctly:
+    a. present and (if the operator records a checksum) matches:
+       PRESENT, no network call;
+    b. present and mismatches the recorded checksum: FATAL without
+       attempting network;
+    c. absent: informational, no network call.
+- Confirm `60-load-images.sh` dry-run reports the image-archive
+  stage only when files exist at the expected paths.
+- Confirm no script uses a public internet URL as an operational
+  runtime source.
+- Confirm both DOCKER_REGISTRY forms derive a correct REG_HOST
+  through the shared library helper.
+
+Do not run provisioning against the learner VM. Do not claim
+Artifactory, k3s, image pulls, or offline operation have been
+tested there.
+
+Acceptance
+----------
+1. Paste the updated lab-vm.conf in full.
+2. Paste the updated artifacts.tsv in full, including the image
+   archive rows.
+3. Paste the new 00-diagnose.sh registry probe section (or its
+   output from --selftest), showing that a 404 is treated as
+   informational.
+4. Paste the new Section C of MANUAL-FETCH.md, including the
+   unapproved-image callout.
+5. Paste the updated manual-fetch.json entries for image archives.
+6. Report bash syntax, ShellCheck, pre-commit, resolver test
+   cases a–c, and the REG_HOST derivation checks.
+7. State explicitly: no learner VM was accessed; no provisioning
+   run; Artifactory, k3s, and image pulls are unverified on the
+   learner network.
+8. Leave changes uncommitted and unstaged.
