@@ -34,6 +34,12 @@ The bundle captures immutable tag-plus-digest image pins, while replay manifests
 - `bundle/`: output from offline capture; generated contents are gitignored.
 - `docs/`: speaker notes, runbooks, and the appliance syslog design note.
 
+## Copilot Q&A and Specialist Agents
+
+The repository includes the `airgapped-workshop-guide` skill under `.github/skills/` for offline, read-only questions and source navigation.
+The `Learner VM Specialist` agent handles the RHEL learner workflow and its captured content, while the `Demo VM Specialist` agent handles the complete Ubuntu presenter-demo lifecycle from build and capture through replay and runbooks.
+The root README, repository instructions, and `versions.lock` are shared coordination points; keep edits scoped to the relevant workflow, and do not edit `versions.lock` without an explicit instruction.
+
 ## License
 
 Original material authored for this repository is licensed under Apache-2.0; see [LICENSE](LICENSE).
