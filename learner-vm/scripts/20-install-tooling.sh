@@ -2,7 +2,8 @@
 set -euo pipefail
 
 SCRIPT_NAME="20-install-tooling"
-SCRIPT_VERSION="1"
+# CHANGE: Parse RHEL alternatives --display candidates and report Java configuration failures before exiting.
+SCRIPT_VERSION="3"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRY_RUN=false
 UNKNOWN_ARGUMENTS=()
@@ -124,6 +125,88 @@ else
 	step_fail "dnf is unavailable" "Restore the RHEL 8.6 DNF package manager before installing workshop tools." "command -v dnf" "cat /etc/redhat-release"
 fi
 
+configure_java_17() {
+	local java_17_bin javac_17_bin java_home profile_temp environment_temp java_output javac_output
+	local java_alternatives javac_alternatives failures_before="$FAIL_COUNT"
+	if [[ "$DRY_RUN" == true ]]; then
+		run 'alternatives --set java <registered-java-17-openjdk-path>'
+		run 'alternatives --set javac <registered-java-17-openjdk-path>'
+		run 'set JAVA_HOME to the selected Java 17 installation in /etc/environment and /etc/profile.d/java.sh'
+		step_skip "Java 17 alternatives and JAVA_HOME were previewed" "no system Java selection or environment files were changed during --dry-run"
+		return 0
+	fi
+	if ! command -v alternatives >/dev/null 2>&1; then
+		step_fail "the alternatives command is unavailable" "Restore the RHEL alternatives package before configuring Java." "command -v alternatives" "rpm -q chkconfig"
+		return 1
+	fi
+	if ! java_alternatives="$(LC_ALL=C alternatives --display java 2>&1)"; then
+		step_fail "could not query the java alternatives group" "Check the RHEL alternatives registration and rerun this script." "alternatives --display java" "rpm -q java-17-openjdk-devel"
+		return 1
+	fi
+	if ! javac_alternatives="$(LC_ALL=C alternatives --display javac 2>&1)"; then
+		step_fail "could not query the javac alternatives group" "Check the RHEL alternatives registration and rerun this script." "alternatives --display javac" "rpm -q java-17-openjdk-devel"
+		return 1
+	fi
+	if ! java_17_bin="$(awk '$2 == "-" && $1 ~ /^\/usr\/lib\/jvm\/java-17-openjdk[^/]*\/bin\/java$/ && !found {print $1; found=1}' <<< "$java_alternatives")" ||
+		! javac_17_bin="$(awk '$2 == "-" && $1 ~ /^\/usr\/lib\/jvm\/java-17-openjdk[^/]*\/bin\/javac$/ && !found {print $1; found=1}' <<< "$javac_alternatives")"; then
+		step_fail "could not parse Java 17 alternatives candidates" "Check the alternatives display output for registered Java 17 executable paths." "alternatives --display java" "alternatives --display javac"
+		return 1
+	fi
+	if [[ -z "$java_17_bin" || ! -x "$java_17_bin" ]]; then
+		step_fail "Java 17 is not registered as an executable java alternative" "Install java-17-openjdk-devel from the configured DNF repository or attached RHEL ISO, then rerun this script." "alternatives --display java" "rpm -q java-17-openjdk-devel"
+		return 1
+	fi
+	if [[ -z "$javac_17_bin" || ! -x "$javac_17_bin" ]]; then
+		step_fail "Java 17 javac is not registered as an executable alternative" "Install java-17-openjdk-devel from the configured DNF repository or attached RHEL ISO, then rerun this script." "alternatives --display javac" "rpm -q java-17-openjdk-devel"
+		return 1
+	fi
+	java_home="${java_17_bin%/bin/java}"
+	if ! run "alternatives --set java $(printf '%q' "$java_17_bin")"; then
+		step_fail "could not select Java 17 for the system java command" "Check the registered alternatives and rerun this idempotent script." "alternatives --display java" "rpm -q java-17-openjdk-devel"
+		return 1
+	fi
+	if ! run "alternatives --set javac $(printf '%q' "$javac_17_bin")"; then
+		step_fail "could not select Java 17 for the system javac command" "Check the registered alternatives and rerun this idempotent script." "alternatives --display javac" "rpm -q java-17-openjdk-devel"
+		return 1
+	fi
+	profile_temp="$(mktemp "${TMPDIR:-/tmp}/java-profile.XXXXXX")" || { step_fail "could not create the JAVA_HOME profile file" "Check temporary-file permissions and disk space." "df -h /tmp"; return 1; }
+	environment_temp="$(mktemp "${TMPDIR:-/tmp}/java-environment.XXXXXX")" || { rm -f -- "$profile_temp"; step_fail "could not create the JAVA_HOME environment file" "Check temporary-file permissions and disk space." "df -h /tmp"; return 1; }
+	if ! {
+		printf 'export JAVA_HOME=%q\n' "$java_home" &&
+		printf '%s\n' 'case ":${PATH}:" in' '    *":${JAVA_HOME}/bin:"*) ;;' '    *) PATH="${JAVA_HOME}/bin:${PATH}" ;;' 'esac' 'export PATH'
+	} > "$profile_temp" ||
+		! { [[ ! -r /etc/environment ]] || awk '$0 !~ /^[[:space:]]*JAVA_HOME[[:space:]]*=/ {print}' /etc/environment > "$environment_temp"; } ||
+		! printf 'JAVA_HOME="%s"\n' "$java_home" >> "$environment_temp"; then
+		rm -f -- "$profile_temp" "$environment_temp" || true
+		step_fail "could not prepare JAVA_HOME environment files" "Check temporary-file permissions and available disk space." "df -h /tmp"
+		return 1
+	fi
+	if ! install --owner=root --group=root --mode=0644 "$profile_temp" /etc/profile.d/java.sh || ! install --owner=root --group=root --mode=0644 "$environment_temp" /etc/environment; then
+		rm -f -- "$profile_temp" "$environment_temp"
+		step_fail "could not configure JAVA_HOME system-wide" "Check write access to /etc/profile.d and /etc/environment." "ls -ld /etc/profile.d /etc/environment" "df -h /etc"
+		return 1
+	fi
+	rm -f -- "$profile_temp" "$environment_temp"
+	step_ok "selected Java 17 for system java and javac alternatives"
+	step_ok "configured JAVA_HOME=$java_home for login and sudo environments"
+	if java_output="$(java -version 2>&1)" && [[ "$java_output" == *'version "17.'* ]]; then
+		step_ok "default java command reports Java 17"
+	else
+		step_fail "the selected java command is not Java 17" "Check the system alternative and rerun this script." "java -version" "readlink -f /usr/bin/java"
+	fi
+	if javac_output="$(javac -version 2>&1)" && [[ "$javac_output" == 'javac 17.'* ]]; then
+		step_ok "default javac command reports Java 17"
+	else
+		step_fail "the selected javac command is not Java 17" "Check the compiler alternative and rerun this script." "javac -version" "readlink -f /usr/bin/javac"
+	fi
+	((FAIL_COUNT == failures_before))
+}
+
+if ! configure_java_17; then
+	end_report "Correct the Java 17 configuration failure and rerun learner-vm/scripts/20-install-tooling.sh before continuing."
+	exit 1
+fi
+
 if [[ -n "$HOSTNAME" ]]; then
 	current_hostname="$(hostname 2>/dev/null || true)"
 	if [[ "$current_hostname" == "$HOSTNAME" ]]; then
@@ -207,7 +290,11 @@ fi
 if [[ "$DRY_RUN" == false ]]; then
 	for tool in podman buildah skopeo firefox git java; do
 		if command -v "$tool" >/dev/null 2>&1; then
-			version="$($tool --version 2>&1 | head -n 1 || true)"
+			if [[ "$tool" == java ]]; then
+				version="$($tool -version 2>&1 | head -n 1 || true)"
+			else
+				version="$($tool --version 2>&1 | head -n 1 || true)"
+			fi
 			step_ok "$tool version: $version"
 		else
 			step_fail "$tool is not installed" "Review DNF/ISO results and install $tool before continuing." "command -v $(printf %q "$tool")" "rpm -q $(printf %q "$tool")"
