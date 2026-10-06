@@ -5,7 +5,7 @@
 - Date:
 <!-- Name of the operator who ran the commands. -->
 - Operator:
-<!-- VM identifier and installed RHEL release. -->
+<!-- Use a generic VM label, not a hostname or internal asset identifier; include the RHEL release. -->
 - VM / RHEL version:
 <!-- Commit SHA; run git rev-parse HEAD in the cloned repository. -->
 - Repository commit SHA:
@@ -27,13 +27,13 @@ The default `00-diagnose.sh` performs real Podman pulls to distinguish true imag
 An individual manifest-probe 404 alone is informational; the actual pull result determines image availability.
 
 ## Report block
-<!-- Paste the complete REPORT BEGIN/END block verbatim; do not edit or summarise it. -->
+<!-- Preserve the report and diagnostic meaning, but redact the HOST value, internal network identifiers, secrets, and host-specific paths before committing. -->
 ```text
 <EMPTY: operator pastes the complete REPORT BEGIN/END block here, verbatim, as a single block>
 ```
 
 ## Operator observations
-<!-- Record observations outside the report block, or state none. -->
+<!-- Record observations outside the report block; redact internal network identifiers and secrets, or state none. -->
 <operator fills in>
 
 ## Follow-up required

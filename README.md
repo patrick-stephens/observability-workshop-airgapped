@@ -58,6 +58,9 @@ This runs all applicable file hooks; the Conventional Commits hook is run for co
 The generic JSON key sorter excludes the npm-generated `slides/package-lock.json` to preserve npm's lockfile serialization; JSON syntax and other file checks still run.
 Byte-rewriting hooks, source-mode/name checks, YAML style checks, and the generic large-file threshold exclude `content/` so upstream snapshots and generated outputs remain intact; gitleaks, JSON checks, and other applicable validation still run.
 The learner VM receives the Git repository only; script 45 downloads the pinned k3s binary from an administrator-supplied Artifactory generic-file URL, and scripts 60 and 62 pull images through Artifactory during provisioning.
+Before committing learner run records under `feedback/`, redact hostnames, private network addresses, internal DNS names and registry endpoints, credentials, and host-specific paths; see [feedback/README.md](feedback/README.md).
+The `feedback-redaction` pre-commit hook catches common private addresses and internal DNS suffixes, but does not replace manual review.
+Use documentation-only addresses and synthetic identifiers in committed examples instead of captured runtime values.
 
 ## Host Prerequisites
 

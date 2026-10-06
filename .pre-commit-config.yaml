@@ -8,6 +8,13 @@ repos:
     rev: v8.30.1
     hooks:
       - id: gitleaks
+  - repo: local
+    hooks:
+      - id: feedback-redaction
+        name: Check learner feedback redactions
+        entry: python3 scripts/dev/check-feedback-redaction.py
+        language: system
+        files: ^feedback/airgap-run-[0-9]+\.md$
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:

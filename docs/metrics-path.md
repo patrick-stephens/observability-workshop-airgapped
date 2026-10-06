@@ -80,30 +80,32 @@ During the DNS beat, `hubble_drop_total` records the denied queries with `reason
 
 ## Reference Responses
 
+The following raw samples use synthetic pod names and documentation-only addresses.
+
 `curl 'localhost:9090/api/v1/query?query=torpedoes_detected_total'`, raw response:
 
 ```json
-{"status":"success","data":{"resultType":"vector","result":[{"metric":{"__name__":"torpedoes_detected_total","job":"backend"},"value":[1790871780.872,"6742"]}]}}
+{"status":"success","data":{"resultType":"vector","result":[{"metric":{"__name__":"torpedoes_detected_total","job":"backend"},"value":[1700000000.872,"6742"]}]}}
 ```
 
 `curl 'localhost:9090/api/v1/query?query=app_chaos_mode'`, the same raw response with each element of `data.result` on its own line:
 
 ```json
 {"status":"success","data":{"resultType":"vector","result":[
-{"metric":{"__name__":"app_chaos_mode","container":"backend","endpoint":"http","exported_service":"backend","instance":"10.0.0.167:8080","job":"backend","mode":"dns","namespace":"demo","pod":"backend-7dd96fffc6-r7sp7","service":"backend"},"value":[1790871780.879,"0"]},
-{"metric":{"__name__":"app_chaos_mode","container":"backend","endpoint":"http","exported_service":"backend","instance":"10.0.0.167:8080","job":"backend","mode":"error","namespace":"demo","pod":"backend-7dd96fffc6-r7sp7","service":"backend"},"value":[1790871780.879,"0"]},
-{"metric":{"__name__":"app_chaos_mode","container":"backend","endpoint":"http","exported_service":"backend","instance":"10.0.0.167:8080","job":"backend","mode":"ok","namespace":"demo","pod":"backend-7dd96fffc6-r7sp7","service":"backend"},"value":[1790871780.879,"1"]},
-{"metric":{"__name__":"app_chaos_mode","container":"backend","endpoint":"http","exported_service":"backend","instance":"10.0.0.167:8080","job":"backend","mode":"slow","namespace":"demo","pod":"backend-7dd96fffc6-r7sp7","service":"backend"},"value":[1790871780.879,"0"]},
-{"metric":{"__name__":"app_chaos_mode","container":"backend","endpoint":"http","exported_service":"backend","instance":"10.0.0.167:8080","job":"backend","mode":"torpedo","namespace":"demo","pod":"backend-7dd96fffc6-r7sp7","service":"backend"},"value":[1790871780.879,"0"]},
-{"metric":{"__name__":"app_chaos_mode","container":"frontend","endpoint":"http","exported_service":"frontend","instance":"10.0.0.58:8080","job":"frontend","mode":"dns","namespace":"demo","pod":"frontend-7d9b6975b-dvtg4","service":"frontend"},"value":[1790871780.879,"0"]},
-{"metric":{"__name__":"app_chaos_mode","container":"frontend","endpoint":"http","exported_service":"frontend","instance":"10.0.0.58:8080","job":"frontend","mode":"error","namespace":"demo","pod":"frontend-7d9b6975b-dvtg4","service":"frontend"},"value":[1790871780.879,"0"]},
-{"metric":{"__name__":"app_chaos_mode","container":"frontend","endpoint":"http","exported_service":"frontend","instance":"10.0.0.58:8080","job":"frontend","mode":"ok","namespace":"demo","pod":"frontend-7d9b6975b-dvtg4","service":"frontend"},"value":[1790871780.879,"1"]},
-{"metric":{"__name__":"app_chaos_mode","container":"frontend","endpoint":"http","exported_service":"frontend","instance":"10.0.0.58:8080","job":"frontend","mode":"slow","namespace":"demo","pod":"frontend-7d9b6975b-dvtg4","service":"frontend"},"value":[1790871780.879,"0"]},
-{"metric":{"__name__":"app_chaos_mode","container":"frontend","endpoint":"http","exported_service":"frontend","instance":"10.0.0.58:8080","job":"frontend","mode":"torpedo","namespace":"demo","pod":"frontend-7d9b6975b-dvtg4","service":"frontend"},"value":[1790871780.879,"0"]},
-{"metric":{"__name__":"app_chaos_mode","container":"api","endpoint":"http","exported_service":"api","instance":"10.0.0.24:8080","job":"api","mode":"dns","namespace":"demo","pod":"api-5499d9d69f-lrm2m","service":"api"},"value":[1790871780.879,"0"]},
-{"metric":{"__name__":"app_chaos_mode","container":"api","endpoint":"http","exported_service":"api","instance":"10.0.0.24:8080","job":"api","mode":"error","namespace":"demo","pod":"api-5499d9d69f-lrm2m","service":"api"},"value":[1790871780.879,"0"]},
-{"metric":{"__name__":"app_chaos_mode","container":"api","endpoint":"http","exported_service":"api","instance":"10.0.0.24:8080","job":"api","mode":"ok","namespace":"demo","pod":"api-5499d9d69f-lrm2m","service":"api"},"value":[1790871780.879,"1"]},
-{"metric":{"__name__":"app_chaos_mode","container":"api","endpoint":"http","exported_service":"api","instance":"10.0.0.24:8080","job":"api","mode":"slow","namespace":"demo","pod":"api-5499d9d69f-lrm2m","service":"api"},"value":[1790871780.879,"0"]},
-{"metric":{"__name__":"app_chaos_mode","container":"api","endpoint":"http","exported_service":"api","instance":"10.0.0.24:8080","job":"api","mode":"torpedo","namespace":"demo","pod":"api-5499d9d69f-lrm2m","service":"api"},"value":[1790871780.879,"0"]}
+{"metric":{"__name__":"app_chaos_mode","container":"backend","endpoint":"http","exported_service":"backend","instance":"192.0.2.10:8080","job":"backend","mode":"dns","namespace":"demo","pod":"backend-demo-001","service":"backend"},"value":[1700000000.879,"0"]},
+{"metric":{"__name__":"app_chaos_mode","container":"backend","endpoint":"http","exported_service":"backend","instance":"192.0.2.10:8080","job":"backend","mode":"error","namespace":"demo","pod":"backend-demo-001","service":"backend"},"value":[1700000000.879,"0"]},
+{"metric":{"__name__":"app_chaos_mode","container":"backend","endpoint":"http","exported_service":"backend","instance":"192.0.2.10:8080","job":"backend","mode":"ok","namespace":"demo","pod":"backend-demo-001","service":"backend"},"value":[1700000000.879,"1"]},
+{"metric":{"__name__":"app_chaos_mode","container":"backend","endpoint":"http","exported_service":"backend","instance":"192.0.2.10:8080","job":"backend","mode":"slow","namespace":"demo","pod":"backend-demo-001","service":"backend"},"value":[1700000000.879,"0"]},
+{"metric":{"__name__":"app_chaos_mode","container":"backend","endpoint":"http","exported_service":"backend","instance":"192.0.2.10:8080","job":"backend","mode":"torpedo","namespace":"demo","pod":"backend-demo-001","service":"backend"},"value":[1700000000.879,"0"]},
+{"metric":{"__name__":"app_chaos_mode","container":"frontend","endpoint":"http","exported_service":"frontend","instance":"192.0.2.11:8080","job":"frontend","mode":"dns","namespace":"demo","pod":"frontend-demo-001","service":"frontend"},"value":[1700000000.879,"0"]},
+{"metric":{"__name__":"app_chaos_mode","container":"frontend","endpoint":"http","exported_service":"frontend","instance":"192.0.2.11:8080","job":"frontend","mode":"error","namespace":"demo","pod":"frontend-demo-001","service":"frontend"},"value":[1700000000.879,"0"]},
+{"metric":{"__name__":"app_chaos_mode","container":"frontend","endpoint":"http","exported_service":"frontend","instance":"192.0.2.11:8080","job":"frontend","mode":"ok","namespace":"demo","pod":"frontend-demo-001","service":"frontend"},"value":[1700000000.879,"1"]},
+{"metric":{"__name__":"app_chaos_mode","container":"frontend","endpoint":"http","exported_service":"frontend","instance":"192.0.2.11:8080","job":"frontend","mode":"slow","namespace":"demo","pod":"frontend-demo-001","service":"frontend"},"value":[1700000000.879,"0"]},
+{"metric":{"__name__":"app_chaos_mode","container":"frontend","endpoint":"http","exported_service":"frontend","instance":"192.0.2.11:8080","job":"frontend","mode":"torpedo","namespace":"demo","pod":"frontend-demo-001","service":"frontend"},"value":[1700000000.879,"0"]},
+{"metric":{"__name__":"app_chaos_mode","container":"api","endpoint":"http","exported_service":"api","instance":"192.0.2.12:8080","job":"api","mode":"dns","namespace":"demo","pod":"api-demo-001","service":"api"},"value":[1700000000.879,"0"]},
+{"metric":{"__name__":"app_chaos_mode","container":"api","endpoint":"http","exported_service":"api","instance":"192.0.2.12:8080","job":"api","mode":"error","namespace":"demo","pod":"api-demo-001","service":"api"},"value":[1700000000.879,"0"]},
+{"metric":{"__name__":"app_chaos_mode","container":"api","endpoint":"http","exported_service":"api","instance":"192.0.2.12:8080","job":"api","mode":"ok","namespace":"demo","pod":"api-demo-001","service":"api"},"value":[1700000000.879,"1"]},
+{"metric":{"__name__":"app_chaos_mode","container":"api","endpoint":"http","exported_service":"api","instance":"192.0.2.12:8080","job":"api","mode":"slow","namespace":"demo","pod":"api-demo-001","service":"api"},"value":[1700000000.879,"0"]},
+{"metric":{"__name__":"app_chaos_mode","container":"api","endpoint":"http","exported_service":"api","instance":"192.0.2.12:8080","job":"api","mode":"torpedo","namespace":"demo","pod":"api-demo-001","service":"api"},"value":[1700000000.879,"0"]}
 ]}}
 ```

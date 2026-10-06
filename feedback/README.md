@@ -4,11 +4,23 @@ The `feedback/` directory stores learner-VM report transcriptions and operator o
 
 Name records `airgap-run-00N.md`, incrementing N for each VM run; never overwrite an existing record.
 
-Transcribe verbatim: paste the complete REPORT BEGIN/END block, put observations outside the block, and do not summarise or replace evidence with prose.
+Preserve the complete REPORT BEGIN/END block and its diagnostic meaning, but redact sensitive values before committing it.
+Do not treat “verbatim” as permission to publish identifying network details.
+Keep observations outside the block and do not replace evidence with prose.
 The agent reads these records newest-first before changing any learner-VM script or `00-diagnose`.
 
 Every record includes: date; operator; VM / RHEL version; repository commit SHA; `lab-vm.conf` deviations from defaults; whether `K3S_BINARY_URL` is set (yes/no only, never paste its value); `SCRIPT_VERSION` values run; purpose of the run; and VM-side commands run.
 Start new records from [airgap-run-template.md](airgap-run-template.md).
+
+## Redaction Before Commit
+
+Use `[REDACTED]` for the hostname after `HOST:` in every report block.
+Redact private IPv4/IPv6 addresses, internal DNS names and domains, registry or Artifactory URLs (including paths that identify internal projects), credentials, and host-specific filesystem paths from report diagnostics, commands, and observations.
+This includes DNS/TLS diagnostic output and any `getent hosts` results.
+Keep useful evidence such as timestamps, script versions, failure categories, HTTP status codes, and non-sensitive error text.
+Never commit an unredacted copy; retain raw reports only in an approved internal incident or evidence system.
+The `feedback-redaction` pre-commit hook checks numbered run records for an unredacted `HOST:` value, private IPv4/IPv6 addresses, and common internal DNS suffixes.
+The hook is a fallback, not a complete data-loss-prevention scanner; review the full record manually for organization-specific hostnames and other sensitive details.
 
 ## Interpreting the First Diagnostic
 
