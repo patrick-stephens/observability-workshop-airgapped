@@ -29,7 +29,33 @@ Do not invent an endpoint or use a public release URL.
 The binary SHA-256 authority is the `learner-k3s-binary-amd64` record in `versions.lock`.
 `10-preflight.sh` fails with an administrator-directed fix hint if script 45 would need a download while the URL is unset.
 
+## Java Toolchain
+
+Script 20 installs both Java 11 and Java 17, then selects Java 17 for the system `java` and `javac` alternatives.
+Script 20 v4 reads the RHEL `alternatives --display java` and `alternatives --display javac` candidate paths and explicitly selects Java 17, even when auto mode prefers Java 8 or Java 11.
+If Java configuration or verification fails, it prints a failed REPORT block and exits before the remaining provisioning steps; review that report before retrying.
+It sets `JAVA_HOME` in `/etc/environment` and `/etc/profile.d/java.sh` for future sessions, exports it with the JDK `bin` directory in `PATH` for the running script and child tools, and verifies both executables under `JAVA_HOME` report version 17.
+Existing learner sessions need to log in again or source `/etc/profile.d/java.sh`; sudo and systemd tool environments must be verified separately rather than assuming they inherit those settings.
+The verification uses `java -version`, which remains compatible with older Java releases if the default is not yet configured.
+Both JDKs remain installed; use `alternatives --config java` and `alternatives --config javac` to select Java 11 when a workshop requires it.
+Script 20 checks Firefox installation with `rpm -q firefox`, without launching the browser as root or initialising a root profile.
+Script 70 remains responsible for the workshop bookmark and learner desktop shortcut; browser profile use belongs to `WORKSHOP_USER`, and SELinux remains enforcing.
+
 ## Runtime Recovery
+
+Script 45 v9 installs or repairs `/var/lib/rancher/k3s/agent/etc/kubelet.conf.d/10-learner-cgroup-v1.conf` with `failCgroupV1: false`, owned by root with mode `0600`, before starting k3s.
+This RHEL 8.6 learner-only exception permits deprecated cgroup v1 operation after [Kubernetes 1.35 changed the default](https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.35.md#deprecation); it does not restore upstream support or apply to the Ubuntu presenter demo.
+The [k3s kubelet drop-in mechanism](https://docs.k3s.io/installation/configuration#kubelet-configuration-files) is available in k3s v1.32 and newer.
+Reruns repair missing or incorrect managed drop-in contents and permissions, then restart an installed service if configuration changed or it is inactive, failed or activating, without rerunning the installer or deleting cluster data.
+Healthy services with unchanged managed configuration are left running; unrecognised unit states and failed repairs produce a report and stop before readiness checks.
+Dry-run previews these changes without writing files or managing services; no host reboot or version-pin change is needed, and actual readiness still requires operator-transcribed evidence.
+Other kubelet overrides, custom config directories and service arguments are preserved, so conflicting operator settings require review rather than being silently overwritten.
+After startup, script 45 retries API access, node discovery and Ready checks within one 180-second deadline instead of failing immediately when the API is unavailable or no nodes have registered.
+Each request and readiness attempt is bounded by the remaining deadline; a timeout report retains the last command error, node conditions and recent service logs.
+
+Script 40 v3 checks the pinned BusyBox manifest through the configured mirror using `skopeo inspect --no-tags`, including its failure diagnostics.
+Disabling tag enumeration avoids Docker Hub tag-list requests after mirror manifest access; the operator reported this option succeeds with Skopeo 1.9.1.
+This probe checks manifest access, not a complete image pull; no reboot or containerised Skopeo is required for this change.
 
 Standalone files use local-first resolution; invalid staged checksums fail without a network fallback, and absent files use their configured Artifactory URL where applicable.
 Stage optional per-image archives at `$MANUAL_FETCH_DIR/images/`; script 60 loads them through the rootful Podman Docker wrapper and pulls only missing references, and script 62 imports matching Podman images before CRI pulls.
@@ -45,7 +71,12 @@ sudo bash scripts/00-diagnose.sh
 ```
 
 Copy every complete REPORT block verbatim into the corresponding feedback record.
-The default diagnostic verifies availability using real `podman pull` commands, reports duration, and notes when it warms the rootful Podman store.
+The default diagnostic verifies availability using real `podman pull` commands against explicit Artifactory image references, reports duration, and notes when it warms the rootful Podman store.
+Diagnostic v16 strips the original registry host and prefixes the image path with `DOCKER_REGISTRY`, so initial pulls do not depend on script 40 having installed system mirror rules.
+This verifies direct Artifactory access, not original-reference mirror routing; script 40 configures and checks that routing after tooling and CA trust are installed.
+After a failed pull, diagnostics running as root validate and load the matching catalogued archive from `$MANUAL_FETCH_DIR/images/` through Podman, then check that it supplies the original image reference.
+Successful archive recovery is reported separately from registry availability; it warms the rootful store and does not prove that Artifactory access works.
+Missing archives leave the pull failure unresolved, while corrupt archives or load/reference failures remain failures; Python 3 and `sha256sum` are required for archive validation.
 For the previous probe-only mode, run `sudo bash scripts/00-diagnose.sh --no-pull-verification`; this does not pull or change the container store.
 Both modes exit 0; the REPORT block, not the exit code, classifies diagnostic failures.
 Follow each `NEXT` line and stop after any failure until the report has been reviewed.

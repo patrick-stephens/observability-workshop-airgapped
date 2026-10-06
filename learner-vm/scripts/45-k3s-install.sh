@@ -2,8 +2,8 @@
 set -euo pipefail
 
 SCRIPT_NAME="45-k3s-install"
-# CHANGE: Keep hard optional-artifact resolver/staging failures in the report flow and block startup cleanly.
-SCRIPT_VERSION="7"
+# CHANGE: Retry API access, node discovery and readiness within one deadline, retaining timeout diagnostics.
+SCRIPT_VERSION="9"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRY_RUN=false
 UNKNOWN_ARGUMENTS=()
@@ -37,6 +37,9 @@ INSTALLER="$VENDOR_DIR/install.sh"
 SELINUX_RPM="$VENDOR_DIR/k3s-selinux-1.6-1.el8.noarch.rpm"
 SYSTEM_IMAGES="$VENDOR_DIR/k3s-images.txt"
 REGISTRIES_FILE='/etc/rancher/k3s/registries.yaml'
+KUBELET_CONFIG_FILE='/var/lib/rancher/k3s/agent/etc/kubelet.conf.d/10-learner-cgroup-v1.conf'
+KUBELET_CONFIG_READY=false
+KUBELET_CONFIG_CHANGED=false
 TEMP_FILES=()
 cleanup() { ((${#TEMP_FILES[@]} == 0)) || rm -f -- "${TEMP_FILES[@]}"; }
 trap cleanup EXIT
@@ -50,6 +53,7 @@ k3s_failure() {
 		"$K3S ctr -n k8s.io images list" \
 		"journalctl -u k3s -b --no-pager | tail -n 15" \
 		"cat $(printf %q "$REGISTRIES_FILE")" \
+		"cat $(printf %q "$KUBELET_CONFIG_FILE")" \
 		"tail -n 15 /var/lib/rancher/k3s/agent/containerd/containerd.log" \
 		"getent hosts $(printf %q "${K3S_BINARY_HOST:-$ART_HOST}")" \
 		"curl -vI --connect-timeout 5 --max-time 15 $(printf %q "$K3S_BINARY_URL_SAFE") 2>&1 | tail -n 12" \
@@ -157,6 +161,8 @@ if [[ "$DRY_RUN" == true ]]; then
 	step_skip "k3s SELinux RPM installation was previewed before first start" "$SELINUX_RPM"
 	step_skip "k3s binary download or local fallback install was previewed" "K3S_BINARY_URL is operator-supplied; its exact URL is not embedded in the ZIP"
 	log "would write $REGISTRIES_FILE before the first k3s start using DOCKER_REGISTRY=$DOCKER_REGISTRY and CA_CERT_SOURCE=$CA_CERT_SOURCE"
+	run "install -D -o root -g root -m 0600 <generated kubelet config with failCgroupV1: false> $(printf %q "$KUBELET_CONFIG_FILE")"
+	step_skip "would repair the managed learner cgroup v1 drop-in before starting or restarting installed k3s, including failed or activating services" "$KUBELET_CONFIG_FILE"
 	if stage_optional_airgap_images; then :; else :; fi
 	step_skip "vendored install.sh would run with INSTALL_K3S_SKIP_DOWNLOAD=true and INSTALL_K3S_SKIP_SELINUX_RPM=true" "$INSTALLER"
 	step_skip "k3s service, kubeconfig, node readiness, and CRI pulls are target-side and were not executed during dry-run" "the actual pull result is recorded only on the learner network"
@@ -222,29 +228,61 @@ else
 	rm -f -- "$registry_tmp"
 fi
 
+# RHEL 8.6 learner hosts use cgroup v1, rejected by kubelet by default from Kubernetes 1.35.
+kubelet_tmp=$(mktemp "${TMPDIR:-/tmp}/k3s-kubelet-config.XXXXXX") || kubelet_tmp=''
+if [[ -z "$kubelet_tmp" ]]; then
+	k3s_failure "could not create a temporary kubelet compatibility configuration" "$KUBELET_CONFIG_FILE"
+else
+	TEMP_FILES+=("$kubelet_tmp")
+	if [[ -L "$KUBELET_CONFIG_FILE" ]]; then
+		k3s_failure "refusing to replace a symlinked learner kubelet compatibility file" "$KUBELET_CONFIG_FILE"
+	elif ! printf 'apiVersion: kubelet.config.k8s.io/v1beta1\nkind: KubeletConfiguration\nfailCgroupV1: false\n' > "$kubelet_tmp"; then
+		k3s_failure "could not prepare learner kubelet compatibility configuration" "$KUBELET_CONFIG_FILE"
+	elif [[ -f "$KUBELET_CONFIG_FILE" ]] && cmp -s "$kubelet_tmp" "$KUBELET_CONFIG_FILE" &&
+		[[ "$(stat -c '%u:%g:%a' "$KUBELET_CONFIG_FILE" 2>/dev/null || true)" == '0:0:600' ]]; then
+		KUBELET_CONFIG_READY=true
+		step_ok "learner kubelet cgroup v1 compatibility configuration already matches"
+	elif run "install -D -o root -g root -m 0600 $(printf %q "$kubelet_tmp") $(printf %q "$KUBELET_CONFIG_FILE")"; then
+		KUBELET_CONFIG_READY=true
+		KUBELET_CONFIG_CHANGED=true
+		step_ok "installed or repaired learner kubelet failCgroupV1: false before startup (root:root 0600)"
+	else
+		k3s_failure "could not install learner kubelet cgroup v1 compatibility configuration" "$KUBELET_CONFIG_FILE"
+	fi
+fi
+
 if stage_optional_airgap_images; then :; else :; fi
 
-if [[ "$SELINUX_READY" != true || "$BINARY_READY" != true || "$REGISTRIES_READY" != true || "$AIRGAP_IMAGES_READY" != true || "$K3S_RESOLUTION_FAILED" == true ]]; then
-	step_skip "k3s start skipped because the binary, SELinux policy, or registry configuration did not validate" "fix the earlier FATAL entries"
+if [[ "$SELINUX_READY" != true || "$BINARY_READY" != true || "$REGISTRIES_READY" != true || "$KUBELET_CONFIG_READY" != true || "$AIRGAP_IMAGES_READY" != true || "$K3S_RESOLUTION_FAILED" == true ]]; then
+	step_skip "k3s start skipped because the binary, SELinux policy, registry or kubelet configuration did not validate" "fix the earlier FATAL entries"
 	end_report "k3s was not started because its required preconditions failed"
 	exit 1
 fi
 
-service_active=false
-if systemctl is-active --quiet k3s 2>/dev/null; then service_active=true; fi
-if [[ "$service_active" == true ]]; then
-	if [[ "$K3S_CHANGED" == true || "$REGISTRIES_CHANGED" == true || "$AIRGAP_IMAGES_CHANGED" == true ]]; then
-		if run 'systemctl restart k3s'; then step_ok "restarted existing k3s service after required updates"; else k3s_failure "could not restart existing k3s service" "k3s service"; fi
+if service_load_state="$(systemctl show k3s -p LoadState --value 2>/dev/null)"; then :; else service_load_state='unavailable'; fi
+if [[ "$service_load_state" == loaded ]]; then
+	if ! systemctl is-active --quiet k3s 2>/dev/null || [[ "$K3S_CHANGED" == true || "$REGISTRIES_CHANGED" == true || "$KUBELET_CONFIG_CHANGED" == true || "$AIRGAP_IMAGES_CHANGED" == true ]]; then
+		if run 'systemctl reset-failed k3s && systemctl enable k3s && timeout 180 systemctl restart k3s'; then
+			step_ok "restarted installed k3s after configuration repair or an inactive, failed or activating state"
+		else
+			k3s_failure "could not restart installed k3s after configuration repair" "k3s service"
+			end_report "Review the service diagnostics and repair k3s before retrying; the existing installation was not recreated."
+			exit 1
+		fi
 	else
-		step_ok "k3s service is already active"
+		step_ok "k3s service is already active with unchanged managed configuration"
 	fi
-else
+elif [[ "$service_load_state" == not-found ]]; then
 	if run "INSTALL_K3S_SKIP_DOWNLOAD=true INSTALL_K3S_SKIP_SELINUX_RPM=true bash $(printf %q "$INSTALLER")"; then
 		step_ok "ran the vendored installer with binary and RPM downloads disabled"
 		if run 'systemctl enable --now k3s'; then step_ok "enabled and started k3s"; else k3s_failure "could not enable/start k3s" "systemd service"; fi
 	else
 		k3s_failure "vendored k3s installer failed" "$INSTALLER"
 	fi
+else
+	k3s_failure "could not safely identify the installed k3s service (LoadState=$service_load_state)" "k3s service"
+	end_report "Inspect the k3s unit before retrying; no existing service configuration was replaced."
+	exit 1
 fi
 
 kubeconfig='/etc/rancher/k3s/k3s.yaml'
@@ -262,10 +300,52 @@ if [[ ! -e /usr/local/bin/kubectl ]]; then
 	if run 'ln -s /usr/local/bin/k3s /usr/local/bin/kubectl'; then step_ok "installed kubectl symlink to k3s"; else k3s_failure "could not install kubectl symlink" "/usr/local/bin/kubectl"; fi
 fi
 
-if timeout 180 "$K3S" kubectl wait --for=condition=Ready node --all --timeout=150s >/dev/null 2>&1; then
-	step_ok "k3s node reached Ready"
+wait_for_k3s_nodes_ready() {
+	local diagnostic_log="$1" deadline=$((SECONDS + 180)) remaining request_timeout wait_timeout pause_seconds nodes
+	local -a node_names=()
+	# First startup can expose the API before node registration; kubectl wait does not retry discovery failures.
+	while ((SECONDS < deadline)); do
+		remaining=$((deadline - SECONDS))
+		request_timeout=10
+		((remaining >= request_timeout)) || request_timeout="$remaining"
+		if nodes="$(timeout --signal=KILL "$request_timeout" "$K3S" kubectl get nodes -o name --request-timeout="${request_timeout}s" 2> "$diagnostic_log")"; then
+			if [[ -n "$nodes" ]]; then
+				mapfile -t node_names <<< "$nodes"
+				remaining=$((deadline - SECONDS))
+				((remaining > 0)) || break
+				wait_timeout=20
+				((remaining >= wait_timeout)) || wait_timeout="$remaining"
+				if timeout --signal=KILL "$wait_timeout" "$K3S" kubectl wait --for=condition=Ready "${node_names[@]}" --timeout="${wait_timeout}s" --request-timeout="${wait_timeout}s" > "$diagnostic_log" 2>&1; then
+					return 0
+				fi
+			else
+				printf '%s\n' 'API reachable, but no k3s nodes have registered yet.' > "$diagnostic_log"
+			fi
+		fi
+		remaining=$((deadline - SECONDS))
+		((remaining > 0)) || break
+		log "k3s API/node readiness is pending; retrying with ${remaining}s remaining"
+		pause_seconds=5
+		((remaining >= pause_seconds)) || pause_seconds="$remaining"
+		sleep "$pause_seconds"
+	done
+	return 1
+}
+
+node_readiness_log=$(mktemp "${TMPDIR:-/tmp}/45-k3s-readiness.XXXXXX") || node_readiness_log=''
+if [[ -z "$node_readiness_log" ]]; then
+	k3s_failure "could not allocate a k3s readiness diagnostic log" "node"
 else
-	k3s_failure "k3s node did not reach Ready" "node"
+	TEMP_FILES+=("$node_readiness_log")
+	if wait_for_k3s_nodes_ready "$node_readiness_log"; then
+		step_ok "registered k3s nodes reached Ready within the startup deadline"
+	else
+		step_fail "k3s nodes did not reach Ready within 180s" "Review the last API/discovery/readiness error and node conditions before rerunning script 45." \
+			"tail -n 15 $(printf %q "$node_readiness_log")" \
+			"$K3S kubectl get nodes --request-timeout=5s -o wide" \
+			"$K3S kubectl get nodes --request-timeout=5s -o jsonpath='{range .items[*]}{.metadata.name}{\"\\n\"}{range .status.conditions[*]}{.type}={.status}: {.reason}: {.message}{\"\\n\"}{end}{end}'" \
+			"journalctl -u k3s -b --no-pager | tail -n 15"
+	fi
 fi
 image_failures=0
 while IFS= read -r image || [[ -n "$image" ]]; do

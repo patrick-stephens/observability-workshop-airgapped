@@ -2,9 +2,9 @@
 set -euo pipefail
 
 SCRIPT_NAME="00-diagnose"
-# CHANGE: Classify image availability by real pulls; --no-pull-verification retains probe-only reporting.
+# CHANGE: Pull explicit Artifactory references and verify matching local archives after failed pulls.
 # Default pulls warm the rootful Podman store; only --no-pull-verification is probe-only.
-SCRIPT_VERSION="14"
+SCRIPT_VERSION="16"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SELFTEST=false
 DRY_RUN=false
@@ -170,16 +170,16 @@ check_http_status() {
 check_manifest() {
     local reference="$1" reference_path first_component last_component repository tag manifest_path url status='000'
     [[ -n "$reference" && "$reference" != \#* ]] || return 0
-    if [[ "$PULL_VERIFICATION" == true ]]; then
-        verify_registry_pull "$reference"
-        return 0
-    fi
     reference_path="$reference"
     first_component="${reference_path%%/*}"
     if [[ "$first_component" == *.* || "$first_component" == *:* || "$first_component" == "localhost" ]]; then
         reference_path="${reference_path#*/}"
     fi
     if [[ "$reference_path" != */* ]]; then reference_path="library/$reference_path"; fi
+    if [[ "$PULL_VERIFICATION" == true ]]; then
+        verify_registry_pull "${DOCKER_REGISTRY}/${reference_path}" "$reference"
+        return 0
+    fi
     last_component="${reference_path##*/}"
     if [[ "$last_component" != *:* ]]; then
         step_skip "registry image has no tag" "$reference"

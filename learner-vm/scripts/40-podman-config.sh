@@ -2,8 +2,8 @@
 set -euo pipefail
 
 SCRIPT_NAME="40-podman-config"
-# CHANGE: Accept the shared library's normalised host-only or path-form registry endpoint.
-SCRIPT_VERSION="2"
+# CHANGE: Disable Skopeo tag enumeration in mirror probes and diagnostics to avoid upstream tag requests.
+SCRIPT_VERSION="3"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRY_RUN=false
 UNKNOWN_ARGUMENTS=()
@@ -116,12 +116,13 @@ else
 
 	if command -v skopeo >/dev/null 2>&1; then
 		probe_output=''
-		if probe_output="$(skopeo inspect --format '{{.Digest}}' docker://docker.io/library/busybox:1.36 2>&1)"; then
+		# Tag enumeration can contact Docker Hub even when the pinned manifest resolves through Artifactory.
+		if probe_output="$(skopeo inspect --no-tags --format '{{.Digest}}' docker://docker.io/library/busybox:1.36 2>&1)"; then
 			step_ok "anonymous Skopeo mirror probe succeeded for docker.io/library/busybox:1.36 ($probe_output)"
 		elif grep -q '401' <<< "$probe_output"; then
-			step_fail "Artifactory mirror returned HTTP 401 for anonymous image access; this is a design blocker" "Confirm anonymous-read policy at the registry mirror; do not add credentials to the VM." "getent hosts $(printf '%q' "$REG_HOST")" "skopeo --debug inspect docker://docker.io/library/busybox:1.36 2>&1 | tail -n 20" "sed -n '1,100p' $(printf '%q' "$registries_file")"
+			step_fail "Artifactory mirror returned HTTP 401 for anonymous image access; this is a design blocker" "Confirm anonymous-read policy at the registry mirror; do not add credentials to the VM." "getent hosts $(printf '%q' "$REG_HOST")" "skopeo --debug inspect --no-tags docker://docker.io/library/busybox:1.36 2>&1 | tail -n 20" "sed -n '1,100p' $(printf '%q' "$registries_file")"
 		else
-			step_fail "anonymous Skopeo mirror probe failed" "Verify DNS, CA trust, and Artifactory availability; registry pull success is not assumed." "getent hosts $(printf '%q' "$REG_HOST")" "skopeo --debug inspect docker://docker.io/library/busybox:1.36 2>&1 | tail -n 20" "sed -n '1,100p' $(printf '%q' "$registries_file")"
+			step_fail "anonymous Skopeo mirror probe failed" "Verify DNS, CA trust, and Artifactory availability; registry pull success is not assumed." "getent hosts $(printf '%q' "$REG_HOST")" "skopeo --debug inspect --no-tags docker://docker.io/library/busybox:1.36 2>&1 | tail -n 20" "sed -n '1,100p' $(printf '%q' "$registries_file")"
 		fi
 	else
 		step_fail "Skopeo is not installed" "Run learner-vm/scripts/20-install-tooling.sh first." "rpm -q skopeo" "command -v skopeo"

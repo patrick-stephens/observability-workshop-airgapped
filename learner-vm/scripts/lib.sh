@@ -1,8 +1,8 @@
 # shellcheck shell=bash
 set -euo pipefail
 
-# CHANGE: Resolve operator-only per-image archives and record locally loaded references.
-LIB_VERSION="7"
+# CHANGE: Support selective Podman archive verification after diagnostic pull failures.
+LIB_VERSION="8"
 : "${SCRIPT_NAME:?Set SCRIPT_NAME before sourcing scripts/lib.sh}"
 : "${SCRIPT_VERSION:?Set SCRIPT_VERSION before sourcing scripts/lib.sh}"
 
@@ -242,13 +242,19 @@ registry_pull_result() {
 }
 
 verify_registry_pull() {
-    local reference="$1" was_present=false started="$SECONDS" output status=0
+    local reference="$1" original="${2:-}" was_present=false started="$SECONDS" output status=0
     if ! command -v podman >/dev/null 2>&1; then
         step_skip "Podman absent on minimal base; script 20 installs it" "pull verification unavailable for $reference"
         return 0
     fi
     if podman image exists "$reference" >/dev/null 2>&1; then was_present=true; fi
     if output="$(podman pull "$reference" 2>&1)"; then :; else status=$?; fi
+    if ((status != 0)) && [[ -n "$original" ]]; then
+        log "exact pull output for $reference (exit $status): $output"
+        if verify_local_image_archive "$original" "$reference"; then
+            return 0
+        fi
+    fi
     registry_pull_result "$reference" "$status" "$output" "$((SECONDS - started))" "$was_present"
 }
 
@@ -279,6 +285,34 @@ image_asset_name() {
     [[ "$path" =~ ^[A-Za-z0-9._/-]+:[A-Za-z0-9._-]+$ ]] || return 1
     path="${path//\//-}"
     printf '%s.tar\n' "${path//:/-}"
+}
+
+verify_local_image_archive() {
+    local original="$1" mirror_reference="$2" asset artifact_id canonical
+    asset="$(image_asset_name "$original")" || return 1
+    artifact_id="$(awk -F '\t' -v path="images/$asset" '$2 == "image-archive" && $4 == path {print $1; exit}' "$REPO_ROOT/learner-vm/artifacts.tsv")"
+    [[ -n "$artifact_id" ]] || return 1
+    artifact_metadata "$artifact_id" || return 1
+    [[ -e "$MANUAL_FETCH_DIR/$ARTIFACT_RELATIVE_PATH" || -L "$MANUAL_FETCH_DIR/$ARTIFACT_RELATIVE_PATH" ]] || return 1
+    if ((EUID != 0)); then
+        step_fail "local archive verification requires root for $original" "Rerun diagnostics with sudo to use the rootful Podman store." "id -u"
+        return 1
+    fi
+    if ! command -v python3 >/dev/null 2>&1 || ! command -v sha256sum >/dev/null 2>&1; then
+        step_fail "local archive validation tools are missing for $original" "Install Python 3 and sha256sum before verifying the staged archive." "command -v python3" "command -v sha256sum"
+        return 1
+    fi
+    if ! load_image_archives podman "$artifact_id" podman; then
+        return 1
+    fi
+    canonical="$(image_canonical_reference "$original")"
+    if [[ -n "${LOCAL_ARCHIVE_IMAGES[$original]+x}" || -n "${LOCAL_ARCHIVE_IMAGES[$canonical]+x}" ]] && podman image exists "$canonical"; then
+        step_skip "explicit registry pull failed; the local archive supplied the image" "registry availability for $mirror_reference remains unverified"
+        step_ok "local archive verified $original in the rootful Podman store"
+        return 0
+    fi
+    step_fail "local archive did not provide $original" "Stage an archive containing the original reference; see MANUAL-FETCH.md Section C." "podman image inspect $(printf '%q' "$canonical")"
+    return 1
 }
 
 image_archive_reference() {
@@ -386,8 +420,10 @@ PY
 
 load_image_archives() {
     local store="$1" artifact_id result archive_path manifest reference config_digest manifest_digest actual expected_reference
+    local selected_id="${2:-}" image_command="${3:-docker}"
     declare -gA LOCAL_ARCHIVE_IMAGES=()
     while IFS= read -r artifact_id; do
+        [[ -z "$selected_id" || "$artifact_id" == "$selected_id" ]] || continue
         artifact_metadata "$artifact_id" || return 1
         case "$store:$ARTIFACT_INSTALL_TARGET" in
             podman:podman|podman:both|k3s:k3s-containerd|k3s:both) ;;
@@ -412,11 +448,11 @@ load_image_archives() {
             continue
         fi
         if [[ "$store" == podman ]]; then
-            if ! docker load -i "$archive_path"; then
+            if ! "$image_command" load -i "$archive_path"; then
                 step_fail "could not load $artifact_id into Podman" "Check $archive_path and the rootful store; see MANUAL-FETCH.md Section C."
                 return 1
             fi
-            if ! docker image inspect "$expected_reference" >/dev/null 2>&1; then
+            if ! "$image_command" image inspect "$expected_reference" >/dev/null 2>&1; then
                 step_fail "local archive did not load original reference $expected_reference" "Correct $archive_path; see MANUAL-FETCH.md Section C."
                 return 1
             fi
@@ -428,7 +464,7 @@ load_image_archives() {
         while IFS=$'\t' read -r reference config_digest manifest_digest; do
             [[ -n "$reference" ]] || continue
             if [[ "$store" == podman ]]; then
-                actual="$(docker image inspect --format '{{.Id}}' "$reference" 2>/dev/null || true)"
+                actual="$("$image_command" image inspect --format '{{.Id}}' "$reference" 2>/dev/null || true)"
                 actual="sha256:${actual#sha256:}"
                 if [[ "$actual" != "$config_digest" ]]; then
                     step_fail "loaded image config digest mismatch for $reference: expected $config_digest, actual $actual" "Correct $archive_path before provisioning; see MANUAL-FETCH.md Section C."
