@@ -17,10 +17,12 @@ The operator sets `K3S_BINARY_URL` on the VM before provisioning.
 7. After approval, run scripts 10 through 80 in numeric order and transcribe each complete REPORT block.
 8. When both parts of `80-verify-offline.sh` pass, shut down cleanly and snapshot the VM.
 
-Set this one runtime URL on the learner VM; the committed value remains empty:
+Set the required binary URL on the learner VM; the committed value remains empty.
+The optional airgap-images URL also remains empty unless the Artifactory administrator supplies its exact generic-file endpoint.
 
 ```bash
 K3S_BINARY_URL=""
+K3S_AIRGAP_IMAGES_URL=""
 ```
 
 Do not invent an endpoint or use a public release URL.
@@ -29,9 +31,9 @@ The binary SHA-256 authority is the `learner-k3s-binary-amd64` record in `versio
 
 ## Runtime Recovery
 
-Script 45 downloads the pinned binary from Artifactory, verifies it against `versions.lock`, configures `/etc/rancher/k3s/registries.yaml` with the mirror and CA, and only then starts k3s.
-If the binary fetch fails, use [MANUAL-FETCH.md](../content/vendor/MANUAL-FETCH.md), Section B, to download it directly on the VM to `$MANUAL_FETCH_DIR/k3s/k3s`, verify the lock hash, and rerun script 45.
-Recover the binary on the learner VM from the configured Artifactory source.
+Script 45 checks checksum-verified files under `$MANUAL_FETCH_DIR` before it probes or fetches their configured Artifactory URLs; an invalid local checksum is a hard failure and is never overwritten.
+If no valid file is staged, the required binary is fetched from `K3S_BINARY_URL`, while the optional airgap archive is fetched only when `K3S_AIRGAP_IMAGES_URL` is set.
+See [MANUAL-FETCH.md](../content/vendor/MANUAL-FETCH.md) for staging paths, checksum recovery, and the registry-mirror fallback.
 
 Scripts 60 and 62 fetch external workshop images through the configured Artifactory mirror.
 Podman and k3s containerd have separate image stores; use `podman pull` for external Podman images, `k3s crictl pull` for external Kubernetes images, and `podman save` plus `k3s ctr -n k8s.io images import` only for locally built images.

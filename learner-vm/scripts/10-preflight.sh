@@ -2,8 +2,8 @@
 set -euo pipefail
 
 SCRIPT_NAME="10-preflight"
-# CHANGE: Fail with the exact operator action when no staged or installed k3s binary and URL are available.
-SCRIPT_VERSION="5"
+# CHANGE: Verify any staged catalog file before accepting an installed pinned k3s binary.
+SCRIPT_VERSION="7"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRY_RUN=false
 UNKNOWN_ARGUMENTS=()
@@ -102,24 +102,19 @@ else
 	fi
 fi
 
-locked_k3s_sha="$(awk '$1 == "learner-k3s-binary-amd64" {for (i=1;i<=NF;i++) if ($i ~ /^sha256:/) {sub(/^sha256:/,"",$i); print $i; exit}}' "$REPO_ROOT/versions.lock")"
-k3s_payload="$MANUAL_FETCH_DIR/k3s/k3s"
-if [[ "$DRY_RUN" == true ]]; then
-	step_skip "k3s binary fallback and K3S_BINARY_URL checks are target-side and were not evaluated during dry-run" "script 45 fetches from the configured Artifactory generic-file URL; same-VM fallback: $k3s_payload"
-elif [[ ! "$locked_k3s_sha" =~ ^[0-9a-f]{64}$ ]]; then
-	step_fail "versions.lock lacks the pinned k3s binary SHA-256" "Restore the learner-k3s-binary-amd64 pin in versions.lock on the connected source tree." "grep '^learner-k3s-binary-amd64 ' $(printf '%q' "$REPO_ROOT/versions.lock")" "sed -n '/learner-k3s-binary-amd64/p' $(printf '%q' "$REPO_ROOT/versions.lock")"
-elif [[ -e "$k3s_payload" || -L "$k3s_payload" ]]; then
-	if actual_k3s_sha="$(sha256sum "$k3s_payload" 2>/dev/null | awk '{print $1}')" && [[ "$actual_k3s_sha" == "$locked_k3s_sha" ]]; then
-		step_ok "same-VM staged k3s binary matches the versions.lock SHA-256"
-	else
-		step_fail "same-VM staged k3s binary checksum mismatch: expected $locked_k3s_sha, actual ${actual_k3s_sha:-unavailable}" "Replace $k3s_payload with a binary downloaded from the configured K3S_BINARY_URL, then verify it against versions.lock." "sha256sum $(printf '%q' "$k3s_payload")" "grep '^learner-k3s-binary-amd64 ' $(printf '%q' "$REPO_ROOT/versions.lock")"
-	fi
-elif [[ -x /usr/local/bin/k3s ]] && [[ "$(sha256sum /usr/local/bin/k3s 2>/dev/null | awk '{print $1}')" == "$locked_k3s_sha" ]]; then
-	step_ok "installed k3s binary matches the versions.lock SHA-256; no download is needed"
-elif [[ -n "${K3S_BINARY_URL:-}" ]]; then
-	step_ok "K3S_BINARY_URL is configured for script 45; 00-diagnose checks its bounded TLS response"
+if ! artifact_metadata k3s-binary; then
+	step_fail "k3s binary metadata is invalid in learner-vm/artifacts.tsv" "Restore the k3s-binary catalog row and matching versions.lock checksum." "sed -n '1,20p' $(printf '%q' "$REPO_ROOT/learner-vm/artifacts.tsv")" "grep '^learner-k3s-binary-amd64 ' $(printf '%q' "$REPO_ROOT/versions.lock")"
+elif [[ "$DRY_RUN" == true ]]; then
+	step_skip "k3s artifact source check is target-side and was not evaluated during dry-run" "script 45 uses $ARTIFACT_RELATIVE_PATH or $ARTIFACT_URL_VARIABLE"
 else
-	step_fail "k3s cannot be fetched because K3S_BINARY_URL is unset and no staged or installed pinned binary exists" "Set K3S_BINARY_URL in lab-vm.conf to the Artifactory generic-file URL for the pinned k3s binary; ask your Artifactory administrator." "grep '^K3S_BINARY_URL=' $(printf '%q' "$CONFIG_FILE")" "ls -ld $(printf '%q' "$MANUAL_FETCH_DIR/k3s")" "grep '^learner-k3s-binary-amd64 ' $(printf '%q' "$REPO_ROOT/versions.lock")"
+	manual_k3s_path="$MANUAL_FETCH_DIR/$ARTIFACT_RELATIVE_PATH"
+	if [[ -e "$manual_k3s_path" || -L "$manual_k3s_path" ]]; then
+		if resolve_artifact k3s-binary check-only; then :; else artifact_status=$?; fi
+	elif [[ -x /usr/local/bin/k3s ]] && [[ "$(sha256sum /usr/local/bin/k3s 2>/dev/null | awk '{print $1}')" == "$ARTIFACT_EXPECTED_SHA256" ]]; then
+		step_ok "installed k3s binary matches the catalogued versions.lock checksum; no fetch needed"
+	else
+		if resolve_artifact k3s-binary check-only; then :; else artifact_status=$?; fi
+	fi
 fi
 
 required_files=(

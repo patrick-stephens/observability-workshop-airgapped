@@ -1,0 +1,286 @@
+Prompt 18 — Generalise manual-first artifact handling
+
+Context
+-------
+Read .github/copilot-instructions.md and the newest
+feedback/airgap-run-*.md files. Inspect the current versions of
+learner-vm/scripts/lib.sh, scripts/00-diagnose.sh,
+scripts/45-k3s-install.sh, scripts/62-k3s-images.sh, lab-vm.conf,
+versions.lock, content/vendor/MANUAL-FETCH.md, and
+content/vendor/manual-fetch.json.
+
+The repository is the only source transferred to the airgapped network.
+The learner VM may also receive an individual required file through an
+approved mechanism, or download it from Artifactory during
+provisioning. Do not require or create a custom ZIP, payload archive,
+sidecar, or other transfer package.
+
+The operator wants the same local-first recovery pattern for any
+standalone binary or file artifact required by provisioning, not
+special handling just for the k3s binary:
+
+  1. If the verified file is staged locally, use it and do not fetch.
+  2. Otherwise, if a configured Artifactory URL exists, fetch it,
+     verify its pinned SHA-256, and stage it locally.
+  3. If neither path works, fail with the exact local staging path,
+     URL variable name, and recovery instructions.
+
+For k3s, the binary is required. The airgap images tarball is optional.
+External container images are a separate artifact class: Podman and
+k3s CRI pull them from Artifactory, while locally built Podman images
+are imported into k3s containerd with Podman save and `k3s ctr import`.
+
+This task runs on the connected upstream machine only. Do not access
+the learner VM or run provisioning scripts against it.
+
+Objective
+---------
+Create one reusable artifact catalog and resolver used by diagnostics
+and provisioning scripts. Make manually staged files take precedence
+over Artifactory URLs for every catalogued standalone artifact.
+
+Task 1 — inventory runtime file downloads
+-----------------------------------------
+Search the active learner-VM scripts and their configuration for
+standalone file downloads or runtime file dependencies, including
+curl/wget downloads and locally installed RPM/binary/archive files.
+
+Classify each as:
+- repository-resident: already committed and does not need fetching;
+- standalone runtime artifact: fetched as a file during provisioning;
+- package-manager dependency: installed through DNF;
+- container image: obtained through Podman or k3s CRI.
+
+Create a short inventory report. Do not classify container images as
+standalone files, or DNF transactions as standalone downloads.
+
+Every standalone runtime artifact must be represented in the catalog
+in Task 2. If an artifact is already committed in the repository, keep
+it there and do not duplicate it in the runtime catalog unless a
+provisioning script actually downloads it.
+
+Task 2 — create the artifact catalog
+------------------------------------
+Create `learner-vm/artifacts.tsv`, a commentable TSV file. Use these
+columns, in order:
+
+  id
+  kind
+  required
+  staging_relative_path
+  url_variable
+  sha256_lock_key
+  consumer_script
+  install_target
+
+Paths in `staging_relative_path` are relative to
+`$MANUAL_FETCH_DIR`. Do not put actual private Artifactory URLs or
+credentials in the catalog.
+
+Include at minimum:
+
+  k3s-binary
+    kind: binary
+    required: yes
+    staging path: k3s/k3s
+    URL variable: K3S_BINARY_URL
+    checksum key: learner-k3s-binary-amd64
+    consumer: scripts/45-k3s-install.sh
+    install target: /usr/local/bin/k3s
+
+  k3s-airgap-images
+    kind: archive
+    required: no
+    staging path: k3s/k3s-airgap-images-amd64.tar.zst
+    URL variable: K3S_AIRGAP_IMAGES_URL
+    checksum key: learner-k3s-airgap-images-amd64.tar.zst
+    consumer: scripts/45-k3s-install.sh
+    install target: /var/lib/rancher/k3s/agent/images/
+
+Include every other standalone runtime file discovered in Task 1.
+Do not include repository-resident files, ordinary DNF dependencies, or
+container images in this TSV.
+
+Validate every row:
+- unique ID;
+- safe relative staging path (no absolute path and no `..`);
+- URL variable is a valid shell variable name;
+- required is exactly `yes` or `no`;
+- checksum key exists in versions.lock;
+- consumer script and install target are meaningful.
+
+Task 3 — implement a reusable resolver in scripts/lib.sh
+-------------------------------------------------------
+Inspect the existing library and preserve its logging, report,
+diagnostic, and dry-run conventions. Update its version/change
+documentation if the repository uses one.
+
+Add reusable helpers that read the TSV catalog and resolve one
+artifact by ID. Choose clear function names, for example:
+
+  artifact_metadata <id>
+  resolve_artifact <id>
+
+Required behavior:
+
+1. Derive the local path as
+   `$MANUAL_FETCH_DIR/<staging_relative_path>`.
+2. If the local file exists:
+   - verify it against the SHA-256 named by `sha256_lock_key` in
+     versions.lock;
+   - return/use that path and report source `manual`;
+   - do not probe or fetch from the URL;
+   - if the SHA is wrong, fail. Do not overwrite it or silently fall
+     back to the network.
+3. If no local file exists and the artifact's URL variable is set:
+   - use TLS validation and bounded connection/overall timeouts;
+   - download to a temporary file;
+   - verify its SHA-256 against versions.lock;
+   - only after successful verification, install it at the catalogued
+     staging path with restrictive, appropriate permissions;
+   - return/use that path and report source `Artifactory`.
+4. If the file and URL are both absent:
+   - for a required artifact, fail with a fix-hint naming the exact
+     staging path, URL variable, and MANUAL-FETCH section;
+   - for an optional artifact, report SKIPPED and return a distinct
+     status to the caller.
+5. Never log credentials, URL userinfo, or secret query parameters.
+6. `--dry-run` must not create directories, download files, or change
+   permissions. It should report which source would be used and the
+   actions it would take.
+7. Do not `eval` catalog contents. Validate IDs, paths, variable
+   names, and shell values before use.
+8. Do not add a new runtime dependency solely to parse the TSV.
+
+If an artifact URL fails, preserve the existing report-block behavior
+and include the HTTP/curl error, expected checksum, actual checksum if
+a file was received, DNS/TLS diagnostics, and a fix-hint.
+
+Task 4 — generalise lab-vm.conf
+-------------------------------
+Keep the existing URL variables as the catalog’s URL-variable values:
+
+  K3S_BINARY_URL=""
+  K3S_AIRGAP_IMAGES_URL=""
+
+Document both as Artifactory generic-file URLs supplied by the
+operator. Empty means “use a valid locally staged file if present;
+otherwise report the required/optional outcome.” The local staging
+file always takes precedence over a configured URL.
+
+Do not add actual Artifactory endpoints, credentials, or checksums to
+lab-vm.conf. Keep MANUAL_FETCH_DIR unchanged.
+
+Task 5 — use the resolver
+-------------------------
+Update scripts/00-diagnose.sh and scripts/45-k3s-install.sh to use
+the catalog and common resolver behavior. Read each script's current
+version, bump it, and add a CHANGE comment.
+
+`scripts/00-diagnose.sh`:
+- Must remain read-only and must not download artifacts.
+- For each catalogued artifact, report:
+  - valid local file and its source;
+  - absent local file with URL configured and a bounded URL
+    availability probe result; or
+  - absent required file with no URL configured; or
+  - optional file absent with no URL configured.
+- Never fetch the artifact during diagnosis.
+- Preserve `--selftest` and the report-block protocol.
+
+`scripts/45-k3s-install.sh`:
+- Resolve the required k3s binary with the common helper.
+- Install it only after checksum verification.
+- Resolve the optional airgap images tarball with the same helper.
+- If the optional tarball is resolved, stage it in k3s's agent images
+  directory before the first k3s start.
+- If the tarball is absent, proceed using the configured Artifactory
+  registry mirrors for k3s system images.
+- Configure k3s registry mirrors and CA trust before starting k3s.
+- Do not use public internet URLs on the learner VM.
+- Report which source was used for each artifact.
+
+`scripts/62-k3s-images.sh`:
+- Keep container images separate from the standalone-file catalog.
+- External images use `k3s crictl pull <original-reference>` so the
+  configured k3s registry mirrors are used.
+- Locally built Podman images use `podman save` followed by
+  `k3s ctr -n k8s.io images import`.
+- Do not use `k3s ctr images pull` as the Artifactory mirror path.
+
+For any future provisioning script that needs a standalone binary,
+archive, or RPM file, require it to add a catalog row and use the same
+resolver. Do not add a new bespoke local-first/download implementation
+without an explicit reason.
+
+Task 6 — update recovery documentation
+--------------------------------------
+Update `content/vendor/MANUAL-FETCH.md`,
+`content/vendor/manual-fetch.json`, and README-FIRST.md.
+
+MANUAL-FETCH.md must explain:
+- all standalone runtime artifacts are catalogued in artifacts.tsv;
+- files are staged under `$MANUAL_FETCH_DIR/<staging_relative_path>`;
+- local files are checksum-verified and used before any URL is probed
+  or fetched;
+- a wrong local checksum is a hard failure, not a reason to overwrite
+  the file;
+- if no file is staged, the configured Artifactory URL is the
+  fallback;
+- how to obtain, stage, checksum-verify, and retry a failed required
+  artifact;
+- optional artifacts may be absent without blocking provisioning;
+- container images are handled separately through Podman/k3s CRI and
+  are not standalone catalog files.
+
+Regenerate manual-fetch.json from the same catalog so its entries
+match artifacts.tsv. Do not maintain conflicting hand-edited copies.
+Keep the learner's repo-only transfer model: do not document separate
+ZIPs, payload archives, sidecars, Git LFS, or external file transfers
+as required steps.
+
+README-FIRST.md should summarize the local-first rule in no more than
+three sentences and refer to MANUAL-FETCH.md.
+
+Task 7 — validation
+-------------------
+On the connected machine only:
+
+- `bash -n` and ShellCheck on changed scripts;
+- `pre-commit run --all-files`;
+- `scripts/00-diagnose.sh --selftest`;
+- test resolver behavior in an isolated temporary directory, without
+  using the learner VM or actual Artifactory:
+    a. valid local fixture + URL configured: local file wins; mock
+       network client records no request;
+    b. absent local required file + mock URL returns valid fixture:
+       downloaded fixture is checksum-verified and staged;
+    c. invalid local fixture: hard checksum failure; mock network
+       client is not called;
+    d. absent local optional artifact + URL unset: SKIPPED;
+    e. `--dry-run`: no files or directories are created.
+- confirm every runtime standalone file download is either catalogued
+  or explicitly classified as repository-resident, DNF-managed, or
+  container-image-managed.
+- audit for public URLs in learner-VM runtime scripts. Public release
+  URLs may appear in explanatory documentation, but not as runtime
+  fetch sources.
+
+Do not run provisioning against the learner VM. Do not claim local
+manual staging, Artifactory downloads, k3s installation, image pulls,
+or offline operation have been tested there.
+
+Acceptance
+----------
+1. Paste `artifacts.tsv` in full.
+2. Paste the resolver self-test results for cases a–e.
+3. Paste the updated lab-vm.conf in full.
+4. Paste MANUAL-FETCH.md's artifact procedure and the matching
+   manual-fetch.json entries.
+5. Report bash syntax, ShellCheck, pre-commit, and runtime-download
+   audit results.
+6. Confirm local staging takes precedence and a bad local checksum
+   never triggers a network fetch.
+7. State explicitly that the learner VM was not accessed and no
+   provisioning script was executed against it.
+8. Leave changes uncommitted and unstaged.

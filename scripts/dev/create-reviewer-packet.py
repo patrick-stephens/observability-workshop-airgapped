@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 EXTRACTED = ROOT / "content" / "extracted"
 MAX_LINES = 250
-MAX_CURATED_LINES = 118
+MAX_CURATED_LINES = 115
 
 
 def read_lines(relative_path):

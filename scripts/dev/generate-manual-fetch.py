@@ -13,6 +13,7 @@ VENDOR = ROOT / "content/vendor"
 LOCK = ROOT / "versions.lock"
 JSON_PATH = VENDOR / "manual-fetch.json"
 MARKDOWN_PATH = VENDOR / "MANUAL-FETCH.md"
+ARTIFACT_CATALOG = ROOT / "learner-vm/artifacts.tsv"
 
 
 def sha256(path):
@@ -156,27 +157,53 @@ def repo_entries():
 
 
 def runtime_entries():
-    records = (
-        ("learner-k3s-binary-amd64", "k3s", True, "/usr/local/bin/k3s"),
-    )
     result = []
-    for key, filename, required, destination in records:
-        line = lock_record(key)
-        source = lock_field(line, "source", r"\bsource=([^\s]+)")
-        lock_field(line, "sha256", r"\bsha256:([0-9a-f]{64})")
+    header = ("id", "kind", "required", "staging_relative_path", "url_variable", "sha256_lock_key", "consumer_script", "install_target")
+    found_header = False
+    seen = set()
+    for number, raw_line in enumerate(ARTIFACT_CATALOG.read_text(encoding="utf-8").splitlines(), start=1):
+        if not raw_line.strip() or raw_line.lstrip().startswith("#"):
+            continue
+        columns = raw_line.split("\t")
+        if tuple(columns) == header:
+            found_header = True
+            continue
+        if not found_header or len(columns) != len(header):
+            raise ValueError(f"invalid artifact catalog row {number}: expected the eight-column header followed by eight-column rows")
+        artifact_id, kind, required_text, staging_relative_path, url_variable, lock_key, consumer_script, install_target = columns
+        if artifact_id in seen:
+            raise ValueError(f"duplicate artifact ID in learner-vm/artifacts.tsv: {artifact_id}")
+        seen.add(artifact_id)
+        if required_text not in ("yes", "no"):
+            raise ValueError(f"invalid required value for artifact {artifact_id}: {required_text}")
+        record = lock_record(lock_key)
+        upstream_reference = lock_field(record, "source", r"\bsource=([^\s]+)")
+        digest = lock_field(record, "sha256", r"\bsha256:([0-9a-f]{64})")
+        required = required_text == "yes"
         result.append({
-            "name": f"k3s/{filename}",
+            "name": artifact_id,
+            "id": artifact_id,
             "category": "runtime",
-            "source": "Artifactory generic-file URL supplied by the administrator",
-            "runtime_source": "K3S_BINARY_URL",
-            "lock_key": key,
+            "kind": kind,
+            "source": "operator-supplied Artifactory generic-file URL",
+            "runtime_source": url_variable,
+            "url_variable": url_variable,
+            "upstream_reference": upstream_reference,
+            "sha256_lock_key": lock_key,
+            "lock_key": lock_key,
+            "expected_sha256": digest,
             "sha256": None,
-            "path": f"$MANUAL_FETCH_DIR/k3s/{filename}",
+            "staging_relative_path": staging_relative_path,
+            "path": f"$MANUAL_FETCH_DIR/{staging_relative_path}",
+            "consumer_script": consumer_script,
+            "install_target": install_target,
             "required": required,
-            "used_by": "script 45",
-            "purpose": f"Script 45 fetches the pinned k3s binary at provisioning time, verifies {key} from versions.lock, and installs it to {destination}.",
-            "recovery": "Download on the learner VM from K3S_BINARY_URL to $MANUAL_FETCH_DIR/k3s/k3s, verify against versions.lock, then rerun script 45.",
+            "used_by": consumer_script,
+            "purpose": f"{consumer_script} resolves this {kind} from a checksum-verified local file first, otherwise from {url_variable}, and verifies versions.lock record {lock_key}.",
+            "recovery": f"Stage a verified file at $MANUAL_FETCH_DIR/{staging_relative_path}; {url_variable} is the Artifactory fallback. See MANUAL-FETCH.md Section B.",
         })
+    if not found_header:
+        raise ValueError("learner-vm/artifacts.tsv has no valid header")
     return result
 
 
@@ -217,7 +244,7 @@ def system_entries():
         "sha256": None,
         "path": "RHEL BaseOS, AppStream, and configured module repositories",
         "required": True,
-        "used_by": "scripts 20 and 30",
+        "used_by": "script 20",
         "purpose": "Operating-system packages and repository metadata are fetched from the configured Artifactory repositories during provisioning.",
         "recovery": "Capture dnf -v repolist and dnf -v makecache output, repository configuration, ART_HOST DNS results, and CA/TLS diagnostics; contact the Artifactory administrator. Do not use a public-internet fallback.",
     }]
@@ -246,6 +273,15 @@ def human_document(entries):
     runtime = [entry for entry in entries if entry["category"] == "runtime"]
     images = [entry for entry in entries if entry["category"] == "image"]
     systems = [entry for entry in entries if entry["category"] == "system"]
+    runtime_rows = [
+        "| " + " | ".join((
+            entry["id"], entry["kind"], "REQUIRED" if entry["required"] else "OPTIONAL",
+            entry["url_variable"], entry["sha256_lock_key"],
+            entry["upstream_reference"], entry["expected_sha256"],
+            f'$MANUAL_FETCH_DIR/{entry["staging_relative_path"]}', entry["consumer_script"], entry["install_target"],
+        )) + " |"
+        for entry in runtime
+    ]
     repo_groups = [
         ("Workshop repositories, including app_pod.yaml and reveal.js-menu", "content/repos/", "Tracked source trees and vendored lab inputs; no action needed."),
         ("Documentation mirrors", "content/docs/", "Tracked documentation mirrors; no action needed."),
@@ -270,7 +306,7 @@ def human_document(entries):
         "",
         "This is a runtime recovery reference for the learner VM.",
         "The repository already contains its workshop sources, documentation mirrors, runtime build-context archives, k3s support files, `app_pod.yaml`, and `reveal.js-menu`; no action is needed for those entries.",
-        "Set only `K3S_BINARY_URL` on the learner VM before script 45; use the exact Artifactory generic-file URL supplied by the administrator.",
+        "Standalone runtime files are resolved from checksum-verified local files before any Artifactory URL is probed or fetched.",
         "Runtime image pulls use the configured Artifactory mirror. If it is unavailable, stop and contact the Artifactory administrator; there is no public-internet fallback.",
         "",
         "## Section A — In Repository (Already Present)",
@@ -285,17 +321,22 @@ def human_document(entries):
         "",
         "## Section B — Fetched at Provisioning Time on the VM",
         "",
-        "Script 45 downloads the pinned k3s binary from `K3S_BINARY_URL`, validates TLS, applies a bounded timeout, and verifies the SHA-256 record in `versions.lock` before installation.",
-        "The configured URL must be the exact HTTPS Artifactory generic-file URL supplied by the administrator. Do not use a public source or invent a URL.",
+        "Every standalone runtime artifact is catalogued in `learner-vm/artifacts.tsv` with its kind, required status, local staging path, URL variable, checksum lock key, consumer, and install target.",
+        "The pinned upstream URL and SHA-256 below identify the version in `versions.lock`; the learner VM fetches only from the configured Artifactory URL variable, never from that upstream URL.",
+        "For each entry, the resolver checks `$MANUAL_FETCH_DIR/<staging_relative_path>` first and verifies it against the checksum key in `versions.lock` before use.",
+        "A bad local checksum is a hard failure; the file is never overwritten and its URL is never fetched as a fallback.",
+        "Only when no local file exists does the resolver use the configured HTTPS Artifactory generic-file URL, download to a temporary file, verify its SHA-256, and stage it locally.",
+        "The Artifactory URL is supplied by the operator and is not stored in the catalog or committed configuration.",
         "",
-        "| artifact | runtime source | SHA-256 authority | install/recovery path | status | used by | purpose | recovery |",
-        "|---|---|---|---|---|---|---|---|",
-        *[table_row(entry) for entry in runtime],
+        "| id | kind | required | URL variable | SHA-256 lock key | pinned upstream reference | SHA-256 | local staging path | consumer | install target |",
+        "|---|---|---|---|---|---|---|---|---|---|",
+        *runtime_rows,
         "",
-        "### Section B Recovery Commands",
+        "### Required k3s Binary Recovery",
         "",
-        "Run from the repository root on the learner VM after setting `K3S_BINARY_URL` in `learner-vm/lab-vm.conf`.",
-        "The commands download directly to a temporary file on that VM and install the staged copy only after its locked checksum matches.",
+        "If script 45 cannot obtain the required binary, ask the Artifactory administrator for the exact generic-file URL and set `K3S_BINARY_URL` on the VM.",
+        "Run the following from the repository root to download to a temporary file, verify the lock key, and stage the file for retry.",
+        "The commands refuse to overwrite an existing staged file; investigate a checksum failure before replacing that file manually.",
         "",
         "```bash",
         "set -euo pipefail",
@@ -304,21 +345,25 @@ def human_document(entries):
         "set +a",
         '[[ -n "$K3S_BINARY_URL" ]] || { printf "%s\\n" "Set K3S_BINARY_URL from the Artifactory administrator." >&2; exit 1; }',
         'sudo install -d -o "$WORKSHOP_USER" -g "$WORKSHOP_USER" -m 0750 "$MANUAL_FETCH_DIR/k3s"',
+        '[[ ! -e "$MANUAL_FETCH_DIR/k3s/k3s" && ! -L "$MANUAL_FETCH_DIR/k3s/k3s" ]] || { printf "%s\\n" "Staged file already exists; verify it before taking any action." >&2; exit 1; }',
         'temporary_binary="$(mktemp)"',
         'trap \'rm -f -- "$temporary_binary"\' EXIT',
         'curl --fail --silent --show-error --connect-timeout 10 --max-time 900 --output "$temporary_binary" "$K3S_BINARY_URL"',
         'expected_sha="$(awk \'$1 == "learner-k3s-binary-amd64" {for (i=1;i<=NF;i++) if ($i ~ /^sha256:/) {sub(/^sha256:/,"",$i); print $i; exit}}\' versions.lock)"',
         'actual_sha="$(sha256sum "$temporary_binary" | awk \'{print $1}\')"',
         '[[ -n "$expected_sha" && "$actual_sha" == "$expected_sha" ]] || { printf "SHA-256 mismatch: expected %s, actual %s\\n" "$expected_sha" "$actual_sha" >&2; exit 1; }',
-        'sudo install -o root -g root -m 0644 "$temporary_binary" "$MANUAL_FETCH_DIR/k3s/k3s"',
+        'sudo install -o root -g root -m 0755 "$temporary_binary" "$MANUAL_FETCH_DIR/k3s/k3s"',
         "sudo bash learner-vm/scripts/45-k3s-install.sh",
         "```",
         "",
         "If the download fails or the checksum differs, do not install the file. Preserve the report and escalate with the redacted URL, HTTP/error details, expected and actual SHA-256, DNS/TLS diagnostics, and script 45 report.",
+        "The `k3s-airgap-images` archive is optional and uses `K3S_AIRGAP_IMAGES_URL`, an operator-supplied Artifactory generic-file URL separate from the container-image registry endpoint.",
+        "If that URL is unset or the optional fetch fails, k3s obtains `registry.k8s.io` system images through the configured Artifactory registry mirrors.",
+        "The archive is not present in Git and is not transferred separately; if intentionally staged locally, place it at `$MANUAL_FETCH_DIR/k3s/k3s-airgap-images-amd64.tar.zst`, verify lock key `learner-k3s-airgap-images-amd64.tar.zst`, and rerun script 45 so it stages the file under `/var/lib/rancher/k3s/agent/images/` before startup.",
         "",
         "## Section C — Container Images, Fetched at Provisioning Time",
         "",
-        "Scripts 20 and 30 also fetch RHEL packages and repository metadata from the configured Artifactory DNF repositories.",
+        "Script 20 fetches RHEL packages and repository metadata from the configured Artifactory DNF repositories.",
         "If package or metadata fetches fail, capture `dnf -v repolist`, `dnf -v makecache`, repository configuration, ART_HOST DNS results, and CA/TLS diagnostics, then contact the Artifactory administrator.",
         "",
         "| runtime package source | endpoint | status | used by | recovery |",

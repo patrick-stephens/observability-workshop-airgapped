@@ -1,0 +1,4 @@
+# Standalone runtime files only; container images and DNF packages are managed separately.
+id	kind	required	staging_relative_path	url_variable	sha256_lock_key	consumer_script	install_target
+k3s-binary	binary	yes	k3s/k3s	K3S_BINARY_URL	learner-k3s-binary-amd64	scripts/45-k3s-install.sh	/usr/local/bin/k3s
+k3s-airgap-images	archive	no	k3s/k3s-airgap-images-amd64.tar.zst	K3S_AIRGAP_IMAGES_URL	learner-k3s-airgap-images-amd64.tar.zst	scripts/45-k3s-install.sh	/var/lib/rancher/k3s/agent/images/

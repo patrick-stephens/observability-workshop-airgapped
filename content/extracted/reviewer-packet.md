@@ -3,6 +3,7 @@ artifact | version/URL | SHA-256 | status
 --- | --- | --- | ---
 k3s release | v1.37.1+k3s1 amd64; https://github.com/k3s-io/k3s/releases/tag/v1.37.1%2Bk3s1 | n/a | pinned
 k3s binary | https://github.com/k3s-io/k3s/releases/download/v1.37.1%2Bk3s1/k3s | versions.lock only | runtime download from administrator-supplied K3S_BINARY_URL; checksum pin recorded only in versions.lock
+learner-k3s-airgap-images-amd64.tar.zst | https://github.com/k3s-io/k3s/releases/download/v1.37.1%2Bk3s1/k3s-airgap-images-amd64.tar.zst | 865b2a63ad7a63fc0db17b7fc2985bf4ae11d5ae93ca1472be6218d20aeb6b23 | small pinned input retained in Git
 learner-k3s-install.sh | https://get.k3s.io | e5cc3b3d9dfc1662c2d9be6da5abc9a4cd317d6abc3a5ffc02e3dd3248207fee | small pinned input retained in Git
 learner-k3s-images.txt | https://github.com/k3s-io/k3s/releases/download/v1.37.1%2Bk3s1/k3s-images.txt | 377307d4039ccd04f0e27d2906595a8c7b7d49a79f7553c311f6f960ff3efb58 | small pinned input retained in Git
 learner-k3s-selinux-rpm | 1.6-1.el8; https://rpm.rancher.io/k3s/stable/common/centos/8/noarch/k3s-selinux-1.6-1.el8.noarch.rpm | a1e24b0d82b1a6806cd420e2c0398a1796b055efe368fa4aebc8bb173850934f | small pinned input retained in Git
@@ -195,10 +196,7 @@ url=https://gitlab.com/o11y-workshops/prometheus-java-metrics-demo/-/archive/v0.
         "image": "jaegertracing/all-in-one:1.76.0",
         "ports": [
           "16686:16686",
-          "4317:4317",
-          "4318:4318"
-        ],
-... [excerpt capped at 118 lines; complete JSON: content/extracted/curated.json]
+... [excerpt capped at 115 lines; complete JSON: content/extracted/curated.json]
 === END curated.json ===
 === BEGIN learner-vm/lab-vm.conf ===
 # Operator-tunable values for the RHEL 8.6 learner VM.
@@ -207,11 +205,13 @@ HOSTNAME="o11y-lab.internal"
 STATIC_IP=""
 # Artifactory hostname used for registry and package repository checks.
 ART_HOST="artifactory.internal"
-# Set on the learner VM before running script 45.
-# Artifactory generic-file URL for the pinned k3s binary (v1.37.1+k3s1).
-# Obtain the exact URL from the Artifactory administrator.
-# The pinned SHA-256 lives in versions.lock; do not duplicate it here.
+# Local checksum-verified files under MANUAL_FETCH_DIR take precedence over URLs.
+# Required Artifactory generic-file URL for the pinned k3s binary.
+# Set on the learner VM using the exact URL supplied by the administrator.
 K3S_BINARY_URL=""
+# Optional Artifactory generic-file URL for the pinned k3s airgap-images archive.
+# Leave empty to use k3s registry mirrors; set only to the exact admin-supplied URL.
+K3S_AIRGAP_IMAGES_URL=""
 # One anonymous pull-through endpoint for docker.io, ghcr.io, and quay.io.
 DOCKER_REGISTRY="${ART_HOST}/artifactory/docker-registry"
 # Optional Artifactory address; 30-ca-and-trust.sh can add it to /etc/hosts to bypass DNS.
@@ -241,6 +241,7 @@ runtime-download.prometheus.prometheus-service-demo-installer-v1.0.zip sha256:a8
 workshop.reveal.js-menu 2.1.0 - source=https://registry.npmjs.org/reveal.js-menu/-/reveal.js-menu-2.1.0.tgz menu.js-sha256=975e1d92515c5b99966abeb0ffd29a5b47d655eadfde662bed6b74fab5f31400; copied into all five documentation mirrors and all five repository trees.
 learner-k3s v1.37.1+k3s1 - official release https://github.com/k3s-io/k3s/releases/tag/v1.37.1%2Bk3s1; stable amd64 pin for learner VM.
 learner-k3s-binary-amd64 | checksum authority: versions.lock | runtime source: administrator-supplied K3S_BINARY_URL
+learner-k3s-airgap-images-amd64.tar.zst sha256:865b2a63ad7a63fc0db17b7fc2985bf4ae11d5ae93ca1472be6218d20aeb6b23 - source=https://github.com/k3s-io/k3s/releases/download/v1.37.1%2Bk3s1/k3s-airgap-images-amd64.tar.zst delivery=runtime:K3S_AIRGAP_IMAGES_URL OPTIONAL; manual-staging=$MANUAL_FETCH_DIR/k3s/k3s-airgap-images-amd64.tar.zst; not committed or transferred; stage=/var/lib/rancher/k3s/agent/images/k3s-airgap-images-amd64.tar.zst.
 learner-k3s-install.sh sha256:e5cc3b3d9dfc1662c2d9be6da5abc9a4cd317d6abc3a5ffc02e3dd3248207fee - source=https://get.k3s.io path=content/vendor/k3s/install.sh; small installer input retained in Git.
 learner-k3s-images.txt sha256:377307d4039ccd04f0e27d2906595a8c7b7d49a79f7553c311f6f960ff3efb58 - source=https://github.com/k3s-io/k3s/releases/download/v1.37.1%2Bk3s1/k3s-images.txt path=content/vendor/k3s/k3s-images.txt.
 learner-k3s-selinux-rpm sha256:a1e24b0d82b1a6806cd420e2c0398a1796b055efe368fa4aebc8bb173850934f - version=1.6-1.el8 source=https://rpm.rancher.io/k3s/stable/common/centos/8/noarch/k3s-selinux-1.6-1.el8.noarch.rpm path=content/vendor/k3s/k3s-selinux-1.6-1.el8.noarch.rpm.

@@ -2,7 +2,7 @@
 
 This is a runtime recovery reference for the learner VM.
 The repository already contains its workshop sources, documentation mirrors, runtime build-context archives, k3s support files, `app_pod.yaml`, and `reveal.js-menu`; no action is needed for those entries.
-Set only `K3S_BINARY_URL` on the learner VM before script 45; use the exact Artifactory generic-file URL supplied by the administrator.
+Standalone runtime files are resolved from checksum-verified local files before any Artifactory URL is probed or fetched.
 Runtime image pulls use the configured Artifactory mirror. If it is unavailable, stop and contact the Artifactory administrator; there is no public-internet fallback.
 
 ## Section A — In Repository (Already Present)
@@ -21,17 +21,23 @@ The machine-readable catalog lists the exact repository paths and per-file hashe
 
 ## Section B — Fetched at Provisioning Time on the VM
 
-Script 45 downloads the pinned k3s binary from `K3S_BINARY_URL`, validates TLS, applies a bounded timeout, and verifies the SHA-256 record in `versions.lock` before installation.
-The configured URL must be the exact HTTPS Artifactory generic-file URL supplied by the administrator. Do not use a public source or invent a URL.
+Every standalone runtime artifact is catalogued in `learner-vm/artifacts.tsv` with its kind, required status, local staging path, URL variable, checksum lock key, consumer, and install target.
+The pinned upstream URL and SHA-256 below identify the version in `versions.lock`; the learner VM fetches only from the configured Artifactory URL variable, never from that upstream URL.
+For each entry, the resolver checks `$MANUAL_FETCH_DIR/<staging_relative_path>` first and verifies it against the checksum key in `versions.lock` before use.
+A bad local checksum is a hard failure; the file is never overwritten and its URL is never fetched as a fallback.
+Only when no local file exists does the resolver use the configured HTTPS Artifactory generic-file URL, download to a temporary file, verify its SHA-256, and stage it locally.
+The Artifactory URL is supplied by the operator and is not stored in the catalog or committed configuration.
 
-| artifact | runtime source | SHA-256 authority | install/recovery path | status | used by | purpose | recovery |
-|---|---|---|---|---|---|---|---|
-| k3s/k3s | Artifactory generic-file URL supplied by the administrator | see versions.lock | $MANUAL_FETCH_DIR/k3s/k3s | FETCH AT PROVISIONING | script 45 | Script 45 fetches the pinned k3s binary at provisioning time, verifies learner-k3s-binary-amd64 from versions.lock, and installs it to /usr/local/bin/k3s. | Download on the learner VM from K3S_BINARY_URL to $MANUAL_FETCH_DIR/k3s/k3s, verify against versions.lock, then rerun script 45. |
+| id | kind | required | URL variable | SHA-256 lock key | pinned upstream reference | SHA-256 | local staging path | consumer | install target |
+|---|---|---|---|---|---|---|---|---|---|
+| k3s-airgap-images | archive | OPTIONAL | K3S_AIRGAP_IMAGES_URL | learner-k3s-airgap-images-amd64.tar.zst | https://github.com/k3s-io/k3s/releases/download/v1.37.1%2Bk3s1/k3s-airgap-images-amd64.tar.zst | 865b2a63ad7a63fc0db17b7fc2985bf4ae11d5ae93ca1472be6218d20aeb6b23 | $MANUAL_FETCH_DIR/k3s/k3s-airgap-images-amd64.tar.zst | scripts/45-k3s-install.sh | /var/lib/rancher/k3s/agent/images/ |
+| k3s-binary | binary | REQUIRED | K3S_BINARY_URL | learner-k3s-binary-amd64 | https://github.com/k3s-io/k3s/releases/download/v1.37.1%2Bk3s1/k3s | 92b94582eb7b34a8cf532e6006842b9ed215a6783cf56a3dd6271fd35243b2c0 | $MANUAL_FETCH_DIR/k3s/k3s | scripts/45-k3s-install.sh | /usr/local/bin/k3s |
 
-### Section B Recovery Commands
+### Required k3s Binary Recovery
 
-Run from the repository root on the learner VM after setting `K3S_BINARY_URL` in `learner-vm/lab-vm.conf`.
-The commands download directly to a temporary file on that VM and install the staged copy only after its locked checksum matches.
+If script 45 cannot obtain the required binary, ask the Artifactory administrator for the exact generic-file URL and set `K3S_BINARY_URL` on the VM.
+Run the following from the repository root to download to a temporary file, verify the lock key, and stage the file for retry.
+The commands refuse to overwrite an existing staged file; investigate a checksum failure before replacing that file manually.
 
 ```bash
 set -euo pipefail
@@ -40,17 +46,21 @@ source learner-vm/lab-vm.conf
 set +a
 [[ -n "$K3S_BINARY_URL" ]] || { printf "%s\n" "Set K3S_BINARY_URL from the Artifactory administrator." >&2; exit 1; }
 sudo install -d -o "$WORKSHOP_USER" -g "$WORKSHOP_USER" -m 0750 "$MANUAL_FETCH_DIR/k3s"
+[[ ! -e "$MANUAL_FETCH_DIR/k3s/k3s" && ! -L "$MANUAL_FETCH_DIR/k3s/k3s" ]] || { printf "%s\n" "Staged file already exists; verify it before taking any action." >&2; exit 1; }
 temporary_binary="$(mktemp)"
 trap 'rm -f -- "$temporary_binary"' EXIT
 curl --fail --silent --show-error --connect-timeout 10 --max-time 900 --output "$temporary_binary" "$K3S_BINARY_URL"
 expected_sha="$(awk '$1 == "learner-k3s-binary-amd64" {for (i=1;i<=NF;i++) if ($i ~ /^sha256:/) {sub(/^sha256:/,"",$i); print $i; exit}}' versions.lock)"
 actual_sha="$(sha256sum "$temporary_binary" | awk '{print $1}')"
 [[ -n "$expected_sha" && "$actual_sha" == "$expected_sha" ]] || { printf "SHA-256 mismatch: expected %s, actual %s\n" "$expected_sha" "$actual_sha" >&2; exit 1; }
-sudo install -o root -g root -m 0644 "$temporary_binary" "$MANUAL_FETCH_DIR/k3s/k3s"
+sudo install -o root -g root -m 0755 "$temporary_binary" "$MANUAL_FETCH_DIR/k3s/k3s"
 sudo bash learner-vm/scripts/45-k3s-install.sh
 ```
 
 If the download fails or the checksum differs, do not install the file. Preserve the report and escalate with the redacted URL, HTTP/error details, expected and actual SHA-256, DNS/TLS diagnostics, and script 45 report.
+The `k3s-airgap-images` archive is optional and uses `K3S_AIRGAP_IMAGES_URL`, an operator-supplied Artifactory generic-file URL separate from the container-image registry endpoint.
+If that URL is unset or the optional fetch fails, k3s obtains `registry.k8s.io` system images through the configured Artifactory registry mirrors.
+The archive is not present in Git and is not transferred separately; if intentionally staged locally, place it at `$MANUAL_FETCH_DIR/k3s/k3s-airgap-images-amd64.tar.zst`, verify lock key `learner-k3s-airgap-images-amd64.tar.zst`, and rerun script 45 so it stages the file under `/var/lib/rancher/k3s/agent/images/` before startup.
 
 ## Section C — Container Images, Fetched at Provisioning Time
 
@@ -59,7 +69,7 @@ If package or metadata fetches fail, capture `dnf -v repolist`, `dnf -v makecach
 
 | runtime package source | endpoint | status | used by | recovery |
 |---|---|---|---|---|
-| RHEL 8 packages and repository metadata | ART_HOST | FETCH AT PROVISIONING | scripts 20 and 30 | Capture dnf -v repolist and dnf -v makecache output, repository configuration, ART_HOST DNS results, and CA/TLS diagnostics; contact the Artifactory administrator. Do not use a public-internet fallback. |
+| RHEL 8 packages and repository metadata | ART_HOST | FETCH AT PROVISIONING | script 20 | Capture dnf -v repolist and dnf -v makecache output, repository configuration, ART_HOST DNS results, and CA/TLS diagnostics; contact the Artifactory administrator. Do not use a public-internet fallback. |
 
 Scripts 60 and 62 pull external images through `$DOCKER_REGISTRY`, configured in `registries.conf` and `/etc/rancher/k3s/registries.yaml` before k3s starts.
 The Podman and k3s containerd stores are separate: script 60 uses `podman pull <original-reference>`; script 62 uses `k3s crictl pull <original-reference>` for external images.
