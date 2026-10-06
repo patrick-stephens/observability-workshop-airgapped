@@ -5,9 +5,10 @@ set -euo pipefail
 # Batch uploads can partially fail; upload individually, then retry only assets
 # that remain missing. Authentication comes from gh's environment, never this file.
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-SCRIPT_NAME=publish-image-release SCRIPT_VERSION=1 SELFTEST_MODE=true
+SCRIPT_NAME=publish-image-release SCRIPT_VERSION=2 SELFTEST_MODE=true
 source "$ROOT_DIR/learner-vm/scripts/lib.sh"
 TAG='' REPOSITORY='' IMAGES_FILE="$ROOT_DIR/content/extracted/external-images.txt"
+IMAGES_FILE_EXPLICIT=false
 OUT_DIR="$ROOT_DIR/dist/image-release" DRY_RUN=false REPLACE_EXISTING=false RETRIES=3
 usage() {
     printf '%s\n' 'Usage: publish-image-release.sh --tag TAG --repo OWNER/NAME [--images-file PATH] [--out DIR] [--dry-run] [--replace-existing] [--retries N]'
@@ -19,7 +20,7 @@ while (($#)); do
             (($# >= 2)) || die "missing value for $1"
             case "$1" in
                 --tag) TAG="$2" ;; --repo) REPOSITORY="$2" ;;
-                --images-file) IMAGES_FILE="$2" ;; --out) OUT_DIR="$2" ;; --retries) RETRIES="$2" ;;
+                --images-file) IMAGES_FILE="$2"; IMAGES_FILE_EXPLICIT=true ;; --out) OUT_DIR="$2" ;; --retries) RETRIES="$2" ;;
             esac
             shift 2 ;;
         --dry-run) DRY_RUN=true; shift ;;
@@ -35,20 +36,36 @@ command -v gh >/dev/null 2>&1 || die 'Install GitHub CLI (gh) and configure gh a
 [[ -r "$IMAGES_FILE" && -s "$IMAGES_FILE" ]] || die "image list is missing or empty: $IMAGES_FILE"
 declare -a REFERENCES=() ASSETS=()
 declare -A ASSET_REFERENCES=() RESULTS=() HASHES=() ATTEMPTS=() RELEASE_HASHES=()
-while IFS= read -r reference || [[ -n "$reference" ]]; do
+add_reference() {
+    local reference="$1" asset canonical
     reference="${reference%%#*}"
     reference="${reference//[[:space:]]/}"
-    [[ -n "$reference" ]] || continue
+    [[ -n "$reference" ]] || return 0
     asset="$(image_asset_name "$reference")" || die "reference needs a pinned tag: $reference"
     canonical="$(image_canonical_reference "$reference")"
     printf 'mapping: %s -> %s\n' "$reference" "$asset"
     if [[ -n "${ASSET_REFERENCES[$asset]+x}" ]]; then
         [[ "${ASSET_REFERENCES[$asset]}" == "$canonical" ]] || die "filename collision between different images: $asset"
-        continue
+        return 0
     fi
     ASSET_REFERENCES["$asset"]="$canonical"
     REFERENCES+=("$reference") ASSETS+=("$asset")
+}
+while IFS= read -r reference || [[ -n "$reference" ]]; do
+    add_reference "$reference"
 done < "$IMAGES_FILE"
+if [[ "$IMAGES_FILE_EXPLICIT" == false ]]; then
+    command -v jq >/dev/null 2>&1 || die 'Install jq to include recorded lab build bases in the default release.'
+    commands_file="$ROOT_DIR/content/extracted/commands.json"
+    [[ -r "$commands_file" && -s "$commands_file" ]] || die "build metadata is missing or empty: $commands_file"
+    if base_references="$(jq -r '[.[] | .labs[]? | .commands[]? | select(.type == "build")] as $builds | [$builds[] | .tag // empty] as $local_tags | $builds[] | .base_images[]? | select(. != "scratch" and (startswith("localhost/") | not)) | . as $base | select($local_tags | index($base) | not)' "$commands_file")"; then
+        while IFS= read -r reference || [[ -n "$reference" ]]; do
+            add_reference "$reference"
+        done <<< "$base_references"
+    else
+        die 'Could not read recorded build bases; regenerate commands.json before publishing.'
+    fi
+fi
 ((${#ASSETS[@]} > 0)) || die 'image list has no references after comments/blank lines'
 if [[ "$DRY_RUN" == true ]]; then
     for index in "${!ASSETS[@]}"; do

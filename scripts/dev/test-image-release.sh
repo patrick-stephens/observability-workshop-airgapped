@@ -50,9 +50,27 @@ bash "$PUBLISHER" --tag fixture --repo fixture/repository --out "$TEMP_ROOT/dry"
 [[ ! -e "$MOCK_EVENTS" && ! -e "$TEMP_ROOT/dry" ]]
 [[ "$(grep -c '^WOULD: docker save ' "$TEMP_ROOT/dry.log")" -eq 11 ]]
 grep -F 'mapping: prom/prometheus:v3.13.1 -> prom-prometheus-v3.13.1.tar' "$TEMP_ROOT/dry.log"
+grep -F 'WOULD: docker save' "$TEMP_ROOT/dry.log" | grep -Fq 'library-python-3.13-bullseye.tar'
+grep -F 'WOULD: docker save' "$TEMP_ROOT/dry.log" | grep -Fq 'library-eclipse-temurin-21.tar'
 bash "$PUBLISHER" --tag fixture --repo fixture/repository --out "$TEMP_ROOT/dry" --dry-run > "$TEMP_ROOT/dry-again.log"
 cmp "$TEMP_ROOT/dry.log" "$TEMP_ROOT/dry-again.log"
 printf 'publisher dry-run PASS: actual inventory, deterministic naming, deduplicated aliases, zero client calls/files/directories\n'
+
+FAKE_ROOT="$TEMP_ROOT/base-repository"
+mkdir -p "$FAKE_ROOT/scripts/dev" "$FAKE_ROOT/learner-vm/scripts" "$FAKE_ROOT/content/extracted"
+cp "$PUBLISHER" "$FAKE_ROOT/scripts/dev/publish-image-release.sh"
+cp "$ROOT_DIR/learner-vm/scripts/lib.sh" "$FAKE_ROOT/learner-vm/scripts/lib.sh"
+cp "$TEMP_ROOT/images.txt" "$FAKE_ROOT/content/extracted/external-images.txt"
+jq -n '{fixture:{labs:[{commands:[{type:"build",tag:"local-base:1",base_images:["python:3.13-bullseye","eclipse-temurin:21","local-base:1","localhost/other:1","scratch"]}]}]}}' > "$FAKE_ROOT/content/extracted/commands.json"
+bash "$FAKE_ROOT/scripts/dev/publish-image-release.sh" --tag fixture --repo fixture/repository --out "$TEMP_ROOT/base-dry" --dry-run > "$TEMP_ROOT/base-dry.log"
+[[ "$(grep -c '^WOULD: docker save ' "$TEMP_ROOT/base-dry.log")" -eq 4 ]]
+grep -Fq 'WOULD: docker pull python:3.13-bullseye' "$TEMP_ROOT/base-dry.log"
+grep -Fq 'WOULD: docker pull eclipse-temurin:21' "$TEMP_ROOT/base-dry.log"
+if grep -E '^WOULD: docker pull (local-base|localhost/|scratch)' "$TEMP_ROOT/base-dry.log"; then exit 1; fi
+[[ ! -e "$MOCK_EVENTS" && ! -e "$TEMP_ROOT/base-dry" ]]
+bash "$FAKE_ROOT/scripts/dev/publish-image-release.sh" --tag fixture --repo fixture/repository --images-file "$TEMP_ROOT/images.txt" --out "$TEMP_ROOT/custom-dry" --dry-run > "$TEMP_ROOT/custom-dry.log"
+[[ "$(grep -c '^WOULD: docker save ' "$TEMP_ROOT/custom-dry.log")" -eq 2 ]]
+printf 'publisher base coverage PASS: missing external inventory bases included; local builds/scratch excluded; explicit custom lists preserved; no client calls\n'
 
 bash "$PUBLISHER" --tag fixture --repo fixture/repository --images-file "$TEMP_ROOT/images.txt" --out "$TEMP_ROOT/assets" > "$TEMP_ROOT/published.log"
 grep -F 'skipped (existing)' "$TEMP_ROOT/published.log"

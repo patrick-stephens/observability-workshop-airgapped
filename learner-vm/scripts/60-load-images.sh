@@ -2,8 +2,8 @@
 set -euo pipefail
 
 SCRIPT_NAME="60-load-images"
-# CHANGE: Load per-image archives through the Docker wrapper and record local/archive/mirror sources.
-SCRIPT_VERSION="4"
+# CHANGE: Preload recorded build bases from catalogued archives or mirrors and skip builds with missing bases.
+SCRIPT_VERSION="5"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRY_RUN=false
 UNKNOWN_ARGUMENTS=()
@@ -81,6 +81,18 @@ if ! command -v python3 >/dev/null 2>&1; then
 	step_fail "python3 is required to read commands.json" "Install python3 with scripts/20-install-tooling.sh before loading images." "command -v python3" "rpm -q python3"
 fi
 mapfile -t LOCAL_BUILD_TAGS < <(python3 -c 'import json,sys; data=json.load(open(sys.argv[1],encoding="utf-8")); print("\n".join(sorted({command["tag"] for track in data.values() for lab in track.get("labs",[]) for command in lab.get("commands",[]) if command.get("type")=="build" and command.get("tag")})))' "$commands_file")
+
+if build_bases="$(jq -r '.[] | .labs[]? | .commands[]? | select(.type == "build") | .base_images[]?' "$commands_file")"; then
+	while IFS= read -r base || [[ -n "$base" ]]; do
+		[[ -n "$base" ]] || continue
+		if is_local_build_tag "$base" || [[ "$base" == localhost/* ]]; then continue; fi
+		REQUIRED_IMAGES+=("$(normalize_image "$base")")
+	done <<< "$build_bases"
+else
+	step_fail "could not read recorded build base images" "Install jq with script 20 and restore valid commands.json before preloading images." "command -v jq" "jq empty $(printf %q "$commands_file")"
+	end_report "Correct the build metadata or jq installation before preparing base images."
+	exit 1
+fi
 
 if [[ -s "$external_file" ]]; then
 	while IFS= read -r image || [[ -n "$image" ]]; do
@@ -235,7 +247,7 @@ PY
 				if podman image exists "$base" >/dev/null 2>&1; then
 					step_ok "interactive build base image is preloaded: $base"
 				else
-					step_fail "interactive build base image is absent: $base" "Pull the tagged base through the configured Artifactory mirror using podman pull; no image bundle transfer is required." "podman image exists $(printf %q "$base")" "podman pull $(printf %q "$base")" "grep -F $(printf %q "$base") $(printf %q "$external_file")"
+					step_fail "interactive build base image is absent: $base" "Stage the catalogued archive at $MANUAL_FETCH_DIR/images/$(image_asset_name "$base") or restore Artifactory mirror access, then rerun script 60." "podman image exists $(printf %q "$base")" "grep -F $(printf %q "$base") $(printf %q "$external_file")"
 				fi
 			done <<< "$base_images"
 			step_skip "interactive build was not invoked" "$track/$lab: $raw"
@@ -253,14 +265,21 @@ PY
 			continue
 		fi
 		base_images=$(python3 -c 'import json,sys; print("\n".join(json.loads(sys.argv[1])))' "$bases_json")
+		base_images_ready=true
 		while IFS= read -r base; do
 			[[ -n "$base" ]] || continue
 			base="$(normalize_image "$base")"
 			if is_local_build_tag "$base" || [[ "$base" == localhost/* ]]; then continue; fi
 			if ! podman image exists "$base" >/dev/null 2>&1; then
-				step_fail "base image required by $track/$lab is absent: $base" "Ensure the tagged external base is in external-images.txt and pull it through the configured Artifactory mirror." "podman image exists $(printf %q "$base")" "podman pull $(printf %q "$base")" "grep -F $(printf %q "$base") $(printf %q "$external_file")"
+				base_images_ready=false
+				step_fail "base image required by $track/$lab is absent: $base" "Stage the catalogued archive at $MANUAL_FETCH_DIR/images/$(image_asset_name "$base") or restore Artifactory mirror access, then rerun script 60." "podman image exists $(printf %q "$base")" "grep -F $(printf %q "$base") $(printf %q "$external_file")"
 			fi
 		done <<< "$base_images"
+		if [[ "$base_images_ready" != true ]]; then
+			printf '%s | %s | %s | BASE-IMAGES-MISSING (build skipped) | local build\n' "$track" "$lab" "${tag:-untagged}" >> "$BUILT_TAGS_TMP"
+			((UNEXPECTED_BUILD_FAILURES += 1))
+			continue
+		fi
 		steps=$(python3 -c 'import json,sys; print("\n".join(json.loads(sys.argv[1])))' "$steps_json")
 		if [[ -z "$steps" ]]; then
 			step_fail "preloadable build has no recorded preload_steps: $track/$lab" "Regenerate commands.json with scripts/dev/parse-labs.py and inspect this build record." "grep -n $(printf %q "$lab") $(printf %q "$commands_file")"

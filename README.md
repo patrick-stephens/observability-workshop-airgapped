@@ -207,6 +207,8 @@ Run `bash scripts/dev/vendor-k3s.sh` online to fetch and verify the small pinned
 Bring the Git repository onto the approved network path; no custom transfer package is required.
 Optional per-image archives may be provided at the catalogued local paths; they are operator-provided files, never repository assets.
 See [content/vendor/MANUAL-FETCH.md](content/vendor/MANUAL-FETCH.md) Section C for Docker save/load, checksum recording, and the optional connected-machine [scripts/dev/publish-image-release.sh](scripts/dev/publish-image-release.sh) publisher.
+By default, the publisher combines `content/extracted/external-images.txt` with external build bases recorded in `commands.json`, deduplicates aliases, and excludes locally built bases and `scratch`, so Python and Temurin base tarballs are included even if the external-image inventory omits them.
+An explicit `--images-file` remains a standalone custom image list; use `--dry-run` to inspect mappings without Docker pulls, saved files or release changes.
 The diagnostic pulls by default and may warm the Podman store; `--no-pull-verification` restores probe-only checks without container-store changes.
 Prefer the dedicated `docker-registry.${ART_REPO_DOMAIN}` registry endpoint; explicit path-form endpoints remain supported.
 Run `bash scripts/dev/test-artifact-resolver.sh` on the connected machine to validate local-first resolution, filesystem-only archives, mocked manifest/load verification, and registry-host derivation without network access.

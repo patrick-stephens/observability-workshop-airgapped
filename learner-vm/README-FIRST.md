@@ -59,6 +59,9 @@ This probe checks manifest access, not a complete image pull; no reboot or conta
 
 Standalone files use local-first resolution; invalid staged checksums fail without a network fallback, and absent files use their configured Artifactory URL where applicable.
 Stage optional per-image archives at `$MANUAL_FETCH_DIR/images/`; script 60 loads them through the rootful Podman Docker wrapper and pulls only missing references, and script 62 imports matching Podman images before CRI pulls.
+Script 60 v5 also includes every recorded external build base from `commands.json` in the preload checks, including bases for interactive labs, before starting any recorded builds.
+Stage Python and Java base archives as `$MANUAL_FETCH_DIR/images/library-python-3.13-bullseye.tar` and `$MANUAL_FETCH_DIR/images/library-eclipse-temurin-21.tar`, preserving the original `python:3.13-bullseye` and `eclipse-temurin:21` image references in Docker-save or OCI archives.
+Base archives use the same catalogue, checksum and embedded image validation as runtime images; missing archives use mirror recovery, corrupt archives fail before pulls, and builds with unresolved external bases are recorded as `BASE-IMAGES-MISSING` and skipped.
 See [MANUAL-FETCH.md](../content/vendor/MANUAL-FETCH.md) Section C for connected-machine Docker save commands, staging, and the optional online publisher; prefer the derived `docker-registry.${ART_REPO_DOMAIN}` endpoint or the supported path form, retaining SELinux enforcing while script 20 performs the planned firewalld change.
 
 ## Report Protocol

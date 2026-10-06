@@ -100,6 +100,7 @@ The loader validates embedded manifest/blob hashes and checks the loaded image r
 | archive ID | local staging path | optional checksum lock key | store target |
 |---|---|---|---|
 | image-busybox | $MANUAL_FETCH_DIR/images/library-busybox-1.36.tar | - | podman |
+| image-eclipse-temurin | $MANUAL_FETCH_DIR/images/library-eclipse-temurin-21.tar | - | podman |
 | image-fluent-bit | $MANUAL_FETCH_DIR/images/fluent-fluent-bit-5.1.1.tar | - | podman |
 | image-jaegertracing-all-in-one | $MANUAL_FETCH_DIR/images/jaegertracing-all-in-one-1.76.0.tar | - | podman |
 | image-node-exporter | $MANUAL_FETCH_DIR/images/prometheus-node-exporter-v1.12.1.tar | - | podman |
@@ -108,6 +109,7 @@ The loader validates embedded manifest/blob hashes and checks the loaded image r
 | image-otel-collector | $MANUAL_FETCH_DIR/images/otel-opentelemetry-collector-contrib-0.159.0.tar | - | podman |
 | image-perses | $MANUAL_FETCH_DIR/images/persesdev-perses-v0.54.0.tar | - | podman |
 | image-prometheus | $MANUAL_FETCH_DIR/images/prom-prometheus-v3.13.1.tar | - | podman |
+| image-python | $MANUAL_FETCH_DIR/images/library-python-3.13-bullseye.tar | - | podman |
 
 No archive is supplied by the repository; only catalogued files are loaded, and an absent file is SKIPPED and handled in the pull stage.
 The default checksum key `-` means no archive pin: presence is reported as unverified for the archive SHA, while embedded manifest/blob integrity is still checked.

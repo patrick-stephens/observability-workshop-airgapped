@@ -293,6 +293,86 @@ build_loop="$(awk '/^[[:space:]]*while IFS= read -r record; do$/ {capture=1} cap
 eval "$build_loop"
 [[ "$UNEXPECTED_BUILD_FAILURES" -eq 1 ]]
 printf 'Build classification PASS: invalid build metadata records an unexpected build failure before executing any build\n'
+
+recorded_bases="$(jq -r '.[] | .labs[]? | .commands[]? | select(.type == "build") | .base_images[]?' "$ROOT_DIR/content/extracted/commands.json" | sort -u)"
+while IFS= read -r base; do
+	[[ -n "$base" ]] || continue
+	asset="$(image_asset_name "$base")"
+	awk -F '\t' -v path="images/$asset" '$2 == "image-archive" && $4 == path {found=1} END {exit !found}' "$ROOT_DIR/learner-vm/artifacts.tsv"
+	[[ "$(image_canonical_reference "$(image_archive_reference "$asset")")" == "$(image_canonical_reference "$base")" ]]
+done <<< "$recorded_bases"
+printf 'Base catalogue PASS: every recorded build base has a matching archive path and original reference\n'
+
+eval "$(sed -n '/^normalize_image() {$/,/^}$/p' "$ROOT_DIR/learner-vm/scripts/60-load-images.sh")"
+commands_file="$TEMP_ROOT/base-records.json"
+base_marker="$TEMP_ROOT/build-must-not-run"
+jq -n --arg marker "$base_marker" '{fixture:{labs:[{file:"missing-base",commands:[{type:"build",tag:"fixture:base",preload_status:"PRELOADABLE-VIA-VENDORED-CONTEXT",base_images:["python:3.13-bullseye"],preload_steps:[("touch " + $marker)]}]}]}}' > "$commands_file"
+REQUIRED_IMAGES=()
+base_collection="$(sed -n '/^if build_bases=/,/^fi$/p' "$ROOT_DIR/learner-vm/scripts/60-load-images.sh")"
+[[ -n "$base_collection" ]]
+eval "$base_collection"
+[[ "${REQUIRED_IMAGES[*]}" == docker.io/library/python:3.13-bullseye ]]
+printf 'Base inventory PASS: commands.json bases are included even without external image inventory entries\n'
+
+MANUAL_FETCH_DIR="$TEMP_ROOT/base-image-stage"
+mkdir -p "$MANUAL_FETCH_DIR/images" "$TEMP_ROOT/base-archive-context"
+tar -xf "$TEMP_ROOT/docker-image.tar" -C "$TEMP_ROOT/base-archive-context"
+for base in python:3.13-bullseye eclipse-temurin:21; do
+	asset="$(image_asset_name "$base")"
+	jq --arg reference "$base" 'map(.RepoTags = [$reference])' "$TEMP_ROOT/base-archive-context/manifest.json" > "$TEMP_ROOT/base-manifest.json"
+	mv "$TEMP_ROOT/base-manifest.json" "$TEMP_ROOT/base-archive-context/manifest.json"
+	tar -cf "$MANUAL_FETCH_DIR/images/$asset" -C "$TEMP_ROOT/base-archive-context" .
+	base_id="${asset%.tar}"
+	printf 'base-%s\timage-archive\tno\timages/%s\t-\t-\tscripts/consumer.sh\tpodman\n' "${base_id//./-}" "$asset" >> "$FAKE_ROOT/learner-vm/artifacts.tsv"
+done
+base_loads=0
+: > "$MOCK_PODMAN_STORE"
+docker() {
+	local reference manifest
+	case "$1" in
+		load)
+			((base_loads += 1))
+			manifest="$(image_archive_manifest "$3")" || return 1
+			while IFS=$'\t' read -r reference _; do
+				printf '%s\n' "$reference" >> "$MOCK_PODMAN_STORE"
+			done <<< "$manifest"
+			;;
+		image)
+			reference="$(image_canonical_reference "${@: -1}")"
+			grep -Fxq "$reference" "$MOCK_PODMAN_STORE" || return 1
+			printf '%s\n' "$expected_config"
+			;;
+		*) return 1 ;;
+	esac
+}
+before_requests="$(wc -l < "$MOCK_CURL_LOG")"
+load_image_archives podman
+[[ "$base_loads" -eq 2 ]]
+for base in docker.io/library/python:3.13-bullseye docker.io/library/eclipse-temurin:21; do
+	[[ "${LOCAL_ARCHIVE_IMAGES[$base]}" == 'local archive' ]]
+done
+REQUIRED_IMAGES+=(docker.io/library/eclipse-temurin:21)
+eval "$podman_loop"
+if grep -Eq 'podman pull docker.io/library/(python|eclipse-temurin):' "$MOCK_STORE_EVENTS"; then exit 1; fi
+[[ "$(wc -l < "$MOCK_CURL_LOG")" -eq "$before_requests" ]]
+printf 'Base archives PASS: Python and Temurin Docker tarballs validated, loaded and reused without pulls\n'
+
+external_file="$ROOT_DIR/content/extracted/external-images.txt"
+grep -Fvx 'docker.io/library/python:3.13-bullseye' "$MOCK_PODMAN_STORE" > "$TEMP_ROOT/without-python"
+mv "$TEMP_ROOT/without-python" "$MOCK_PODMAN_STORE"
+UNEXPECTED_BUILD_FAILURES=0
+eval "$build_loop"
+[[ "$UNEXPECTED_BUILD_FAILURES" -eq 1 && ! -e "$base_marker" ]]
+grep -Fq 'BASE-IMAGES-MISSING (build skipped)' "$BUILT_TAGS_TMP"
+printf 'Base build gate PASS: absent Python base reports recovery and skips the build command\n'
+
+printf 'corrupt base archive\n' > "$MANUAL_FETCH_DIR/images/library-python-3.13-bullseye.tar"
+base_loads=0
+if load_image_archives podman; then exit 1; fi
+[[ "$base_loads" -eq 0 && "$(wc -l < "$MOCK_CURL_LOG")" -eq "$before_requests" ]]
+printf 'Base corruption PASS: invalid tarball fails before load or network recovery\n'
+unset -f docker
+
 exit_contract="$(tail -n 2 "$ROOT_DIR/learner-vm/scripts/60-load-images.sh")"
 for expected_status in 0 1 2; do
 	if (FAIL_COUNT="$expected_status" UNEXPECTED_BUILD_FAILURES=0; [[ "$expected_status" -ne 2 ]] || UNEXPECTED_BUILD_FAILURES=1; eval "$exit_contract"); then actual_status=0; else actual_status=$?; fi

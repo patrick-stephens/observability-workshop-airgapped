@@ -227,6 +227,26 @@
     "recovery": "Optionally provide $MANUAL_FETCH_DIR/images/library-busybox-1.36.tar; see MANUAL-FETCH.md Section C. No URL is probed or fetched; if absent, the image proceeds to the mirror pull stage."
   },
   {
+    "name": "image-eclipse-temurin",
+    "id": "image-eclipse-temurin",
+    "category": "image-archive",
+    "kind": "image-archive",
+    "source": "operator-provided filesystem archive",
+    "runtime_source": "filesystem-only",
+    "sha256_lock_key": "-",
+    "lock_key": "-",
+    "expected_sha256": null,
+    "sha256": null,
+    "staging_relative_path": "images/library-eclipse-temurin-21.tar",
+    "path": "$MANUAL_FETCH_DIR/images/library-eclipse-temurin-21.tar",
+    "consumer_script": "scripts/60-load-images.sh",
+    "install_target": "podman",
+    "required": false,
+    "used_by": "scripts/60-load-images.sh",
+    "purpose": "Load an operator-provided image archive before mirror pulls; verify an optional operator-recorded archive SHA and embedded manifest hashes when present.",
+    "recovery": "Optionally provide $MANUAL_FETCH_DIR/images/library-eclipse-temurin-21.tar; see MANUAL-FETCH.md Section C. No URL is probed or fetched; if absent, the image proceeds to the mirror pull stage."
+  },
+  {
     "name": "image-fluent-bit",
     "id": "image-fluent-bit",
     "category": "image-archive",
@@ -385,6 +405,26 @@
     "used_by": "scripts/60-load-images.sh",
     "purpose": "Load an operator-provided image archive before mirror pulls; verify an optional operator-recorded archive SHA and embedded manifest hashes when present.",
     "recovery": "Optionally provide $MANUAL_FETCH_DIR/images/prom-prometheus-v3.13.1.tar; see MANUAL-FETCH.md Section C. No URL is probed or fetched; if absent, the image proceeds to the mirror pull stage."
+  },
+  {
+    "name": "image-python",
+    "id": "image-python",
+    "category": "image-archive",
+    "kind": "image-archive",
+    "source": "operator-provided filesystem archive",
+    "runtime_source": "filesystem-only",
+    "sha256_lock_key": "-",
+    "lock_key": "-",
+    "expected_sha256": null,
+    "sha256": null,
+    "staging_relative_path": "images/library-python-3.13-bullseye.tar",
+    "path": "$MANUAL_FETCH_DIR/images/library-python-3.13-bullseye.tar",
+    "consumer_script": "scripts/60-load-images.sh",
+    "install_target": "podman",
+    "required": false,
+    "used_by": "scripts/60-load-images.sh",
+    "purpose": "Load an operator-provided image archive before mirror pulls; verify an optional operator-recorded archive SHA and embedded manifest hashes when present.",
+    "recovery": "Optionally provide $MANUAL_FETCH_DIR/images/library-python-3.13-bullseye.tar; see MANUAL-FETCH.md Section C. No URL is probed or fetched; if absent, the image proceeds to the mirror pull stage."
   },
   {
     "name": "Artifactory registry CA certificate",
