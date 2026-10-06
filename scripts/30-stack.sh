@@ -199,9 +199,7 @@ main() {
     write_images_txt
     log "Running cluster acceptance checks"
     "$SCRIPT_DIR/verify-cluster.sh"
-    log "Running observability acceptance checks"
-    "$SCRIPT_DIR/verify-observability.sh"
-    log "Complete stack installation and verification succeeded"
+    log "Cluster foundation installation succeeded; deploy/reset the demo before scripts/verify-observability.sh"
 }
 
 main "$@"

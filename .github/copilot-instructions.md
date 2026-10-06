@@ -11,7 +11,6 @@
 9. Before completing a task, run `pre-commit run --all-files` and confirm it passes. If the checks cannot be run, state why and do not claim they passed.
 10. In Markdown files, keep each sentence on a single line, with each new sentence starting on a new line.
 11. Keep `scripts/00-host-prereqs.sh`, `versions.lock`, and the README in sync whenever adding or changing a host prerequisite, development tool, or VM runtime dependency.
-
 ## Learner VM
 
 12. Learner-vm scripts are artifacts. Never execute them on the target VM; there is no AI on the airgapped network, and execution evidence arrives only via `feedback/airgap-run-*.md`. Never claim a script “works”; say it “validates and self-diagnoses”.
@@ -36,3 +35,8 @@ During provisioning, k3s system images are pulled through the Artifactory mirror
 The fully preloaded guarantee extends to k3s workloads: script 62 uses the CRI pull path, such as `k3s crictl pull`, to populate k3s containerd, and script 80 verifies k3s pods while the registry is blocked.
 Do not use `k3s ctr images pull` to test mirrors; `ctr` does not use the CRI registry configuration.
 The online registry probe returned HTTP 000 because the connected host could not resolve the configured registry hostname; treat it as not probed until the learner network is tested.
+
+## Demo Installer ISO
+
+22. The optional demo installer ISO must retain the manual replay workflow, verify pinned Ubuntu installer media, install its pinned YAML selector dependency offline, wait five seconds before selecting a disk, auto-select only one eligible non-removable writable disk, leave zero/multiple candidates interactive, verify the booted node, and exclude generated media from bundle archives and checksum manifests.
+23. Treat generated installer ISOs as private media because they embed an SSH public key and grant that account passwordless sudo.

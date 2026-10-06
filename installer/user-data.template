@@ -1,0 +1,46 @@
+#cloud-config
+autoinstall:
+  version: 1
+  # Subiquity has no storage-screen timeout; select only an unambiguous disk after a short grace period.
+  early-commands:
+    - /cdrom/installer/prepare-storage.sh @@PYTHON_YAML_VERSION@@ /autoinstall.yaml
+  interactive-sections:
+    - storage
+  locale: en_GB.UTF-8
+  apt:
+    geoip: false
+    fallback: offline-install
+    preserve_sources_list: true
+  identity:
+    hostname: observability-workshop
+    realname: Workshop Operator
+    username: ubuntu
+    password: "@@PASSWORD_HASH@@"
+  ssh:
+    install-server: true
+    allow-pw: false
+    authorized-keys:
+      - @@SSH_KEY_YAML@@
+  network:
+    version: 2
+    ethernets:
+      workshop:
+        match:
+          name: "en*"
+        dhcp4: true
+        dhcp4-overrides:
+          use-routes: false
+        dhcp6: false
+        accept-ra: false
+  late-commands:
+    - mkdir -p /target/opt/o11y-installer /target/etc/netplan /target/etc/systemd/system/multi-user.target.wants
+    - cp -a /cdrom/offline-apt /target/opt/o11y-installer/offline-apt
+    - cp /cdrom/workshop-bundle.tar.gz /target/opt/o11y-installer/workshop-bundle.tar.gz
+    - mkdir -p /target/etc/ssh/sshd_config.d
+    - printf '%s\n' 'PasswordAuthentication no' 'PubkeyAuthentication yes' > /target/etc/ssh/sshd_config.d/90-observability-workshop.conf
+    - cp /cdrom/installer/install-demo.sh /target/opt/o11y-installer/install-demo.sh
+    - if [ -f /var/log/o11y-storage-selector.log ]; then cp /var/log/o11y-storage-selector.log /target/var/log/o11y-storage-selector.log; fi
+    - cp /cdrom/installer/o11y-installer.service /target/etc/systemd/system/o11y-installer.service
+    - cp /cdrom/installer/o11y-presenter.service /target/etc/systemd/system/o11y-presenter.service
+    - chmod 0755 /target/opt/o11y-installer/install-demo.sh
+    - curtin in-target --target=/target -- systemctl enable o11y-installer.service

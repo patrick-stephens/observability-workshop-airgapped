@@ -56,10 +56,16 @@ check_hubble_monitor() {
 }
 
 check_hubble_metric() {
-    local prometheus_ip response
+    local prometheus_ip response attempt
     prometheus_ip="$(kubectl --kubeconfig "$KUBECONFIG_PATH" --namespace "$NAMESPACE" get service kube-prometheus-stack-prometheus -o jsonpath='{.spec.clusterIP}')" || return 1
-    response="$(curl --fail --silent --show-error --get "http://${prometheus_ip}:9090/api/v1/query" --data-urlencode 'query=hubble_http_requests_total')" || return 1
-    jq -e '.status == "success" and (.data.result | length > 0)' <<< "$response" >/dev/null
+    for ((attempt = 0; attempt < 30; attempt++)); do
+        if response="$(curl --fail --silent --show-error --get "http://${prometheus_ip}:9090/api/v1/query" --data-urlencode 'query=hubble_http_requests_total' 2>/dev/null)" &&
+            jq -e '.status == "success" and (.data.result | length > 0)' <<< "$response" >/dev/null; then
+            return 0
+        fi
+        sleep 2
+    done
+    return 1
 }
 
 check_alert_resources() {

@@ -1,0 +1,17 @@
+[Unit]
+Description=Start the local Perses presenter UI and cluster port-forwards
+After=docker.service k3s.service network-online.target
+Requires=docker.service k3s.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+ExecStart=/opt/observability-workshop/scripts/41-perses-portforwards.sh
+ExecStart=/opt/observability-workshop/scripts/40-perses.sh
+ExecStop=/opt/observability-workshop/scripts/42-perses-stop.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -59,6 +59,7 @@ install_chart() {
     local release_name="$1"
     local chart_name="$2"
     local values_name="${3:-$release_name}"
+    local wait_for_ready="${4:-true}"
     local lock_key="chart.${chart_name}"
     local chart_version chart_archive values_file state
     chart_version="$(locked_field "$lock_key" 2)"
@@ -78,16 +79,18 @@ install_chart() {
     esac
 
     log "Upgrading or installing ${chart_name}-${chart_version} as '$release_name'"
-    helm upgrade --install "$release_name" "$chart_archive" \
+    local -a helm_args=(upgrade --install "$release_name" "$chart_archive" \
         --namespace "$NAMESPACE" \
         --kubeconfig "$KUBECONFIG_PATH" \
-        --values "$values_file" \
-        --wait \
-        --timeout 10m
+        --values "$values_file")
+    if [[ "$wait_for_ready" == true ]]; then
+        helm_args+=(--wait --timeout 10m)
+    fi
+    helm "${helm_args[@]}"
 }
 
 # Pyroscope's v2 metastore can wedge with "non-monotonic log entries" after a disk write stall, and only a restart
-# recovers it (grafana/pyroscope#5432). The chart has no liveness setting, so a /ready probe is patched in.
+# recovers it (grafana/pyroscope#5432). Apply the probe before waiting for readiness so bootstrap can recover too.
 ensure_pyroscope_liveness() {
     log "Ensuring the Pyroscope liveness probe restarts a wedged metastore"
     kubectl --kubeconfig "$KUBECONFIG_PATH" --namespace "$NAMESPACE" patch statefulset pyroscope --type strategic --patch '
@@ -124,8 +127,9 @@ main() {
     install_chart kube-prometheus-stack kube-prometheus-stack
     install_chart loki loki
     install_chart tempo tempo
-    install_chart pyroscope pyroscope
+    install_chart pyroscope pyroscope pyroscope false
     ensure_pyroscope_liveness
+    kubectl --kubeconfig "$KUBECONFIG_PATH" --namespace "$NAMESPACE" rollout status statefulset/pyroscope --timeout=10m
     install_chart otel-collector opentelemetry-collector opentelemetry-collector
     kubectl --kubeconfig "$KUBECONFIG_PATH" create namespace demo --dry-run=client -o yaml |
         kubectl --kubeconfig "$KUBECONFIG_PATH" apply -f - >/dev/null

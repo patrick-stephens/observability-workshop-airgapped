@@ -55,7 +55,7 @@ EOF
 }
 
 main() {
-    local image file
+    local image tagged_image file
     for tool in awk curl docker; do
         if ! command -v "$tool" >/dev/null 2>&1; then
             error "required command '$tool' is not installed"
@@ -69,7 +69,9 @@ main() {
         fi
     done
     image="$(locked_field image.perses 2)"
-    if ! docker image inspect "$image" >/dev/null 2>&1; then
+    # docker load preserves the captured tag, while the lock's digest-qualified reference is not a local Docker tag.
+    tagged_image="${image%@sha256:*}"
+    if ! docker image inspect "$tagged_image" >/dev/null 2>&1; then
         error "Perses image $image is not present locally; run scripts/05-capture-cluster-assets.sh on the build node"
         exit 1
     fi
@@ -88,7 +90,7 @@ main() {
         --tmpfs /tmp:uid=65532,gid=65532 \
         --volume "${CONFIG_DIR}/config.yaml:/etc/perses/host-config.yaml:ro" \
         --volume "${DASHBOARDS_DIR}:/etc/perses/dashboards:ro" \
-        "$image" \
+        "$tagged_image" \
         --config /etc/perses/host-config.yaml \
         --web.listen-address 127.0.0.1:8080 >/dev/null
 

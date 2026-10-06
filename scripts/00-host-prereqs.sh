@@ -98,8 +98,13 @@ APT_PACKAGES=(
     openssh-client
     make
     qemu-system-x86
+    qemu-system-gui
     qemu-utils
     cloud-image-utils
+    dpkg-dev
+    openssl
+    python3-yaml
+    xorriso
     golang-go
 )
 

@@ -389,7 +389,8 @@ write_archive() {
         --sort=name \
         --owner=0 --group=0 --numeric-owner \
         --exclude='bundle/o11y-demo-*.tar.gz*' \
-        README.md versions.lock images.txt docs scripts charts values manifests bundle
+        --exclude='bundle/o11y-demo-installer-amd64.iso*' \
+        README.md versions.lock images.txt docs scripts installer charts values manifests dashboards bundle
     mv "${BUNDLE_DIR}/${archive_name}.tmp" "${BUNDLE_DIR}/${archive_name}"
     (cd "$BUNDLE_DIR" && sha256sum "$archive_name" > "${archive_name}.sha256")
 }

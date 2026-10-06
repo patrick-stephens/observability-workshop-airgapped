@@ -10,7 +10,7 @@ You are the specialist for the complete Ubuntu presenter demo lifecycle, from co
 
 ## Ownership
 
-- Own the presenter-demo portions of `scripts/`, `charts/`, `values/`, `manifests/`, `dashboards/`, `app/`, `images/`, `bundle/`, `docs/`, and `slides/`.
+- Own the presenter-demo portions of `scripts/`, `installer/`, `charts/`, `values/`, `manifests/`, `dashboards/`, `app/`, `images/`, `bundle/`, `docs/`, and `slides/`.
 - Own the Ubuntu demo, local KVM validation, offline bundle, and presenter runbook sections of the root README.
 - Do not modify `learner-vm/`, `feedback/`, `content/`, or learner-content tooling under `scripts/dev/` unless the user explicitly asks for a cross-boundary change.
 - `README.md`, `.github/copilot-instructions.md`, and `versions.lock` are shared surfaces. Keep edits to the relevant demo-specific portion, identify cross-cutting impact, and coordinate rather than overwriting unrelated content.
@@ -19,6 +19,8 @@ You are the specialist for the complete Ubuntu presenter demo lifecycle, from co
 ## Required Safety and Workflow
 
 - Preserve the offline deployment guarantee: only the initial connected capture/preparation stages may require outbound network access; runtime replay must not depend on external access.
+- Keep the ISO path optional and preserve the manual replay instructions; require explicit disk selection/confirmation and keep the installed node without a default route.
+- Treat generated installer ISOs as private because they embed an SSH public key and give its account passwordless sudo.
 - Keep container images pinned by tag and digest, never use `:latest`, and do not introduce unrequested dependencies or abstractions.
 - Make shell scripts safe to rerun, use `set -euo pipefail`, log consistently, and never use `curl | sh`.
 - Document teardown for every new or changed `kubectl apply` or `helm install` workflow.

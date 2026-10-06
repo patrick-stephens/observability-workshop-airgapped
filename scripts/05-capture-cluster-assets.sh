@@ -315,7 +315,7 @@ main() {
     checksum_temporary="$(mktemp)"
     log "Writing checksums for all captured bundle files"
     # bundle/oci, manifest.json, README.md, and the archive belong to 90-capture.sh and 91-verify-bundle.sh, not this checksum list.
-    (cd "$BUNDLE_DIR" && find . -path ./oci -prune -o -type f ! -name SHA256SUMS ! -name manifest.json ! -name README.md ! -name 'o11y-demo-*.tar.gz*' -print0 | sort -z | xargs -0 sha256sum) > "$checksum_temporary"
+    (cd "$BUNDLE_DIR" && find . -path ./oci -prune -o -type f ! -name SHA256SUMS ! -name manifest.json ! -name README.md ! -name 'o11y-demo-*.tar.gz*' ! -name 'o11y-demo-installer-amd64.iso*' -print0 | sort -z | xargs -0 sha256sum) > "$checksum_temporary"
     if [[ -f "${BUNDLE_DIR}/SHA256SUMS" ]] && cmp --silent "$checksum_temporary" "${BUNDLE_DIR}/SHA256SUMS"; then
         log "Bundle checksum manifest is unchanged"
     else

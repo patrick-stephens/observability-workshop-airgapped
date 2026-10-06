@@ -13,7 +13,7 @@ Three deliberate breaks show how symptoms from one incident appear across those 
 The Ubuntu build/replay workflow in this section is a separate deployment from the RHEL learner-VM workflow under `learner-vm/`.
 The learner VM uses the Git repository as its only transfer unit and fetches its runtime dependencies from Artifactory.
 
-The build node is used for the initial capture of dependencies and artefacts.
+The build node is used for the initial capture of dependencies and artefacts and for assembling the optional installer ISO.
 This is the only stage allowed outbound network access.
 Captured artefacts are transferred with the repository to the replay node.
 
@@ -32,6 +32,7 @@ The bundle captures immutable tag-plus-digest image pins, while replay manifests
 - `images/`: source Dockerfiles for locally built offline workload images.
 - `app/`: demo application source.
 - `bundle/`: output from offline capture; generated contents are gitignored.
+- `installer/`: autoinstall configuration and first-boot services used by the optional bootable ISO.
 - `docs/`: speaker notes, runbooks, and the appliance syslog design note.
 
 ## Copilot Q&A and Specialist Agents
@@ -66,6 +67,7 @@ Use documentation-only addresses and synthetic identifiers in committed examples
 
 On the connected Ubuntu 24.04 build host, run `sudo scripts/00-host-prereqs.sh` before starting the validation VM or capturing images.
 The script installs pinned APT packages and checksum-verified Helm and kubectl binaries from `versions.lock`, enables Docker with its Buildx plugin, loads KVM, and adds the invoking account to the `docker` and `kvm` groups.
+It also installs the pinned ISO authoring and local package-index tools used by the optional bootable installer workflow.
 Log out and back in after the first run so the new group memberships apply to your session.
 Docker-group membership grants effectively root-equivalent access, so only add a trusted build-host account.
 The script is safe to rerun and does not alter the host network or swap configuration.
@@ -95,10 +97,44 @@ It pins K3S to the guest's non-Cilium IPv4 address with IPv4 pod CIDR `10.42.0.0
 After Cilium is ready, it starts the locally imported registry image on `registry.lab.local:5000`; this local-only endpoint is required by demo preflight.
 Tetragon is a separate pinned release because the official Cilium chart does not deploy the Tetragon agent.
 
+After `30-stack.sh`, run `sudo scripts/reset.sh` to create the demo workloads, then run `sudo scripts/verify-observability.sh` so Hubble HTTP telemetry can be scraped from real demo traffic.
 Rerun the bootstrap and verification commands to confirm the setup is idempotent.
 Run `sudo scripts/90-teardown-cluster.sh` in the guest to remove the directly applied Fluent Bit syslog Service, then uninstall the observability, Tetragon, and Cilium Helm releases while leaving K3S installed.
 Run `scripts/01-local-vm.sh stop` on the host to stop the guest without deleting its disk.
 Run `scripts/01-local-vm.sh destroy` to remove the guest overlay and generated SSH/cloud-init state while retaining the verified base image.
+
+## Bootable Demo Installer ISO
+
+The ISO is an optional shortcut for installing a fresh Ubuntu 24.04 amd64 demo node; the manual workflow above remains supported and is the reference for understanding each deployment step.
+On the connected build host, run `scripts/31-capture-plugins.sh` and `scripts/90-capture.sh`, then run `scripts/06-build-installer-iso.sh`.
+The builder verifies the official Ubuntu Server installer ISO, captures the pinned Docker, curl, jq, OpenSSH, and Python YAML package dependency closure into a local APT repository, and embeds those files with the verified workshop bundle.
+The generated `bundle/o11y-demo-installer-amd64.iso` needs no network access during installation or runtime.
+The ISO embeds the public key at `~/.ssh/id_ed25519.pub` for the account building it; use `SSH_PUBLIC_KEY_FILE` to select another key.
+It grants that key's `ubuntu` account passwordless sudo for the workshop operator scripts, so protect the generated ISO as private installation media.
+
+Boot the ISO and allow five seconds for its storage probe.
+If exactly one writable, non-removable disk is available, the installer selects and erases that disk automatically.
+If zero or multiple eligible disks are found, disk selection remains interactive and the installer does not guess.
+The installer configures DHCP without default routes, installs the OS and runtime packages, then installs and verifies K3S, the offline observability stack, the demo app, and host-side Perses.
+Before proceeding, it verifies the embedded Docker archive checksum, loads the archive, and checks each pinned image tag in the local Docker store; any unavailable tags are reported individually.
+Host-side Perses uses the captured local image tag with `--pull never`; Docker archives do not preserve the lock's combined tag-and-digest reference as a local tag.
+The local QEMU route uses a separate disposable 120 GiB disk; the storage selector auto-selects it after five seconds:
+
+```bash
+scripts/01-local-vm.sh iso-start
+scripts/01-local-vm.sh iso-boot
+scripts/01-local-vm.sh iso-ssh
+scripts/01-local-vm.sh iso-verify
+scripts/01-local-vm.sh iso-status
+scripts/01-local-vm.sh iso-stop
+scripts/01-local-vm.sh iso-destroy
+```
+
+The local installer forwards SSH through `127.0.0.1:2222`; Perses listens on the installed node's localhost at `http://localhost:8080` and can be reached remotely through an SSH tunnel.
+Run `scripts/01-local-vm.sh iso-verify` after installation to check the operating system, required services, pinned host images, offline networking, and full demo preflight.
+On an installed node, run the same checks with `sudo /opt/observability-workshop/scripts/verify-installer.sh`.
+If the Ubuntu installer finishes but cannot unmount the virtual CD-ROM, stop that QEMU instance with `iso-stop` and use `iso-boot` to resume from the installed disk without rerunning the installer.
+Use `sudo scripts/90-teardown-cluster.sh` and `sudo scripts/42-perses-stop.sh` to remove the deployed stack and presenter services; the original manual/cloud-image setup is unaffected.
 
 ## Current State
 
@@ -111,7 +147,7 @@ The `sensor-sim` Deployment uses the existing `image.demo-app` image, so this ad
 `manifests/fluent-bit-syslog.yaml` exposes the in-cluster listener as a ClusterIP; a real external appliance would require a deliberate NodePort or LoadBalancer network-policy decision.
 The separate `fluent-bit-aggregator` chart is not deployed because this topology has no Fluent Bit forward-input tier; it remains an option for a future multi-tier logging design.
 Pyroscope's v2 metastore can wedge with `non-monotonic log entries` after a disk write stall, which only a restart clears (grafana/pyroscope#5432).
-`scripts/21-observability.sh` therefore patches a `/ready` liveness probe onto the Pyroscope StatefulSet, so kubelet restarts a wedged pod after about two minutes.
+`scripts/21-observability.sh` applies the `/ready` liveness probe before waiting for the Pyroscope StatefulSet rollout, so kubelet can also restart a wedged pod during first installation.
 The local KVM guest has been used to verify the Ubuntu VM and K3S installer; chart rollout verification is recorded by `scripts/verify-cluster.sh`.
 The chart teardown script removes the observability, Cilium, and Tetragon releases while preserving K3S.
 Every future `kubectl apply` or `helm install` must have its matching teardown documented here.

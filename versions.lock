@@ -14,7 +14,9 @@ go.opentelemetry.io/otel/metric v1.35.0 - Provides the metric API for the "demo"
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.35.0 - Exports business counters over the same OTLP gRPC connection as traces.
 google.golang.org/grpc v1.71.0 - Provides the single gRPC connection shared by the trace and metric OTLP exporters.
 ubuntu-24.04-cloud-image sha256:6a81c37564db9b1ee84e141922625e1d7c5b389b99bb3c572e0243607d5bb4d2 - Base image for the disposable local KVM validation VM.
+ubuntu-24.04-server-installer-amd64 sha256:97f3d7ffb032c3eb3b23d2c8be9cc76e60c2c1f2c0146ba5ba9fe01cafae0fd8 - Official Ubuntu 24.04.5 live-server ISO used as the bootable installer base.
 qemu-system-x86 1:8.2.2+ds-0ubuntu1.18 - Runs the local validation guest with KVM acceleration and user-mode networking.
+qemu-system-gui 1:8.2.2+ds-0ubuntu1.18 - Provides a local display so the installer disk can be selected and confirmed.
 qemu-utils 1:8.2.2+ds-0ubuntu1.18 - Creates the VM's qcow2 overlay without modifying the base image.
 cloud-image-utils 0.33-1 - Creates the cloud-init seed image that provisions guest SSH access.
 host-ca-certificates 20260601~24.04.1 - Supplies trusted CA certificates for pinned build-node downloads.
@@ -24,10 +26,15 @@ host-jq 1.7.1-3ubuntu0.24.04.2 - Parses structured registry and validation outpu
 host-yq 3.1.0-3 - Reads structured YAML configuration during provisioning.
 host-openssh-client 1:9.6p1-3ubuntu13.19 - Connects to the local validation VM over forwarded SSH.
 host-make 4.3-4.1build2 - Runs the Go application's documented Make targets.
+host-dpkg-dev 1.22.6ubuntu6.6 - Indexes the captured Debian packages for offline installation from the bootable ISO.
 host-docker.io 29.1.3-0ubuntu3~24.04.2 - Captures/exports images and provides Buildx for the reproducible hey image build.
 host-golang-go 2:1.22~2build1 - Builds and tests the Go demo application.
 host-helm v4.3.0 sha256:86584a54def73570558f66f5111cc53dfed56689637ae32c1201205d494f54fb - Installs the pinned vendored Helm charts.
 host-kubectl v1.32.10 sha256:6e14ef4e509e9f3d1dfc2815643f832f853d2d9f6622d4a0f83f77c7e4014b57 - Verifies the pinned K3S Kubernetes version and installed components.
+host-openssh-server 1:9.6p1-3ubuntu13.19 - Provides key-only remote access to the installed offline demo node.
+host-openssl 3.0.13-0ubuntu3.16 - Generates an unknown password hash for the key-only ISO installer account.
+host-python3-yaml 6.0.1-2build2 - Parses the autoinstall document safely in the live ISO storage selector.
+host-xorriso 1:1.5.6-1.1ubuntu3 - Rebuilds the Ubuntu Server installer ISO with the offline workshop payload.
 k3s v1.32.10+k3s1 - Kubernetes server release for the offline single-node cluster.
 k3s-binary-amd64 sha256:6f4012de542b9e831c1fcdb030645156aa4ca355202ea20ea5e544ae4ee1e650 - Verifies the pinned K3S executable.
 k3s-airgap-images-amd64.tar.zst sha256:4217e7a36bfecc66cd678e854175f740f6b97dda44b094a132bf751c7198bba9 - Preloads K3S control-plane images without runtime registry access.
@@ -71,7 +78,7 @@ image.alertmanager quay.io/prometheus/alertmanager:v0.34.1@sha256:84967b9b7ba45e
 image.prometheus quay.io/prometheus/prometheus:v3.15.0-distroless@sha256:3e84c7d7c1b07a779c0d51ab41982dce05147a6bb49a674e8dec794a7ba25447 - Prometheus registry manifest.
 image.alert-echo docker.io/library/python:3.13-alpine@sha256:f3ebba2ace255c93267a0278da88c7f1044432991abc4e6ad20d22e34dd0f8ee - Minimal JSON Alertmanager webhook sink.
 image.hey-loadgen registry.lab.local:5000/demo/hey:v0.1.4@sha256:ebf6de9ae1b0c6ba709238450c4ad88b7b6802c8ba48b217342d114caa1da4e2 - Reproducibly built self-contained hey v0.1.4 load generator.
-image.demo-app registry.lab.local:5000/demo/app:v0.1.0@sha256:6c63cc710b3732d2f713d0e53142a9083fa1837ba19733dd68efff109cd8e5d4 - Reproducibly built frontend, api, backend, and sensor-sim from app/ via images/app/Dockerfile.
+image.demo-app registry.lab.local:5000/demo/app:v0.1.0@sha256:029b44f6e41330b1aa6e41a97bd914f78625f04630d2075cd72ffedf5e86f8da - Reproducibly built frontend, api, backend, and sensor-sim from app/ via images/app/Dockerfile.
 image.local-registry docker.io/library/registry:2.8.3@sha256:46faa9a1ae6813194b53921a370f2f4f8c5e1aae228a89bceafef5847a6a3278 - Local OCI registry endpoint used by the offline demo preflight.
 image.skopeo quay.io/skopeo/stable:v1.20.0@sha256:47853bb9fb24202af9110531ebd6e43c5f97701254ca290596640290d17942f4 - Copies images into bundle/oci on the build node and seeds the local registry on the replay node.
 workshop.repo.opentelemetry a9bca59cd766da5dc07e007a5d1a6524a93edec5 - GitLab source HEAD SHA
