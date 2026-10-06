@@ -2,6 +2,12 @@
 id	kind	required	staging_relative_path	url_variable	sha256_lock_key	consumer_script	install_target
 k3s-binary	binary	yes	k3s/k3s	K3S_BINARY_URL	learner-k3s-binary-amd64	scripts/45-k3s-install.sh	/usr/local/bin/k3s
 k3s-airgap-images	archive	no	k3s/k3s-airgap-images-amd64.tar.zst	K3S_AIRGAP_IMAGES_URL	learner-k3s-airgap-images-amd64.tar.zst	scripts/45-k3s-install.sh	/var/lib/rancher/k3s/agent/images/
-image-busybox	image-archive	no	images/busybox-1.36.tar	-	image-archive.busybox-1.36	scripts/60-load-images.sh	podman
-image-node-exporter	image-archive	no	images/node-exporter-v1.12.1.tar	-	image-archive.node-exporter-v1.12.1	scripts/60-load-images.sh	podman
-image-image-bundle	image-archive	no	images/saved-images.tar	-	image-archive.saved-images	scripts/60-load-images.sh	podman
+image-jaegertracing-all-in-one	image-archive	no	images/jaegertracing-all-in-one-1.76.0.tar	-	-	scripts/60-load-images.sh	podman
+image-perses	image-archive	no	images/persesdev-perses-v0.54.0.tar	-	-	scripts/60-load-images.sh	podman
+image-opensearch	image-archive	no	images/opensearchproject-opensearch-3.3.1.tar	-	-	scripts/60-load-images.sh	podman
+image-opensearch-dashboards	image-archive	no	images/opensearchproject-opensearch-dashboards-3.3.0.tar	-	-	scripts/60-load-images.sh	podman
+image-prometheus	image-archive	no	images/prom-prometheus-v3.13.1.tar	-	-	scripts/60-load-images.sh	podman
+image-node-exporter	image-archive	no	images/prometheus-node-exporter-v1.12.1.tar	-	-	scripts/60-load-images.sh	podman
+image-fluent-bit	image-archive	no	images/fluent-fluent-bit-5.1.1.tar	-	-	scripts/60-load-images.sh	podman
+image-busybox	image-archive	no	images/library-busybox-1.36.tar	-	-	scripts/60-load-images.sh	podman
+image-otel-collector	image-archive	no	images/otel-opentelemetry-collector-contrib-0.159.0.tar	-	-	scripts/60-load-images.sh	podman

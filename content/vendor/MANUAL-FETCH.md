@@ -3,7 +3,7 @@
 This is a runtime recovery reference for the learner VM.
 The repository already contains its workshop sources, documentation mirrors, runtime build-context archives, k3s support files, `app_pod.yaml`, and `reveal.js-menu`; no action is needed for those entries.
 Standalone runtime files are resolved from checksum-verified local files before any Artifactory URL is probed or fetched.
-Runtime image pulls use the configured Artifactory mirror. If it is unavailable, stop and contact the Artifactory administrator; there is no public-internet fallback.
+Runtime images use either the configured Artifactory mirror or optional operator-provided local image archives; there is no public-internet fallback on the learner VM.
 
 ## Section A — In Repository (Already Present)
 
@@ -62,51 +62,73 @@ The `k3s-airgap-images` archive is optional and uses `K3S_AIRGAP_IMAGES_URL`, an
 If that URL is unset or the optional fetch fails, k3s obtains `registry.k8s.io` system images through the configured Artifactory registry mirrors.
 The archive is not present in Git and is not transferred separately; if intentionally staged locally, place it at `$MANUAL_FETCH_DIR/k3s/k3s-airgap-images-amd64.tar.zst`, verify lock key `learner-k3s-airgap-images-amd64.tar.zst`, and rerun script 45 so it stages the file under `/var/lib/rancher/k3s/agent/images/` before startup.
 
-## Section C — Container Images, Fetched at Provisioning Time
+## Section C — Container Images: Mirror or Local Archive
 
 Preferred: pull external images during provisioning through the Artifactory mirror using `podman pull <original-reference>` or `k3s crictl pull <original-reference>`.
 Set `ART_REPO_DOMAIN` to the base domain and leave `DOCKER_REGISTRY` empty to derive `docker-registry.${ART_REPO_DOMAIN}` (preferred); the explicit `${ART_REPO_DOMAIN}/artifactory/docker-registry` path form remains accepted.
-A manifest HTTP 404 is informational: the image may not be cached and may warm on first pull; only an actual pull establishes availability.
+A manifest HTTP 404 means not cached or not visible to this probe; it is informational, and only an actual pull establishes availability.
+The default diagnostic runs `podman pull <original-reference>`, reports duration and real pull failures, and warms the rootful Podman store for provisioning.
+Use `sudo bash learner-vm/scripts/00-diagnose.sh --no-pull-verification` for the previous probe-only mode without pulls or container-store changes; both modes exit 0 and classify failures in the report.
 
 ### Operator-Provided Image Archives
 
-Fallback: place an approved image archive at `$MANUAL_FETCH_DIR/images/<filename>.tar` using the corresponding `image-archive` row in `learner-vm/artifacts.tsv`.
-On a connected machine that is authorised to obtain the original image, run:
+Alternatively, place individual image archives at their exact `$MANUAL_FETCH_DIR/images/<filename>.tar` paths using the optional `image-archive` rows in `learner-vm/artifacts.tsv`.
+The repository remains the normal transfer item; archives are optional operator-provided files, never Git assets, and the learner VM never downloads from GitHub Releases.
+On a connected machine with Docker, create each archive from its original image reference:
 
 ```bash
-podman pull <original-reference>
-podman save --format oci-archive \
-  -o <filename>.tar <original-reference>
+docker pull <original-reference>
+docker save -o <filename>.tar <original-reference>
 ```
 
-`--format oci-archive` is interoperable with `podman load -i <path>` on the learner VM.
+Stage each transferred asset on the learner VM (replace the asset placeholder with the exact filename below):
+
+```bash
+sudo install -d -o engineer -g engineer -m 0750 \
+  /var/tmp/o11y-lab-vm-manual/images
+sudo install -o engineer -g engineer -m 0644 \
+  /path/to/<asset-name>.tar \
+  /var/tmp/o11y-lab-vm-manual/images/<asset-name>.tar
+```
+
+Docker save produces a Docker archive; the loader also accepts OCI archives and validates either format before use.
+Transfer each desired archive via the established transfer mechanism, then stage it at the corresponding path below.
+Script 60 uses `docker load -i <path>` through the learner's rootful Podman wrapper and `docker image inspect <original-reference>` to verify presence.
 The archive resolver is filesystem-only: it never probes or fetches a URL; an operator-recorded SHA-256 in `versions.lock` is verified, a mismatch is fatal, and an absent pin produces an explicit verification-skipped line.
 The loader validates embedded manifest/blob hashes and checks the loaded image references/config IDs when present, then checks each required image before deciding whether to pull it.
 
 | archive ID | local staging path | optional checksum lock key | store target |
 |---|---|---|---|
-| image-busybox | $MANUAL_FETCH_DIR/images/busybox-1.36.tar | image-archive.busybox-1.36 | podman |
-| image-image-bundle | $MANUAL_FETCH_DIR/images/saved-images.tar | image-archive.saved-images | podman |
-| image-node-exporter | $MANUAL_FETCH_DIR/images/node-exporter-v1.12.1.tar | image-archive.node-exporter-v1.12.1 | podman |
+| image-busybox | $MANUAL_FETCH_DIR/images/library-busybox-1.36.tar | - | podman |
+| image-fluent-bit | $MANUAL_FETCH_DIR/images/fluent-fluent-bit-5.1.1.tar | - | podman |
+| image-jaegertracing-all-in-one | $MANUAL_FETCH_DIR/images/jaegertracing-all-in-one-1.76.0.tar | - | podman |
+| image-node-exporter | $MANUAL_FETCH_DIR/images/prometheus-node-exporter-v1.12.1.tar | - | podman |
+| image-opensearch | $MANUAL_FETCH_DIR/images/opensearchproject-opensearch-3.3.1.tar | - | podman |
+| image-opensearch-dashboards | $MANUAL_FETCH_DIR/images/opensearchproject-opensearch-dashboards-3.3.0.tar | - | podman |
+| image-otel-collector | $MANUAL_FETCH_DIR/images/otel-opentelemetry-collector-contrib-0.159.0.tar | - | podman |
+| image-perses | $MANUAL_FETCH_DIR/images/persesdev-perses-v0.54.0.tar | - | podman |
+| image-prometheus | $MANUAL_FETCH_DIR/images/prom-prometheus-v3.13.1.tar | - | podman |
 
-No archive is supplied by the repository by default; the three slots above are optional operator choices, not approval workarounds.
-For a supplied archive also needed by k3s, set its catalog install target to `both` (or `k3s-containerd`) so script 62 conditionally imports it into namespace `k8s.io` before CRI pulls.
+No archive is supplied by the repository; only catalogued files are loaded, and an absent file is SKIPPED and handled in the pull stage.
+The default checksum key `-` means no archive pin: presence is reported as unverified for the archive SHA, while embedded manifest/blob integrity is still checked.
+For optional checksum verification, replace that row's `sha256_lock_key` with a unique key and add `key sha256:<64-hex-digest> - operator-recorded image archive` to `versions.lock` after verifying the transferred file.
+A checksum mismatch is fatal, leaves the file untouched, and performs no network fallback.
 
-### Small-Image Vendoring
+### Optional Online Release Publisher
 
-Alternatively commit an approved small archive under `content/vendor/images/`, using the same catalogued filename; local `$MANUAL_FETCH_DIR` files always take precedence over the repository copy.
-Below 30 MB per image is reasonable; above 100 MB is strongly discouraged, and large images must not be committed.
-Do not bypass the repository's large-file or secret checks; obtain review before adding an archive.
+On a connected machine only, `scripts/dev/publish-image-release.sh` uses Docker pull/save and the environment's `gh` authentication to publish one asset per pinned image.
+Asset filenames strip the registry host, preserve namespaces, and replace slash/colon separators with dashes; they match the catalogued staging filenames.
+Uploads are individual with exponential-backoff retries and a missing-asset retry pass because batch uploads can partially fail.
+Existing assets are skipped unless `--replace-existing` is set; `--retries N` sets attempts per pass (default 3), and `--images-file` and `--out` override input and output paths.
+The final report includes each archive SHA-256 and a connected-machine download pattern; nothing is downloaded by the learner VM.
 
-### Image Approval Escalation
+```bash
+bash scripts/dev/publish-image-release.sh --tag <tag> --repo <owner/name> --dry-run
+# Remove --dry-run only when intentionally publishing from the connected machine.
+```
 
-The following images are not approved for this environment yet and require escalation to the Artifactory administrator before provisioning can complete for their affected workshops:
-
-- `docker.io/jaegertracing/all-in-one:1.76.0`: affects the OpenTelemetry and OTel-for-Java workshops.
-- `docker.io/persesdev/perses:v0.54.0`: affects the Perses workshop.
-
-If an approval is not expected, discuss with the workshop organisers whether those workshops can be supported with an alternative image that is already approved.
-Image archives and vendoring do not grant approval; no substitute or workaround is implemented.
+Dry-run prints mappings and commands without client calls, directories, files, pulls, saves, uploads, or release changes.
+No tokens or release URLs are committed to learner runtime configuration or the catalog.
 
 Script 20 fetches RHEL packages and repository metadata from the configured Artifactory DNF repositories.
 If package or metadata fetches fail, capture `dnf -v repolist`, `dnf -v makecache`, repository configuration, ART_HOST DNS results, and CA/TLS diagnostics, then contact the Artifactory administrator.
@@ -116,8 +138,10 @@ If package or metadata fetches fail, capture `dnf -v repolist`, `dnf -v makecach
 | RHEL 8 packages and repository metadata | ART_HOST | FETCH AT PROVISIONING | script 20 | Capture dnf -v repolist and dnf -v makecache output, repository configuration, ART_HOST DNS results, and CA/TLS diagnostics; contact the Artifactory administrator. Do not use a public-internet fallback. |
 
 Scripts 60 and 62 pull external images through `$DOCKER_REGISTRY`, configured in `registries.conf` and `/etc/rancher/k3s/registries.yaml` before k3s starts.
-The Podman and k3s containerd stores are separate: script 60 uses `podman pull <original-reference>`; script 62 uses `k3s crictl pull <original-reference>` for external images.
-For locally built Podman images required by k3s, use `podman save` followed by `k3s ctr -n k8s.io images import`.
+The Podman and k3s containerd stores are separate: script 60 loads local archives, reuses existing images, and pulls only missing references.
+Script 62 reuses images already in k3s, otherwise saves/imports any matching Podman image (including an external image loaded from an archive), and only then uses `k3s crictl pull` for missing references.
+Store transfer uses `podman save` followed by `k3s ctr -n k8s.io images import`; never use `ctr images pull` for mirror access.
+Script 60 records per-image sources (local archive, existing store, or Artifactory mirror) in `content/extracted/built-tags.txt` and returns 0 for success, 1 for external-image failures, or 2 for unexpected build failures.
 
 | image | runtime source | status | used by | recovery |
 |---|---|---|---|---|

@@ -17,9 +17,11 @@ These transactions are not standalone file downloads.
 
 ## Container Images
 
-Optional filesystem-only `image-archive` rows identify BusyBox, node-exporter, and a saved-image set; no archive files are supplied by default.
+Nine optional filesystem-only `image-archive` rows identify individual required external images; no archive files are supplied by the repository.
 Scripts 60/62 load only present archives targeting their respective stores before checking required references and pulling any remaining images through the mirror.
-Operator-recorded archive checksums are verified when supplied, and embedded manifests/blobs are validated; archive availability does not confer organisational approval.
+Operator-recorded archive checksums are verified when supplied, and embedded manifests/blobs are validated; an unpinned archive is explicitly reported as unverified for its archive SHA.
+Only catalogued files under `$MANUAL_FETCH_DIR/images/` are considered; an absent file is SKIPPED and the image proceeds to the mirror pull stage.
+Script 60 loads through the Docker wrapper into rootful Podman; script 62 imports any matching Podman-store image into k3s before a CRI pull.
 
 Script 60 pulls external Podman images through the configured registry mirror, and script 62 pulls external Kubernetes images through `k3s crictl` and the k3s mirror configuration.
 Locally built Podman images required by k3s use `podman save` followed by `k3s ctr -n k8s.io images import`.

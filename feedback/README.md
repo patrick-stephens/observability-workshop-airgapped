@@ -12,9 +12,15 @@ Start new records from [airgap-run-template.md](airgap-run-template.md).
 
 ## Interpreting the First Diagnostic
 
+The diagnostic now performs real container pulls to classify image availability.
+A pull failure is the authoritative failure signal.
+A manifest-probe failure alone is informational.
+
 - EXPECTED on a fresh minimal base: SKIPPED or ARROW lines saying packages are not yet installed, network is not yet configured, k3s is not yet installed, or `K3S_BINARY_URL` is unset.
-- HTTP 404 for an individual image manifest means the image may be uncached and the first actual pull may warm the mirror; it is informational, not by itself a registry endpoint failure.
-- A registry failure is the endpoint itself being unreachable, failing DNS/TLS, or otherwise not responding as configured.
+- The default diagnostic is no longer read-only: it runs `podman pull` for each external image, reports timing, and notes local-store warming when the image was previously absent.
+- Use `--no-pull-verification` for the previous probe-only mode without pulls or container-store changes; both diagnostic modes retain exit 0, so review the complete report.
+- HTTP 404 for an individual manifest means not cached or not visible to this probe; it is informational, not by itself an image or registry failure.
+- An actual pull failure is classified as endpoint/DNS/TLS failure, image 404 after mirror resolution, authentication 401/403, or another failure with raw output; successful pulls are OK regardless of manifest probes.
 - Missing Skopeo on the minimal base is an expected SKIPPED result; script 20 installs it.
 - SELinux enforcing and firewalld active are informational states; retain SELinux enforcing and do not advise disabling it.
 - Script 20 owns the documented firewalld decision at provisioning time.

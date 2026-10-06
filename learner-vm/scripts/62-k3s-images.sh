@@ -2,8 +2,8 @@
 set -euo pipefail
 
 SCRIPT_NAME="62-k3s-images"
-# CHANGE: Conditionally import catalogued local image archives targeting k3s before CRI pulls.
-SCRIPT_VERSION="4"
+# CHANGE: Import any matching Podman-store image before attempting a CRI mirror pull.
+SCRIPT_VERSION="5"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRY_RUN=false
 UNKNOWN_ARGUMENTS=()
@@ -53,7 +53,9 @@ format_k3s_failure() {
 }
 
 k3s_image_exists() {
-	"$K3S" ctr -n k8s.io images list 2>/dev/null | awk -v reference="$1" '$1 == reference {found=1} END {exit !found}'
+	local canonical
+	canonical="$(image_canonical_reference "$1")"
+	"$K3S" ctr -n k8s.io images list 2>/dev/null | awk -v reference="$1" -v canonical="$canonical" '$1 == reference || $1 == canonical {found=1} END {exit !found}'
 }
 
 for file in "$SYSTEM_IMAGES" "$CURATED" "$MANIFEST"; do
@@ -114,12 +116,12 @@ if ! load_image_archives k3s; then
 fi
 
 if [[ "$DRY_RUN" == true ]]; then
-	log "external references use k3s crictl pull through the configured Artifactory mirror; local localhost references use Podman save and k3s ctr import"
+	log "all references check k3s, then Podman (save/import), before any CRI mirror pull; localhost builds must already exist in Podman"
 	for image in "${K3S_IMAGES[@]}"; do
 		if [[ "$image" == localhost/* ]]; then
 			log "would transfer exact local Podman reference with podman save and k3s ctr import: $image"
 		else
-			log "would check k3s store, then use k3s crictl pull if absent: $image"
+			log "would check k3s store, then import a matching Podman image, else k3s crictl pull: $image"
 		fi
 	done
 	step_skip "k3s CRI pulls, imports, and store verification were not executed during dry-run" "Artifactory pulls remain unverified until tested on the learner network"
@@ -129,10 +131,10 @@ fi
 
 for image in "${K3S_IMAGES[@]}"; do
 	if k3s_image_exists "$image"; then
-		step_ok "k3s containerd already has $image"
+		step_ok "k3s containerd already has $image; source existing k3s store"
 		continue
 	fi
-	if [[ "$image" == localhost/* ]]; then
+	if podman image exists "$image" >/dev/null 2>&1 || [[ "$image" == localhost/* ]]; then
 		podman_source="$image"
 		if ! podman image exists "$podman_source" >/dev/null 2>&1 && podman image exists "${image#localhost/}" >/dev/null 2>&1; then
 			podman_source="${image#localhost/}"
@@ -144,7 +146,7 @@ for image in "${K3S_IMAGES[@]}"; do
 		fi
 		PODMAN_TAR=$(mktemp "${TMPDIR:-/tmp}/62-local-image.XXXXXX.tar")
 		if podman save -o "$PODMAN_TAR" "$podman_source" && run "$K3S ctr -n k8s.io images import $(printf %q "$PODMAN_TAR")"; then
-			step_ok "saved and imported Podman image $podman_source to satisfy $image"
+			step_ok "saved and imported Podman image $podman_source to satisfy $image; source Podman store (local archive or local build/store)"
 			if podman image exists "$podman_source" >/dev/null 2>&1; then
 				step_ok "verified source reference remains in the Podman store: $podman_source"
 			else
@@ -158,7 +160,7 @@ for image in "${K3S_IMAGES[@]}"; do
 	else
 		pull_log=$(mktemp "${TMPDIR:-/tmp}/62-cri-pull.XXXXXX")
 		if "$K3S" crictl pull "$image" >"$pull_log" 2>&1; then
-			step_ok "k3s CRI pull command succeeded for $image"
+			step_ok "k3s CRI pull command succeeded for $image; source Artifactory mirror"
 		else
 			pull_status=$?
 			format_k3s_failure "$image (CRI pull exit $pull_status; $(tail -n 3 "$pull_log" | tr '\n' '; '))"

@@ -2,8 +2,8 @@
 set -euo pipefail
 
 SCRIPT_NAME="60-load-images"
-# CHANGE: Load catalogued local image archives before checking the store or pulling through Artifactory.
-SCRIPT_VERSION="3"
+# CHANGE: Load per-image archives through the Docker wrapper and record local/archive/mirror sources.
+SCRIPT_VERSION="4"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRY_RUN=false
 UNKNOWN_ARGUMENTS=()
@@ -35,6 +35,7 @@ declare -a LOCAL_BUILD_TAGS=()
 IMAGE_REPORT_TMP=''
 BUILT_TAGS_TMP=''
 OUTPUT_LOG=''
+UNEXPECTED_BUILD_FAILURES=0
 cleanup() {
 	[[ -z "$IMAGE_REPORT_TMP" ]] || rm -f -- "$IMAGE_REPORT_TMP"
 	[[ -z "$BUILT_TAGS_TMP" ]] || rm -f -- "$BUILT_TAGS_TMP"
@@ -164,7 +165,7 @@ if [[ "$DRY_RUN" == false ]]; then
 	IMAGE_REPORT_TMP=$(mktemp "${TMPDIR:-/tmp}/podman-images.XXXXXX")
 	BUILT_TAGS_TMP=$(mktemp "${TMPDIR:-/tmp}/built-tags.XXXXXX")
 	printf 'image | source | result | detail\n' > "$IMAGE_REPORT_TMP"
-	printf 'track | lab | tag | status\n' > "$BUILT_TAGS_TMP"
+	printf 'track | lab | tag | status | source\n' > "$BUILT_TAGS_TMP"
 	for image in "${REQUIRED_IMAGES[@]}"; do
 		if [[ "$image" == localhost/* ]] || is_local_build_tag "$image"; then
 			if podman image exists "$image" >/dev/null 2>&1; then
@@ -181,21 +182,26 @@ if [[ "$DRY_RUN" == false ]]; then
 			fi
 		elif podman image exists "$image" >/dev/null 2>&1; then
 			step_ok "external image already present: $image"
-			printf '%s | store | present | cached\n' "$image" >> "$IMAGE_REPORT_TMP"
+			source="${LOCAL_ARCHIVE_IMAGES[$image]:-existing store}"
+			printf '%s | %s | present | original reference verified\n' "$image" "$source" >> "$IMAGE_REPORT_TMP"
+			printf 'external | - | %s | present | %s\n' "$image" "$source" >> "$BUILT_TAGS_TMP"
 		else
 			pull_log=$(mktemp "${TMPDIR:-/tmp}/60-pull.XXXXXX")
 			if podman pull "$image" >"$pull_log" 2>&1; then
 				step_ok "Podman pull command succeeded for $image"
-				printf '%s | Artifactory-configured Podman mirror | pulled | command returned success\n' "$image" >> "$IMAGE_REPORT_TMP"
+				printf '%s | Artifactory mirror | pulled | command returned success\n' "$image" >> "$IMAGE_REPORT_TMP"
+				printf 'external | - | %s | pulled | Artifactory mirror\n' "$image" >> "$BUILT_TAGS_TMP"
 			else
 				pull_status=$?
 				if [[ -w "$LOG_FILE" || -w "$(dirname "$LOG_FILE")" ]]; then { printf '[%s] pull output for %s (exit %s)\n' "$SCRIPT_NAME" "$image" "$pull_status"; cat "$pull_log"; } >> "$LOG_FILE" 2>/dev/null || true; fi
 				printf '%s | pull | failed | exit %s\n' "$image" "$pull_status" >> "$IMAGE_REPORT_TMP"
-				step_fail "required external image pull failed through the configured Artifactory mirror: $image" "Check DNS, CA trust, approval, and DOCKER_REGISTRY=${DOCKER_REGISTRY}; see MANUAL-FETCH.md Section C. An operator archive can be staged at $MANUAL_FETCH_DIR/images/saved-images.tar." "tail -n 15 $(printf '%q' "$pull_log")" "podman info --debug 2>&1 | tail -n 15" "getent hosts $(printf '%q' "$REG_HOST")" "sed -n '1,100p' /etc/containers/registries.conf"
+				printf 'external | - | %s | FAILED | Artifactory mirror\n' "$image" >> "$BUILT_TAGS_TMP"
+				registry_pull_result "$image" "$pull_status" "$(cat "$pull_log")" 0 false
+				step_skip "expected local image path: $MANUAL_FETCH_DIR/images/$(image_asset_name "$image")" "MANUAL-FETCH.md Section C recovery"
 			fi
 			rm -f -- "$pull_log"
 			if ! podman image exists "$image" >/dev/null 2>&1; then
-				step_fail "image is absent after local-archive loading and mirror pull: $image" "See MANUAL-FETCH.md Section C; stage its approved saved image at $MANUAL_FETCH_DIR/images/saved-images.tar and retry." "podman images --no-trunc"
+				step_fail "image is absent after local-archive loading and mirror pull: $image" "See MANUAL-FETCH.md Section C; stage $MANUAL_FETCH_DIR/images/$(image_asset_name "$image") and retry." "podman images --no-trunc"
 			fi
 		fi
 	done
@@ -233,16 +239,17 @@ PY
 				fi
 			done <<< "$base_images"
 			step_skip "interactive build was not invoked" "$track/$lab: $raw"
-			printf '%s | %s | %s | INTERACTIVE (not run)\n' "$track" "$lab" "${tag:-untagged}" >> "$BUILT_TAGS_TMP"
+			printf '%s | %s | %s | INTERACTIVE (not run) | local build\n' "$track" "$lab" "${tag:-untagged}" >> "$BUILT_TAGS_TMP"
 			continue
 		fi
 		if [[ "$status" != PRELOADABLE-VIA-VENDORED-CONTEXT && "$status" != PRELOADABLE-VIA-VENDORED-DOWNLOAD && "$status" != BUILT-PRELOADABLE ]]; then
 			step_fail "build record has unsupported preload status $status" "Refresh commands.json with scripts/dev/parse-labs.py and inspect source record $track/$lab." "grep -n $(printf %q "$lab") $(printf %q "$commands_file")"
+			((UNEXPECTED_BUILD_FAILURES += 1))
 			continue
 		fi
 		if [[ -n "$tag" ]] && podman image exists "$tag" >/dev/null 2>&1; then
 			step_ok "recorded preload tag is already present: $tag"
-			printf '%s | %s | %s | ALREADY-PRESENT (build skipped)\n' "$track" "$lab" "$tag" >> "$BUILT_TAGS_TMP"
+			printf '%s | %s | %s | ALREADY-PRESENT (build skipped) | existing store\n' "$track" "$lab" "$tag" >> "$BUILT_TAGS_TMP"
 			continue
 		fi
 		base_images=$(python3 -c 'import json,sys; print("\n".join(json.loads(sys.argv[1])))' "$bases_json")
@@ -257,6 +264,7 @@ PY
 		steps=$(python3 -c 'import json,sys; print("\n".join(json.loads(sys.argv[1])))' "$steps_json")
 		if [[ -z "$steps" ]]; then
 			step_fail "preloadable build has no recorded preload_steps: $track/$lab" "Regenerate commands.json with scripts/dev/parse-labs.py and inspect this build record." "grep -n $(printf %q "$lab") $(printf %q "$commands_file")"
+			((UNEXPECTED_BUILD_FAILURES += 1))
 			continue
 		fi
 		build_failed=false
@@ -277,11 +285,13 @@ PY
 				archive_path="$REPO_ROOT/$archive"
 				if [[ ! -s "$archive_path" || ! "$expected_archive_sha" =~ ^[0-9a-f]{64}$ ]]; then
 					step_fail "runtime context archive is unavailable or unpinned: $archive" "Restore the repo ZIP and manual-fetch entry before building $track/$lab." "ls -l $(printf %q "$archive_path")" "grep -F $(printf %q "$archive") $(printf %q "$manual_json")"
+					((UNEXPECTED_BUILD_FAILURES += 1))
 					continue
 				fi
 				actual_archive_sha=$(sha256sum "$archive_path" | awk '{print $1}')
 				if [[ "$actual_archive_sha" != "$expected_archive_sha" ]]; then
 					step_fail "runtime context archive checksum mismatch: $archive" "Restore the verified archive from the repository ZIP." "sha256sum $(printf %q "$archive_path")" "grep -F $(printf %q "$archive") $(printf %q "$manual_json")"
+					((UNEXPECTED_BUILD_FAILURES += 1))
 					continue
 				fi
 				extract_dir="$REPO_ROOT/$destination_text"
@@ -289,6 +299,7 @@ PY
 					step_ok "verified and extracted runtime context archive root $archive_root for $track/$lab"
 				else
 					step_fail "could not extract verified runtime context archive $archive" "Check disk space and the archive root in commands.json." "unzip -t $(printf %q "$archive_path")" "df -hP $(printf %q "$extract_dir")"
+					((UNEXPECTED_BUILD_FAILURES += 1))
 				fi
 			else
 				if [[ "$build_step" == *"content/repos/"* ]]; then build_cwd="$REPO_ROOT"; fi
@@ -300,19 +311,21 @@ PY
 					if [[ -w "$LOG_FILE" || -w "$(dirname "$LOG_FILE")" ]]; then { printf '[%s] build output for %s/%s command=%s (exit %s)\n' "$SCRIPT_NAME" "$track" "$lab" "$build_step" "$build_status"; cat "$OUTPUT_LOG"; } >> "$LOG_FILE" 2>/dev/null || true; fi
 					printf 'BUILD FAILURE %s/%s tag=%s engine=%s cwd=%s status=%s command=%s\n' "$track" "$lab" "${tag:-untagged}" "$engine" "$cwd" "$build_status" "$build_step" >> "$IMAGE_REPORT_TMP"
 					step_fail "preload build failed for $track/$lab: ${tag:-untagged} (exit $build_status)" "Inspect the vendored build context and original command recorded for $track/$lab; do not edit upstream sources during preload." "tail -n 15 $(printf %q "$OUTPUT_LOG")" "podman images --no-trunc | head -n 20"
+					((UNEXPECTED_BUILD_FAILURES += 1))
 				fi
 			fi
 		done <<< "$steps"
 		if [[ "$build_failed" == true ]]; then
-			printf '%s | %s | %s | BUILD-FAILED (see %s)\n' "$track" "$lab" "${tag:-untagged}" "$LOG_FILE" >> "$BUILT_TAGS_TMP"
+			printf '%s | %s | %s | BUILD-FAILED (see %s) | local build\n' "$track" "$lab" "${tag:-untagged}" "$LOG_FILE" >> "$BUILT_TAGS_TMP"
 			continue
 		fi
 		if [[ -n "$tag" ]]; then
 			if podman image exists "$tag" >/dev/null 2>&1; then
-				printf '%s | %s | %s | %s\n' "$track" "$lab" "$tag" "$status" >> "$BUILT_TAGS_TMP"
+				printf '%s | %s | %s | %s | local build\n' "$track" "$lab" "$tag" "$status" >> "$BUILT_TAGS_TMP"
 				printf '%s | build | present | %s %s\n' "$tag" "$track" "$lab" >> "$IMAGE_REPORT_TMP"
 			else
 				step_fail "recorded build did not produce tag $tag for $track/$lab" "Compare the exact preload_steps and source files in commands.json; interactive builds are not invoked." "podman image exists $(printf %q "$tag")" "tail -n 15 $(printf %q "$OUTPUT_LOG")"
+				((UNEXPECTED_BUILD_FAILURES += 1))
 			fi
 		fi
 	done < <(python3 - "$commands_file" <<'PY'
@@ -337,9 +350,11 @@ PY
 				step_ok "tagged the locally built image with the exact manifest reference $manifest_image"
 			else
 				step_fail "could not create/verify required manifest tag $manifest_image" "Use the exact local image source required by the vendored Pod manifest; preserve and verify both references." "podman image inspect $(printf %q "$local_source")" "podman image inspect $(printf %q "$manifest_image")" "grep -n 'image:' $(printf %q "$manifest_path")"
+				((UNEXPECTED_BUILD_FAILURES += 1))
 			fi
 		else
 			step_fail "OpenTelemetry Pod manifest image is absent: $manifest_image" "Build the recorded hello-otel:prog context and add the exact manifest reference; never try to pull localhost as external." "podman image exists $(printf %q "$manifest_image")" "grep -n 'image:' $(printf %q "$manifest_path")"
+			((UNEXPECTED_BUILD_FAILURES += 1))
 		fi
 	fi
 
@@ -349,4 +364,5 @@ PY
 fi
 
 end_report "Review required image/build failures; after fixing them, continue with scripts/62-k3s-images.sh."
+if ((UNEXPECTED_BUILD_FAILURES > 0)); then exit 2; fi
 ((FAIL_COUNT == 0))

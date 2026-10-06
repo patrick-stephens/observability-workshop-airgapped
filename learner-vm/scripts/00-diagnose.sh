@@ -2,18 +2,20 @@
 set -euo pipefail
 
 SCRIPT_NAME="00-diagnose"
-# CHANGE: Treat pull-through cache misses as informational and fail only for an unreachable registry.
-# SCRIPT_VERSION 13: Report endpoint form, optional Skopeo, SELinux, and firewalld accurately.
-SCRIPT_VERSION="13"
+# CHANGE: Classify image availability by real pulls; --no-pull-verification retains probe-only reporting.
+# Default pulls warm the rootful Podman store; only --no-pull-verification is probe-only.
+SCRIPT_VERSION="14"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SELFTEST=false
 DRY_RUN=false
+PULL_VERIFICATION=true
 UNKNOWN_ARGUMENTS=()
 
 for argument in "$@"; do
     case "$argument" in
         --selftest) SELFTEST=true ;;
         --dry-run) DRY_RUN=true ;;
+        --no-pull-verification) PULL_VERIFICATION=false ;;
         *) UNKNOWN_ARGUMENTS+=("$argument") ;;
     esac
 done
@@ -25,7 +27,7 @@ fi
 
 begin_report
 for argument in "${UNKNOWN_ARGUMENTS[@]}"; do
-    step_fail "unknown argument: $argument" "Use learner-vm/scripts/00-diagnose.sh with --selftest, --dry-run, or no argument." "printf '%s\\n' --selftest --dry-run"
+    step_fail "unknown argument: $argument" "Use --selftest, --dry-run, or --no-pull-verification." "printf '%s\\n' --selftest --dry-run --no-pull-verification"
 done
 
 if [[ "$SELFTEST" == "true" ]]; then
@@ -36,6 +38,16 @@ if [[ "$SELFTEST" == "true" ]]; then
     registry_probe_result 'synthetic restricted manifest' 403
     registry_probe_result 'synthetic cached manifest' 200
     [[ "$REGISTRY_RESPONSES" == 3 ]] || exit 1
+    if [[ "$PULL_VERIFICATION" == true ]]; then
+        DOCKER_REGISTRY='synthetic-registry.internal' REG_HOST='synthetic-registry.internal:443'
+        registry_pull_result 'synthetic/image:1' 0 'synthetic pull succeeded despite manifest 404' 2 false
+        registry_pull_result 'synthetic/missing:1' 1 'synthetic HTTP 404 after mirror resolution' 1 false
+        registry_pull_result 'synthetic/dns:1' 1 'synthetic dial tcp: no such host' 1 false
+        registry_pull_result 'synthetic/auth:1' 1 'synthetic HTTP 401 unauthorized' 1 false
+        registry_pull_result 'synthetic/other:1' 1 'synthetic no space left on device' 1 false
+    else
+        step_skip "--no-pull-verification selected; no container pull or store warming" "synthetic probe-only mode"
+    fi
     step_fail "synthetic dependency failure" "Install the missing dependency from learner-vm/lab-vm.conf." \
         "printf 'synthetic diagnostic output\\n'" \
         "lab-selftest-command-that-does-not-exist"
@@ -46,8 +58,8 @@ fi
 
 if [[ "$DRY_RUN" == "true" ]]; then
     run "true"
-    step_skip "--dry-run requested" "read-only diagnostics were not executed"
-    end_report "rerun without --dry-run to collect the read-only environment report"
+    step_skip "--dry-run requested" "environment checks and image verification were not executed"
+    end_report "rerun without --dry-run for pull-verified diagnostics; use --no-pull-verification for probe-only reporting"
     exit 0
 fi
 
@@ -158,6 +170,10 @@ check_http_status() {
 check_manifest() {
     local reference="$1" reference_path first_component last_component repository tag manifest_path url status='000'
     [[ -n "$reference" && "$reference" != \#* ]] || return 0
+    if [[ "$PULL_VERIFICATION" == true ]]; then
+        verify_registry_pull "$reference"
+        return 0
+    fi
     reference_path="$reference"
     first_component="${reference_path%%/*}"
     if [[ "$first_component" == *.* || "$first_component" == *:* || "$first_component" == "localhost" ]]; then
@@ -253,6 +269,7 @@ if require_or_skip curl "Artifactory and registry HTTPS probes"; then
         "ghcr.io/fluent/fluent-bit:5.1.1"
         "quay.io/prometheus/node-exporter:v1.12.1"
     )
+    if [[ "$PULL_VERIFICATION" == true ]]; then known_images=(); fi
     for image in "${known_images[@]}"; do
         probed_images["$image"]=1
         check_manifest "$image"
@@ -272,7 +289,7 @@ if require_or_skip curl "Artifactory and registry HTTPS probes"; then
     else
         step_skip "external image inventory is unavailable" "transfer content/extracted/external-images.txt from the online capture"
     fi
-    if ((REGISTRY_RESPONSES == 0)); then
+    if [[ "$PULL_VERIFICATION" == false ]] && ((REGISTRY_RESPONSES == 0)); then
         registry_diagnostics "registry endpoint unreachable or refuses TLS; no registry probe received an HTTP response" "https://${DOCKER_REGISTRY}/v2/" "https://${DOCKER_REGISTRY}/v2/" "Check DNS, TLS trust, and the configured registry endpoint; per-image cache misses are not failures."
     fi
 fi

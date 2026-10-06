@@ -28,7 +28,7 @@ The bundle captures immutable tag-plus-digest image pins, while replay manifests
 - `manifests/`: Kubernetes objects applied directly; `manifests/app/` holds the demo app Deployments, Services, ServiceMonitor, and L7 visibility policy.
 - `dashboards/`: Perses project, datasources, and dashboards for the host-side Perses.
 - `scripts/`: numbered, idempotent VM, bootstrap, and demo scripts.
-- `learner-vm/`: RHEL learner VM configuration, operator run order, and read-only diagnostics; see [learner-vm/README-FIRST.md](learner-vm/README-FIRST.md).
+- `learner-vm/`: RHEL learner VM configuration, operator run order, and pull-verified diagnostics; see [learner-vm/README-FIRST.md](learner-vm/README-FIRST.md).
 - `images/`: source Dockerfiles for locally built offline workload images.
 - `app/`: demo application source.
 - `bundle/`: output from offline capture; generated contents are gitignored.
@@ -196,7 +196,9 @@ Run `python3 scripts/dev/patch-docs.py` to patch both mirrored documentation and
 Run `python3 scripts/dev/create-reviewer-packet.py` after regenerating parser and curation outputs to assemble the bounded k3s, build-status, runtime-download, and curation evidence in `content/extracted/reviewer-packet.md`.
 Run `bash scripts/dev/vendor-k3s.sh` online to fetch and verify the small pinned installer, system-image list, and RHEL 8 SELinux RPM.
 Bring the Git repository onto the approved network path; no custom transfer package is required.
-Optional approved image archives may be provided at the catalogued local paths or, when small, committed under `content/vendor/images/`; see [content/vendor/MANUAL-FETCH.md](content/vendor/MANUAL-FETCH.md) Section C.
+Optional per-image archives may be provided at the catalogued local paths; they are operator-provided files, never repository assets.
+See [content/vendor/MANUAL-FETCH.md](content/vendor/MANUAL-FETCH.md) Section C for Docker save/load, checksum recording, and the optional connected-machine [scripts/dev/publish-image-release.sh](scripts/dev/publish-image-release.sh) publisher.
+The diagnostic pulls by default and may warm the Podman store; `--no-pull-verification` restores probe-only checks without container-store changes.
 Prefer the dedicated `docker-registry.${ART_REPO_DOMAIN}` registry endpoint; explicit path-form endpoints remain supported.
 Run `bash scripts/dev/test-artifact-resolver.sh` on the connected machine to validate local-first resolution, filesystem-only archives, mocked manifest/load verification, and registry-host derivation without network access.
 On the learner VM, set `K3S_BINARY_URL` in `learner-vm/lab-vm.conf` to the exact generic-file URL supplied by the Artifactory administrator before provisioning.

@@ -1,0 +1,428 @@
+Prompt 22 — Local-first image loading, pull-verified diagnostics, and an optional release publisher
+
+Context
+-------
+Read .github/copilot-instructions.md and the newest
+feedback/airgap-run-*.md files. Inspect the current artifacts.tsv,
+scripts/lib.sh, scripts/00-diagnose.sh, scripts/60-load-images.sh,
+scripts/62-k3s-images.sh, lab-vm.conf, versions.lock,
+content/extracted/external-images.txt,
+content/vendor/MANUAL-FETCH.md, and content/vendor/manual-fetch.json.
+
+Established facts — do not re-litigate:
+
+- The learner VM cannot reach GitHub Release URLs directly.
+- Image tarballs may be downloaded elsewhere and placed on the
+  learner VM by an approved transfer mechanism.
+- Otherwise, images are pulled from Artifactory during provisioning.
+- Organisational approval for the required images is in place. Remove
+  all "unapproved image" callouts and any language that treats
+  approval as a workaround or open question.
+- The repository is the only normal transfer item. Local image
+  archives are optional operator-provided files, not repository
+  artifacts.
+- Do not modify the separate Ubuntu offline-cluster workflow.
+
+Findings from the latest diagnostic that this prompt responds to:
+
+- The manifest probe returns HTTP 404 for images the operator can
+  pull successfully on the same VM. The 404 means "not cached or not
+  visible to this probe", not "unavailable". The diagnostic must
+  avoid reporting these as failures.
+- Container images are the only remaining artefact class that
+  benefits from explicit local provision. The k3s binary and airgap
+  archive already use the local-first resolver.
+
+This task runs on the connected upstream machine only. Do not access
+the learner VM or run provisioning against it.
+
+Objective
+---------
+Three changes:
+
+1. Make the diagnostic verify ambiguous manifest results with an
+   actual container pull, so it reports only true failures.
+2. Support one local tarball per image via the catalog so the
+   operator can stage only the missing ones.
+3. Add an optional online-side publisher that creates a GitHub
+   Release with one tarball per required image at the pinned
+   version, with retry logic for partial uploads.
+
+Task 1 — diagnostic verifies ambiguous probes by pulling
+--------------------------------------------------------
+Update scripts/00-diagnose.sh. Bump SCRIPT_VERSION, add a CHANGE
+comment.
+
+For the registry image check, replace the current probe reporting
+with:
+
+1. For each image reference in
+   content/extracted/external-images.txt:
+
+   a. Attempt `podman pull <original-reference>` first. This is
+      authoritative: success means the image is available; failure
+      means it is not.
+   b. If the pull succeeds:
+      - report OK for that image, with the pull duration;
+      - if the image was absent before the pull, note that the
+        diagnostic warmed the local store as a side effect.
+   c. If the pull fails:
+      - capture the exact pull output;
+      - classify the failure:
+          * registry endpoint unreachable, DNS, or TLS failure →
+            real FAIL with endpoint diagnostics;
+          * registry reachable but image returns 404 after mirror
+            resolution → real FAIL for that specific image, with
+            the reference and the mirror endpoint;
+          * authentication required → real FAIL with the exact
+            401/403 response and a fix-hint;
+          * any other failure → real FAIL with the raw output.
+   d. Do not report a manifest probe result as a failure on its own.
+      The manifest probe may be retained as an optional informational
+      fast-path, but the pull result decides pass/fail per image.
+2. The diagnostic now modifies the local Podman store by pulling
+   images. This is a deliberate change from read-only behaviour:
+   it is the mechanism that proves image availability and warms
+   the store for provisioning.
+
+   Update the script header comment accordingly. Add a
+   `--no-pull-verification` flag that reverts to probe-only,
+   read-only reporting. Default behaviour pulls. Document the
+   difference in the header.
+
+   The diagnostic no longer claims to be read-only by default.
+   Update feedback/README.md to state this in the interpretation
+   guidance.
+
+3. Keep both supported registry endpoint forms:
+   preferred subdomain `docker-registry.<ART_REPO_DOMAIN>` and the
+   configured path form.
+
+4. Keep reporting the k3s binary resolution, k3s airgap archive
+   resolution, SELinux mode, firewalld state, DNF state, CA trust,
+   ISO mount, content presence, and package availability checks
+   unchanged. Skopeo absent remains SKIPPED; script 20 installs it.
+
+Qualifying on "read-only": the previous version's contract was
+read-only and exit 0. The pull-verified default changes the first
+part. Preserve the exit-0 behaviour; the report classifies failures
+rather than gating on them, as before.
+
+Task 2 — one catalog row per image archive
+------------------------------------------
+Update learner-vm/artifacts.tsv. Replace the single catch-all
+`saved-images.tar` row with one row per image, so an operator can
+stage only the ones they need. Do not add GitHub-Release fields, an
+IMAGE_ARCHIVE_BASE_URL, or per-image URL variables. Image archives
+remain filesystem-only.
+
+Rows to add (id | kind | required | staging path | url_variable |
+sha256_lock_key | consumer | install_target):
+
+  image-jaegertracing-all-in-one
+    image-archive | no |
+    images/jaegertracing-all-in-one-1.76.0.tar | - | - |
+    scripts/60-load-images.sh | podman
+
+  image-perses
+    image-archive | no |
+    images/persesdev-perses-v0.54.0.tar | - | - |
+    scripts/60-load-images.sh | podman
+
+  image-opensearch
+    image-archive | no |
+    images/opensearchproject-opensearch-3.3.1.tar | - | - |
+    scripts/60-load-images.sh | podman
+
+  image-opensearch-dashboards
+    image-archive | no |
+    images/opensearchproject-opensearch-dashboards-3.3.0.tar | - | - |
+    scripts/60-load-images.sh | podman
+
+  image-prometheus
+    image-archive | no |
+    images/prom-prometheus-v3.13.1.tar | - | - |
+    scripts/60-load-images.sh | podman
+
+  image-node-exporter
+    image-archive | no |
+    images/prometheus-node-exporter-v1.12.1.tar | - | - |
+    scripts/60-load-images.sh | podman
+
+  image-fluent-bit
+    image-archive | no |
+    images/fluent-fluent-bit-5.1.1.tar | - | - |
+    scripts/60-load-images.sh | podman
+
+  image-busybox
+    image-archive | no |
+    images/library-busybox-1.36.tar | - | - |
+    scripts/60-load-images.sh | podman
+
+  image-otel-collector
+    image-archive | no |
+    images/otel-opentelemetry-collector-contrib-0.159.0.tar | - | - |
+    scripts/60-load-images.sh | podman
+
+Use the actual references from content/extracted/external-images.txt.
+If a listed image is not present there, do not add a row for it.
+Filenames follow the release asset naming in Task 5 so a
+downloaded asset can be placed directly at its catalogued path.
+
+If a checksum is recorded in versions.lock against the row's
+sha256_lock_key, the resolver verifies it. If not, the archive is
+loaded and reported as unverified. No checksum is required.
+
+Resolver behaviour for image-archive rows:
+  1. If the file exists at its catalogued staging path:
+     - verify against versions.lock if a checksum is recorded;
+       mismatch is FATAL with no network call;
+     - otherwise report present (unverified);
+     - return the path, no network activity.
+  2. If absent:
+     - report SKIPPED for that image;
+     - do not probe or fetch any URL;
+     - the image is handled in the pull stage.
+Do not load arbitrary files from the staging directory.
+
+Task 3 — scripts/60-load-images.sh
+---------------------------------
+Bump SCRIPT_VERSION, add a CHANGE comment.
+
+Verify or implement this sequence:
+
+1. For every image-archive row in the catalog, resolve it via the
+   shared helper.
+2. For each resolved archive file:
+   - load it with `docker load -i <path>` through the sudo wrapper
+     (this loads into the rootful Podman store);
+   - verify the original reference is now present via
+     `docker image inspect <original-reference>`;
+   - record the source as "local archive".
+3. Check every required image reference against the Podman store.
+4. For each image still absent, pull the original reference through
+   the configured Artifactory mirror. Record the source as
+   "Artifactory mirror".
+5. A local archive is an optimisation and a fallback, not a
+   requirement. Its absence must not fail setup if the pull
+   succeeds.
+6. If both paths fail for a required image: fail with the exact
+   reference, the pull output, the mirror endpoint, and the
+   diagnostic that shows whether the registry endpoint itself was
+   reachable.
+7. Write per-image results to content/extracted/built-tags.txt as
+   before, extended with the source field.
+8. Final exit codes: 0 all present; 1 any external pull failed; 2
+   any unexpected build failure (unchanged).
+
+Do not attempt a GitHub Release download, a public-internet fetch,
+or any URL-based image acquisition. Do not load arbitrary files.
+
+Task 4 — scripts/62-k3s-images.sh
+---------------------------------
+Bump SCRIPT_VERSION, add a CHANGE comment.
+
+For each external image needed by a k3s workload:
+
+1. If already in the k3s containerd store, skip.
+2. Else if present in the Podman store (including from a local
+   archive loaded by script 60): `podman save -o /tmp/<name>.tar
+   <original-reference>`, then
+   `k3s ctr -n k8s.io images import /tmp/<name>.tar`.
+3. Else `k3s crictl pull <original-reference>` through the
+   configured k3s Artifactory mirror.
+4. Report the source for each image.
+5. On failure, print reference, endpoint, k3s version,
+   `k3s crictl images`, and journal excerpts. Do not use
+   `k3s ctr images pull` for mirror access. Do not download image
+   archives from URLs.
+
+Task 5 — optional online-side release publisher
+----------------------------------------------
+Create scripts/dev/publish-image-release.sh. It runs on the
+connected upstream machine. It is a convenience for the operator to
+publish image tarballs as GitHub Release assets, so individual
+missing images can be downloaded and sneakernetted to the learner
+VM. The learner VM never fetches from the release.
+
+Requirements:
+
+Inputs:
+  --tag <tag>                 release tag (required)
+  --repo <owner/name>         target repository (required)
+  --images-file <path>        default:
+                              content/extracted/external-images.txt
+  --out <dir>                 default: dist/image-release/
+  --dry-run                   print actions; do not pull, upload, or
+                              modify the release
+  --replace-existing          replace assets that already exist
+                              (default: skip them)
+  --retries N                 upload retries per asset (default 3)
+
+Behaviour:
+1. Read the image list. Fail with a clear message if the file is
+   empty or missing.
+2. For each reference, derive a deterministic asset filename:
+     <registry-stripped-path>-<tag>.tar
+   where '/' becomes '-', ':' becomes '-', and known prefixes
+   (library/, docker.io/, ghcr.io/, quay.io/, opensearchproject/,
+   jaegertracing/, prom/, prometheus/, persesdev/, otel/) are
+   preserved for readability.
+   Example: docker.io/jaegertracing/all-in-one:1.76.0 →
+            jaegertracing-all-in-one-1.76.0.tar
+   The naming must be stable: rerunning the tool must produce the
+   same filenames. List the exact filename mapping in the output.
+3. Pull each image with Podman on the connected machine, then
+   `podman save --format oci-archive -o <asset> <reference>`.
+4. Verify every generated asset is present and has nonzero size
+   before proceeding. Fail before uploading if any is missing.
+5. Create or update the release:
+     gh release view <tag> --repo <repo> || gh release create ...
+   Do not add release notes or a tag body; use `--notes ""` and
+   `--latest=false` unless the operator overrides.
+6. For each asset:
+   - if it already exists on the release and --replace-existing is
+     not set, skip it and record it as "skipped (existing)";
+   - otherwise upload with `gh release upload --clobber` and up to
+     --retries attempts with exponential backoff (1s, 2s, 4s).
+   Upload individually, not as a batch: GitHub splits batch uploads
+   and reports combined failures that are hard to attribute.
+7. After the upload pass, list the release's assets via
+     gh api repos/<repo>/releases/tags/<tag> --jq '.assets[].name'
+   Compare against the expected asset set.
+   Any missing asset is a candidate for the retry pass.
+8. Retry pass: for each missing asset, rerun the individual upload
+   with the same backoff, up to --retries attempts, then re-check.
+9. Final report:
+   - assets created, skipped, uploaded after retry, or still
+     missing;
+   - the exact reference-to-asset mapping;
+   - the base URL pattern the operator can use to download each
+     asset on a connected machine, for example:
+       https://github.com/<repo>/releases/download/<tag>/<asset>
+   - the SHA-256 of each asset, so the operator can optionally
+     record it in versions.lock against the catalog row's
+     sha256_lock_key and get checksum verification on the VM;
+   - a plain-language "if any asset is still missing, this is a
+     release-side failure, not a VM-side one — retry manually with
+     gh release upload".
+10. `--dry-run` performs no pulls, no saves, no uploads, and no
+    release modification. It prints the asset list, filenames, and
+    commands it would run.
+11. Do not embed tokens in the script. Use the environment's `gh`
+    authentication or a `GH_TOKEN` from the environment.
+12. Do not push anything to GitHub in `--dry-run`.
+13. If `gh` is not available, exit with a clear fix-hint; do not
+    silently fall back to curl.
+
+Also write a short paragraph in the script header explaining why
+uploading is per-asset with retries: GitHub release uploads can
+partially fail when many assets are uploaded together, so the tool
+uploads individually and retries only what is missing.
+
+Manually downloading an asset for sneakernet is the operator's
+responsibility. Do not build a downloader into this script.
+
+Task 6 — documentation
+----------------------
+Update content/vendor/MANUAL-FETCH.md,
+content/vendor/manual-fetch.json, README-FIRST.md, and
+feedback/README.md.
+
+MANUAL-FETCH.md Section C:
+- Remove the approval-notice callouts entirely.
+- Document only these two image routes, in preference order:
+  1. Preferred/default: pull original image references through the
+     configured Artifactory mirror during provisioning.
+  2. Optional local fallback: provide one tarball per image at its
+     catalogued staging path
+     `$MANUAL_FETCH_DIR/images/<asset_name>`. Script 60 loads any
+     present archives, then pulls only the images still absent.
+- Document the connected-machine asset creation:
+    podman pull <original-reference>
+    podman save --format oci-archive -o <asset-name>.tar \
+      <original-reference>
+- Document that assets are produced optionally by
+  scripts/dev/publish-image-release.sh and can be downloaded
+  individually for sneakernet.
+- Document the VM staging:
+    sudo install -d -o engineer -g engineer -m 0750 \
+      /var/tmp/o11y-lab-vm-manual/images
+    sudo install -o engineer -g engineer -m 0644 \
+      /path/to/<asset-name>.tar \
+      /var/tmp/o11y-lab-vm-manual/images/<asset-name>.tar
+- State plainly that a diagnostic manifest-probe 404 is
+  informational; the diagnostic's pull result is authoritative.
+
+Regenerate manual-fetch.json from the catalog. One entry per
+image-archive row. Remove all URL fields and approval notices.
+
+README-FIRST.md runtime-recovery paragraph: reference Section C and
+the staging directory in at most three sentences.
+
+feedback/README.md interpretation guidance:
+- Replace the previous wording about pull-through 404s with: "The
+  diagnostic now performs real container pulls to classify image
+  availability. A pull failure is the authoritative failure signal.
+  A manifest-probe failure alone is informational."
+- Add a note that the diagnostic is no longer read-only by default;
+  it warms the local image store. The
+  `--no-pull-verification` flag restores probe-only behaviour.
+- Remove any "unapproved image" guidance.
+
+Task 7 — validation
+-------------------
+On the connected machine only:
+
+- bash -n and error-level ShellCheck on all changed scripts.
+- pre-commit run --all-files; report the known historical EOF
+  exception rather than modifying unrelated files.
+- scripts/00-diagnose.sh --selftest.
+- scripts/00-diagnose.sh --no-pull-verification --selftest, if the
+  flag supports a synthetic mode; otherwise confirm the flag is
+  parsed and the fallback behaviour is probe-only in --dry-run.
+- Resolver test cases with temporary fixtures:
+    a. archive present, no checksum: loaded and reported unverified;
+       no network call.
+    b. archive present with matching recorded checksum: loaded; no
+       network call.
+    c. archive present with mismatched checksum: FATAL; no network
+       call; file untouched.
+    d. archive absent: SKIPPED; no network call.
+    e. --dry-run: no files created, no downloads attempted.
+- publish-image-release.sh --dry-run: asset list printed,
+  deterministic naming verified on the actual image list, no
+  pulls or uploads performed.
+- grep audit results:
+    * no IMAGE_ARCHIVE_BASE_URL, GitHub Release publisher, or
+      image-archive URL fetch in learner-VM runtime scripts;
+    * no "unapproved image", "approval", or "not approved" language
+      remains in active operator docs;
+    * no public-internet fetch path in learner-VM scripts (public
+      release URLs may appear in documentation examples only);
+    * no literal `github.com` in learner-VM scripts.
+
+Do not run provisioning against the learner VM. Do not claim the
+release, image fetch, image load, or offline operation have been
+tested there.
+
+Acceptance
+----------
+Combine the following into a single text file to upload:
+
+1. Paste the updated artifacts.tsv in full.
+2. Paste the updated diagnostic's registry-check section, or its
+   --selftest output, showing pull-verified classification.
+3. Paste the resolver test results (a-e).
+4. Paste publish-image-release.sh --dry-run output, showing asset
+   filenames derived from the current image list.
+5. Paste MANUAL-FETCH.md Section C in full, without approval
+   language.
+6. Report bash syntax, ShellCheck, pre-commit, and all grep-audit
+   results.
+7. State explicitly: image archives remain filesystem-only and
+   optional; the diagnostic default now performs real pulls to
+   distinguish true failures from probe false positives;
+   organisational approval is assumed in place; the learner VM was
+   not accessed.
+8. Leave changes uncommitted and unstaged.

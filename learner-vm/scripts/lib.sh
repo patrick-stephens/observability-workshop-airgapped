@@ -1,8 +1,8 @@
 # shellcheck shell=bash
 set -euo pipefail
 
-# CHANGE: Support both registry endpoint forms and filesystem-only, manifest-validated image archives.
-LIB_VERSION="6"
+# CHANGE: Resolve operator-only per-image archives and record locally loaded references.
+LIB_VERSION="7"
 : "${SCRIPT_NAME:?Set SCRIPT_NAME before sourcing scripts/lib.sh}"
 : "${SCRIPT_VERSION:?Set SCRIPT_VERSION before sourcing scripts/lib.sh}"
 
@@ -200,14 +200,96 @@ registry_probe_result() {
     case "$status" in
         200) step_skip "HTTP 200: image cached" "registry probe $reference (informational)" ;;
         401|403) step_skip "HTTP $status: registry requires auth or has restricted access" "registry probe $reference (informational)" ;;
-        404) step_skip "HTTP 404: image not cached - will warm on first pull; pull availability is not established by this probe" "registry probe $reference (informational)" ;;
+        404) step_skip "HTTP 404: not cached or not visible to this probe; pull result decides availability" "registry probe $reference (informational)" ;;
         000|'') step_skip "endpoint unreachable or DNS/TLS failure; evaluating all registry responses before reporting failure" "registry probe $reference (HTTP 000)" ;;
         *) step_skip "HTTP $status: endpoint responded; use a mirror pull to establish image availability" "registry probe $reference (informational)" ;;
     esac
 }
 
+registry_pull_result() {
+    local reference="$1" status="$2" output="$3" duration="$4" was_present="$5" category fix_hint
+    if ((status == 0)); then
+        local warming='already present before pull'
+        [[ "$was_present" == true ]] || warming='diagnostic warmed the local Podman store as a side effect'
+        step_ok "pull verified $reference via $DOCKER_REGISTRY in ${duration}s; $warming"
+        return 0
+    fi
+    if grep -Eiq 'no such host|name.*resol|connection refused|network.*unreachable|timeout|timed out|TLS|x509|certificate' <<< "$output"; then
+        category='registry endpoint unreachable, DNS, or TLS failure'
+        fix_hint='Check endpoint DNS, TLS trust, and registry routing.'
+    elif grep -Eq '401|403' <<< "$output" || grep -Eiq 'unauthorized|authentication required|denied' <<< "$output"; then
+        category='authentication required or restricted access (see exact response below)'
+        fix_hint='Ask the registry administrator to correct access; do not infer access from manifest probes.'
+    elif grep -Eiq '404|manifest unknown|name unknown|not found' <<< "$output"; then
+        category='image absent after mirror resolution'
+        fix_hint='Check the original reference and image availability at the configured mirror.'
+    else
+        category='container pull failed'
+        fix_hint='Inspect the exact pull output before retrying.'
+    fi
+    log "exact pull output for $reference (exit $status): $output"
+    if [[ "$SELFTEST_MODE" == true ]]; then
+        step_fail "$category for $reference at $DOCKER_REGISTRY (exit $status, ${duration}s)" "$fix_hint Synthetic fixture; no network request." "printf '%s\\n' $(printf '%q' "$output")"
+        return 0
+    fi
+    local tls_connect="$REG_HOST"
+    [[ "$REG_HOST" == *:* ]] || tls_connect="$REG_HOST:443"
+    step_fail "$category for $reference at $DOCKER_REGISTRY (exit $status, ${duration}s)" "$fix_hint See MANUAL-FETCH.md Section C for the optional local archive." \
+        "printf '%s\\n' $(printf '%q' "$output")" \
+        "getent hosts $(printf '%q' "${REG_HOST%%:*}")" \
+        "curl -vI --connect-timeout 5 --max-time 10 https://$(printf '%q' "$DOCKER_REGISTRY")/v2/ 2>&1 | tail -n 12" \
+        "printf '' | openssl s_client -connect $(printf '%q' "$tls_connect") -servername $(printf '%q' "${REG_HOST%%:*}") 2>&1 | tail -n 10"
+}
+
+verify_registry_pull() {
+    local reference="$1" was_present=false started="$SECONDS" output status=0
+    if ! command -v podman >/dev/null 2>&1; then
+        step_skip "Podman absent on minimal base; script 20 installs it" "pull verification unavailable for $reference"
+        return 0
+    fi
+    if podman image exists "$reference" >/dev/null 2>&1; then was_present=true; fi
+    if output="$(podman pull "$reference" 2>&1)"; then :; else status=$?; fi
+    registry_pull_result "$reference" "$status" "$output" "$((SECONDS - started))" "$was_present"
+}
+
 image_archive_ids() {
     awk -F '\t' '$0 !~ /^#/ && $2 == "image-archive" {print $1}' "$REPO_ROOT/learner-vm/artifacts.tsv"
+}
+
+image_canonical_reference() {
+    local reference="$1" first="${1%%/*}"
+    if [[ "$reference" != */* ]]; then
+        printf 'docker.io/library/%s\n' "$reference"
+    elif [[ "$first" != *.* && "$first" != *:* && "$first" != localhost ]]; then
+        printf 'docker.io/%s\n' "$reference"
+    else
+        printf '%s\n' "$reference"
+    fi
+}
+
+image_asset_name() {
+    local reference="$1" first path
+    first="${reference%%/*}"
+    path="$reference"
+    if [[ "$reference" == */* && ( "$first" == *.* || "$first" == *:* || "$first" == localhost ) ]]; then
+        path="${reference#*/}"
+    elif [[ "$reference" != */* ]]; then
+        path="library/$reference"
+    fi
+    [[ "$path" =~ ^[A-Za-z0-9._/-]+:[A-Za-z0-9._-]+$ ]] || return 1
+    path="${path//\//-}"
+    printf '%s.tar\n' "${path//:/-}"
+}
+
+image_archive_reference() {
+    local filename="$1" reference asset
+    while IFS= read -r reference || [[ -n "$reference" ]]; do
+        reference="${reference%%#*}"
+        [[ -n "$reference" ]] || continue
+        asset="$(image_asset_name "$reference")" || return 1
+        if [[ "$asset" == "$filename" ]]; then printf '%s\n' "$reference"; return 0; fi
+    done < "$REPO_ROOT/content/extracted/external-images.txt"
+    return 1
 }
 
 image_archive_manifest() {
@@ -303,7 +385,8 @@ PY
 }
 
 load_image_archives() {
-    local store="$1" artifact_id result archive_path manifest reference config_digest manifest_digest actual
+    local store="$1" artifact_id result archive_path manifest reference config_digest manifest_digest actual expected_reference
+    declare -gA LOCAL_ARCHIVE_IMAGES=()
     while IFS= read -r artifact_id; do
         artifact_metadata "$artifact_id" || return 1
         case "$store:$ARTIFACT_INSTALL_TARGET" in
@@ -316,6 +399,10 @@ load_image_archives() {
             return 1
         fi
         archive_path="$ARTIFACT_RESOLVED_PATH"
+        expected_reference="$(image_archive_reference "${ARTIFACT_RELATIVE_PATH##*/}")" || {
+            step_fail "catalog archive has no matching original image reference: $artifact_id" "Match its filename to content/extracted/external-images.txt before loading."
+            return 1
+        }
         if ! manifest="$(image_archive_manifest "$archive_path" 2>/dev/null)"; then
             step_fail "image archive $artifact_id contains an invalid manifest or blob checksum" "Correct $archive_path; see MANUAL-FETCH.md Section C. No network fallback is attempted for a corrupt archive."
             return 1
@@ -325,10 +412,15 @@ load_image_archives() {
             continue
         fi
         if [[ "$store" == podman ]]; then
-            if ! podman load -i "$archive_path"; then
+            if ! docker load -i "$archive_path"; then
                 step_fail "could not load $artifact_id into Podman" "Check $archive_path and the rootful store; see MANUAL-FETCH.md Section C."
                 return 1
             fi
+            if ! docker image inspect "$expected_reference" >/dev/null 2>&1; then
+                step_fail "local archive did not load original reference $expected_reference" "Correct $archive_path; see MANUAL-FETCH.md Section C."
+                return 1
+            fi
+            LOCAL_ARCHIVE_IMAGES["$expected_reference"]='local archive'
         elif ! /usr/local/bin/k3s ctr -n k8s.io images import "$archive_path"; then
             step_fail "could not import $artifact_id into k3s" "Check $archive_path and the k8s.io namespace; see MANUAL-FETCH.md Section C."
             return 1
@@ -336,12 +428,13 @@ load_image_archives() {
         while IFS=$'\t' read -r reference config_digest manifest_digest; do
             [[ -n "$reference" ]] || continue
             if [[ "$store" == podman ]]; then
-                actual="$(podman image inspect --format '{{.Id}}' "$reference" 2>/dev/null || true)"
+                actual="$(docker image inspect --format '{{.Id}}' "$reference" 2>/dev/null || true)"
                 actual="sha256:${actual#sha256:}"
                 if [[ "$actual" != "$config_digest" ]]; then
                     step_fail "loaded image config digest mismatch for $reference: expected $config_digest, actual $actual" "Correct $archive_path before provisioning; see MANUAL-FETCH.md Section C."
                     return 1
                 fi
+                LOCAL_ARCHIVE_IMAGES["$reference"]='local archive'
             else
                 actual="$(/usr/local/bin/k3s ctr -n k8s.io images list | awk -v ref="$reference" '$1 == ref {print $3; exit}')"
                 if [[ -z "$actual" || ( "$manifest_digest" != - && "$actual" != "$manifest_digest" ) ]]; then
@@ -511,11 +604,8 @@ resolve_artifact() {
 
     if [[ "$ARTIFACT_KIND" == image-archive ]]; then
         if [[ ! -e "$local_path" && ! -L "$local_path" ]]; then
-            local_path="$REPO_ROOT/content/vendor/$ARTIFACT_RELATIVE_PATH"
-        fi
-        if [[ ! -e "$local_path" && ! -L "$local_path" ]]; then
             ARTIFACT_RESOLUTION_STATUS='ABSENT'
-            step_skip "image archive $ARTIFACT_ID ABSENT at $MANUAL_FETCH_DIR/$ARTIFACT_RELATIVE_PATH and content/vendor/$ARTIFACT_RELATIVE_PATH" "filesystem-only optional input; no network request"
+            step_skip "image archive $ARTIFACT_ID ABSENT at $local_path" "filesystem-only optional input; handled in the pull stage, no network request here"
             return 2
         fi
         if [[ ! -f "$local_path" || -L "$local_path" ]]; then
@@ -529,11 +619,10 @@ resolve_artifact() {
                 return 1
             fi
         else
-            step_skip "image archive $ARTIFACT_ID has no operator-recorded checksum at $ARTIFACT_LOCK_KEY" "archive SHA-256 verification skipped; loader verifies embedded manifest hashes when present"
+            step_skip "image archive $ARTIFACT_ID has no operator-recorded checksum at $ARTIFACT_LOCK_KEY" "present (unverified archive SHA-256); loader verifies embedded manifest hashes when present"
         fi
         ARTIFACT_RESOLVED_PATH="$local_path"
         ARTIFACT_RESOLVED_SOURCE='manual'
-        [[ "$local_path" != "$REPO_ROOT/"* ]] || ARTIFACT_RESOLVED_SOURCE='repository'
         ARTIFACT_RESOLUTION_STATUS='PRESENT'
         step_ok "image archive $ARTIFACT_ID PRESENT at $local_path; source $ARTIFACT_RESOLVED_SOURCE; no network request"
         return 0
