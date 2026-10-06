@@ -2,7 +2,7 @@
   "dependencies": {
     "@fontsource/inter": "^5.2.5",
     "@fontsource/jetbrains-mono": "^5.2.5",
-    "@slidev/cli": "^0.50.0",
+    "@slidev/cli": "^53.0.0",
     "@slidev/theme-default": "^0.25.0"
   },
   "devDependencies": {
