@@ -22,6 +22,10 @@
 <!-- Paste exact VM-side commands, including sudo and working directory. -->
 - VM-side commands run:
 
+The default `00-diagnose.sh` performs real Podman pulls to distinguish true image failures from manifest-probe false positives and may warm the rootful Podman store.
+`--no-pull-verification` restores probe-only mode without pulling or warming images.
+An individual manifest-probe 404 alone is informational; the actual pull result determines image availability.
+
 ## Report block
 <!-- Paste the complete REPORT BEGIN/END block verbatim; do not edit or summarise it. -->
 ```text
