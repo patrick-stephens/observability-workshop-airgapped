@@ -8,7 +8,7 @@
 - Transfer method (how the repo reached the airgapped network): <operator fills in>
 - lab-vm.conf deviations from defaults: <operator fills in>
 - K3S_BINARY_URL set: <yes | no — do not paste the URL value>
-- Script versions run: 00-diagnose v12 (current repository version; confirm the version in the repository on the VM)
+- Script versions run: 00-diagnose v13 (current repository version; confirm the version in the repository on the VM)
 - Purpose of this run: confirm environment before provisioning
 - VM-side commands run: <operator fills in>
 

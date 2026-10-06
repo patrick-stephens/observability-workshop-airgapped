@@ -1,0 +1,87 @@
+Prompt 21 — Align the diagnostic feedback scaffold with version 13
+
+Context
+-------
+Read .github/copilot-instructions.md, feedback/README.md,
+feedback/airgap-run-template.md, feedback/airgap-run-002.md, and the
+actual learner-vm/scripts/00-diagnose.sh.
+
+Prompt 20 updated the diagnostic to version 13. The existing
+airgap-run-002 template was prepared for version 12, so it may now be
+stale. This task updates feedback documentation only.
+
+This task runs on the connected upstream machine. Do not access the
+learner VM, run diagnostics there, or run provisioning scripts.
+
+Objective
+---------
+Ensure the empty first-diagnostic feedback template reflects the
+current diagnostic version and the updated registry-probe semantics.
+
+Task 1 — verify the current version
+-----------------------------------
+Read the actual SCRIPT_VERSION and CHANGE comment in
+learner-vm/scripts/00-diagnose.sh. Do not assume it is v13 without
+checking.
+
+Task 2 — update only stale feedback scaffolding
+------------------------------------------------
+If `feedback/airgap-run-002.md` is still an empty template and its
+version differs from the current diagnostic, update only this metadata
+line:
+
+  - Script versions run: 00-diagnose v<N> (current repository version; confirm the version in the repository on the VM)
+
+Use the version read from the actual script.
+
+If the feedback file already contains a real diagnostic REPORT block,
+do not edit or replace it. Report that it contains evidence and leave
+it unchanged.
+
+Update feedback/README.md's first-diagnostic interpretation guidance
+so it states:
+
+- An HTTP 404 for an individual image manifest means the image may be
+  uncached and the first actual pull may warm the mirror. It is
+  informational, not by itself a registry endpoint failure.
+- A registry failure is the endpoint itself being unreachable, failing
+  DNS/TLS, or otherwise not responding as configured.
+- Missing Skopeo on the minimal base is an expected SKIPPED result;
+  script 20 installs it.
+- SELinux enforcing and firewalld active are informational states.
+  Do not advise disabling SELinux. Script 20 owns the documented
+  firewalld decision.
+
+Do not modify:
+- feedback/airgap-run-001.md;
+- learner-vm scripts;
+- lab-vm.conf;
+- provisioning documentation;
+- resolver/catalog files.
+
+Task 3 — verify before handoff
+------------------------------
+Confirm and report:
+- the current diagnostic version and its CHANGE comment;
+- whether run-002 was updated or preserved because it contains real
+  evidence;
+- the updated feedback interpretation text;
+- `git status --short`;
+- that no report content was fabricated.
+
+Constraints
+-----------
+- Do not access the learner VM.
+- Do not run any diagnostic or provisioning script against it.
+- Do not stage or commit changes.
+- Do not alter feedback/airgap-run-001.md or real report evidence.
+
+Acceptance
+----------
+1. Paste the current diagnostic version and CHANGE comment.
+2. Paste the updated run-002 version line, if changed.
+3. Paste the revised diagnostic-interpretation section from
+   feedback/README.md.
+4. Paste `git status --short`.
+5. Explicitly state that the learner VM was not accessed and no
+   diagnostic report was fabricated.
