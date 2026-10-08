@@ -87,6 +87,10 @@ Verify the outer checksum, validate archive paths, extract to a new staging dire
 Load the nested image archive into rootful Podman and verify every expected reference/config ID.
 Populate k3s using the existing Podman save/import route and verify exact references in the separate containerd store.
 Retain local caches/generic files for interactive builds even when ordinary provisioning uses final prebuilt images.
+The Perses datasource lab also requires the workshop installer archive, not just Perses application source or its container image.
+The connected capture's `lab-files` component verifies `perses-install-demo-v1.10.zip` against `capture.perses-install-demo.sha256` in `versions.lock`, records provenance in `lab-files-inventory.json`, and extracts the lab under `build-contexts/perses-lab`.
+The archive is retained under `downloads` for learner replay; its `support/workshop-prometheus.yml` must be available in the Perses lab working directory before running the documented bind-mount command.
+The disposable AlmaLinux `curated-test` helper prepares these support files from the verified installed bundle without downloading anything inside the guest.
 Reruns must reuse matching installed artefacts and never erase unrelated image stores, cluster data or learner files.
 
 The acceptance gate is a clean environment with upstream and Artifactory access blocked, using only the verified bundle as dependency input.
@@ -98,6 +102,7 @@ The r6 candidate was imported into a disposable AlmaLinux 8.10 QEMU VM after pac
 In that offline VM, the archive checksum and inner manifest verified under Python 3.6.8, all 56 Podman image references/config IDs passed, and the learner-owned caches and offline profiles were activated.
 The VM rebuilt all five Python variants, ran Java 17 Maven tests/builds for tracing, metrics and Prometheus POMs, installed/built the Perses UI from `npm ci --offline`, and built the Go service and Perses binary with `GOSUMDB` enabled and `GOPROXY=file`.
 The `java-demo:metrics` runtime smoke test produced its counter and request-duration histogram with guest egress restricted.
+The incremental r7 archive retains those image/cache payloads and adds the pinned Perses workshop files; its sealed archive verified on the host and guest, and all nine non-k3s curated entries passed readiness and recorded-resource teardown in the restricted AlmaLinux VM.
 This validates the bundle's core cached-build goal on EL8, but does not certify exact RHEL 8.6 provisioning, SELinux/firewalld policy, the numbered provisioning scripts, k3s/containerd image import or full workshop runtime.
 
 ## Publication

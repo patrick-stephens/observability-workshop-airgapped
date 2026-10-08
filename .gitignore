@@ -3,7 +3,7 @@
 !/bundle/README.md
 /app/bin/
 /dist/
-/scripts/dev/__pycache__/
+__pycache__/
 /content/vendor/k3s/payload-stage/
 
 # Added by ggshield

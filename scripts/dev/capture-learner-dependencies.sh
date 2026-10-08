@@ -7,13 +7,13 @@ PROFILE=artifactory
 DRY_RUN=false
 COMPONENT=all
 source "$ROOT_DIR/learner-vm/lab-vm.conf"
-# CHANGE: Capture digest-pinned Fluent Bit config-stage images from the documented helper release.
-SCRIPT_NAME=capture-learner-dependencies SCRIPT_VERSION=3 SELFTEST_MODE=true
+# CHANGE: Capture checksum-pinned Perses workshop support files independently of image and package builds.
+SCRIPT_NAME=capture-learner-dependencies SCRIPT_VERSION=4 SELFTEST_MODE=true
 source "$ROOT_DIR/learner-vm/scripts/lib.sh"
 export PIP_DISABLE_PIP_VERSION_CHECK=1
 export TURBO_TELEMETRY_DISABLED=1
 usage() {
-    printf '%s\n' 'Usage: capture-learner-dependencies.sh [--out DIR] [--profile artifactory|public] [--component all|python|java|go|npm|prometheus|fluentbit] [--dry-run]'
+    printf '%s\n' 'Usage: capture-learner-dependencies.sh [--out DIR] [--profile artifactory|public] [--component all|python|java|go|npm|prometheus|fluentbit|lab-files] [--dry-run]'
 }
 die() { printf '[capture-learner-dependencies] ERROR: %s\n' "$*" >&2; exit 1; }
 pin_sha256() {
@@ -34,7 +34,7 @@ while (($#)); do
     esac
 done
 [[ "$PROFILE" == public || "$PROFILE" == artifactory ]] || die 'profile must be public or artifactory'
-[[ "$COMPONENT" =~ ^(all|python|java|go|npm|prometheus|fluentbit)$ ]] || die 'invalid component'
+[[ "$COMPONENT" =~ ^(all|python|java|go|npm|prometheus|fluentbit|lab-files)$ ]] || die 'invalid component'
 if [[ "$DRY_RUN" == true ]]; then
     printf '[capture-learner-dependencies] WOULD capture %s using %s repositories into %s\n' "$COMPONENT" "$PROFILE" "$OUT_DIR"
     printf '%s\n' 'WOULD pin resolved builder digests, capture isolated caches, build supported final recipes, and audit every recorded lab image.'
@@ -101,6 +101,14 @@ fetch_generic() {
     relative="${destination#"$OUT_DIR/"}"
     [[ "$relative" != "$destination" && "$relative" != /* ]] || die "generic download is outside the bundle root: $destination"
 }
+if [[ "$COMPONENT" == all || "$COMPONENT" == lab-files ]]; then
+    PERSES_LAB_ARCHIVE="$OUT_DIR/downloads/perses-install-demo-v1.10.zip"
+    fetch_generic https://gitlab.com/o11y-workshops/perses-install-demo/-/archive/v1.10/perses-install-demo-v1.10.zip "$PERSES_LAB_ARCHIVE" "$(pin_sha256 capture.perses-install-demo.sha256)"
+    capture_context "$PERSES_LAB_ARCHIVE" "$OUT_DIR/build-contexts/perses-lab"
+    [[ -s "$OUT_DIR/build-contexts/perses-lab/perses-install-demo-v1.10/support/workshop-prometheus.yml" ]] || die 'Perses lab archive is missing its Prometheus mount configuration'
+    jq -n --arg sha256 "$(pin_sha256 capture.perses-install-demo.sha256)" '{perses: {version: "v1.10", source: "https://gitlab.com/o11y-workshops/perses-install-demo/-/archive/v1.10/perses-install-demo-v1.10.zip", sha256: $sha256, archive: "downloads/perses-install-demo-v1.10.zip", support: "build-contexts/perses-lab/perses-install-demo-v1.10/support"}}' > "$OUT_DIR/lab-files-inventory.json"
+fi
+
 build_image() {
     local tag="$1" context="$2" recipe="$3"
     docker build --platform linux/amd64 --pull=false --network=none --tag "$tag" --file "$recipe" "$context"
@@ -337,7 +345,7 @@ if [[ "$COMPONENT" == all ]]; then
     done < "$ROOT_DIR/content/extracted/external-images.txt"
 fi
 
-make_package_caches_readable
+if [[ "$COMPONENT" != lab-files ]]; then make_package_caches_readable; fi
 if [[ -s "$OUT_DIR/capture-image-pins.tsv" ]]; then
     cat "$OUT_DIR/capture-image-pins.tsv" "$OUT_DIR/capture-image-pins.tsv.tmp" | sort -u > "$OUT_DIR/capture-image-pins.tsv.merged"
     mv "$OUT_DIR/capture-image-pins.tsv.merged" "$OUT_DIR/capture-image-pins.tsv"
@@ -345,7 +353,7 @@ else
     sort -u "$OUT_DIR/capture-image-pins.tsv.tmp" > "$OUT_DIR/capture-image-pins.tsv"
 fi
 rm -f -- "$OUT_DIR/capture-image-pins.tsv.tmp"
-if [[ -s "$IMAGE_REFERENCES_FILE" ]]; then
+if [[ "$COMPONENT" != lab-files && -s "$IMAGE_REFERENCES_FILE" ]]; then
     mapfile -t CAPTURED_IMAGES < "$IMAGE_REFERENCES_FILE"
     : > "$OUT_DIR/captured-image-inventory.tsv"
     for image in "${CAPTURED_IMAGES[@]}"; do

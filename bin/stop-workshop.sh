@@ -5,15 +5,18 @@ SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
 BIN_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 REPO_ROOT="$(cd "$BIN_DIR/.." && pwd)"
 SCRIPT_NAME="stop-workshop"
-SCRIPT_VERSION="1"
+# CHANGE: Hold the dispatcher lock outside cleanup subprocesses so detached container monitors cannot retain it.
+SCRIPT_VERSION="2"
 SCRIPT_DIR="$REPO_ROOT/learner-vm/scripts"
 DRY_RUN=false
 INTERNAL_ROOT=false
+LOCK_HELD=false
 UNKNOWN_ARGUMENTS=()
 for argument in "$@"; do
 	case "$argument" in
 		--dry-run) DRY_RUN=true ;;
 		--_root) INTERNAL_ROOT=true ;;
+		--_lock-held) LOCK_HELD=true ;;
 		*) UNKNOWN_ARGUMENTS+=("$argument") ;;
 	esac
 done
@@ -38,16 +41,20 @@ if ((${#UNKNOWN_ARGUMENTS[@]} > 2)); then
 	end_report "select at most one track and one entry"
 	exit 2
 fi
-if [[ "$DRY_RUN" == false ]]; then
-	if ! command -v flock >/dev/null 2>&1 || ! exec 9>/var/lock/lab-workshop.lock; then
+if [[ "$DRY_RUN" == false && "$LOCK_HELD" == false ]]; then
+	if ! command -v flock >/dev/null 2>&1 || [[ ! -d /var/lock || ! -w /var/lock ]]; then
 		step_fail "could not establish the workshop dispatcher lock" "Install util-linux and ensure /var/lock is writable by root before stopping curated entries." "command -v flock" "ls -ld /var/lock" "rpm -q util-linux"
 		end_report "fix the dispatcher lock before stopping a resource"
 		exit 1
 	fi
-	if ! flock -n 9; then
-		step_fail "another run-workshop or stop-workshop operation is in progress" "Wait for the active dispatcher to finish; do not change resources concurrently." "flock -n /var/lock/lab-workshop.lock true" "ps -ef | grep -E '[r]un-workshop|[s]top-workshop'"
-		end_report "retry after the active resource operation completes"
-		exit 1
+	if flock --nonblock --close --conflict-exit-code 75 /var/lock/lab-workshop.lock "$SCRIPT_PATH" --_root --_lock-held "${UNKNOWN_ARGUMENTS[@]}"; then exit 0; else
+		lock_status=$?
+		if ((lock_status == 75)); then
+			step_fail "another run-workshop or stop-workshop operation is in progress" "Wait for the active dispatcher to finish; do not change resources concurrently." "flock -n /var/lock/lab-workshop.lock true" "ps -ef | grep -E '[r]un-workshop|[s]top-workshop'"
+			end_report "retry after the active resource operation completes"
+			exit 1
+		fi
+		exit "$lock_status"
 	fi
 fi
 if [[ -z "$ENTRY_NAME" ]]; then

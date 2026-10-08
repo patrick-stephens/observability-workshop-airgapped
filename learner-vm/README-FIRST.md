@@ -56,6 +56,13 @@ No RHEL 8.6 ISO or cloud disk was present on the connected host; use approved RH
 To exercise rootful Podman on an EL8 guest, use `bash scripts/dev/test-learner-bundle-almalinux-vm.sh prepare`, `bootstrap`, and `wait-bootstrap` while preparing the guest tooling; then run `stop`, `offline-start`, `stage`, `import`, and `test` in that order.
 The bootstrap phase temporarily permits QEMU user-network egress for AlmaLinux package setup; the actual bundle import and lab tests run after restarting with `restrict=on`, retaining only host-forwarded SSH.
 The guest test covers image IDs, all Python rebuild variants, Maven POM/tests, npm and Go cache replay, and a Java metrics smoke test; it does not install k3s or certify the RHEL 8.6 installer workflow.
+With a source-only test tree staged at `/opt/learner-curated-test`, `bash scripts/dev/test-learner-bundle-almalinux-vm.sh curated-test` checks QEMU has `restrict=on`, verifies the installed bundle's inner checksums, prepares its captured Perses support files, then runs every non-k3s curated entry sequentially and stops each successfully started resource through its recorded state.
+Dispatcher v3 fixes missing published ports for both standalone containers and managed pods.
+The initial r6 test passed eight of nine non-k3s entries; `perses/prometheus` failed because r6 lacked the workshop archive providing `support/workshop-prometheus.yml`.
+The r7 candidate adds the checksum-pinned `perses-install-demo-v1.10.zip` and its extracted support files without replacing the verified r6 image or cache payloads.
+The sealed r7 archive verified on the host and guest, and all nine non-k3s curated entries passed startup, readiness and recorded-resource cleanup with QEMU egress restricted.
+Export `BUNDLE="$PWD/dist/learner-dependencies-java17-r7.tar.gz"` from the repository root before running the helper's `stage`, `import` and `curated-test` commands for r7.
+Without that override the helper continues to select r6; missing support files are a failure, not a skip or full offline acceptance.
 
 Script 45 v9 installs or repairs `/var/lib/rancher/k3s/agent/etc/kubelet.conf.d/10-learner-cgroup-v1.conf` with `failCgroupV1: false`, owned by root with mode `0600`, before starting k3s.
 This RHEL 8.6 learner-only exception permits deprecated cgroup v1 operation after [Kubernetes 1.35 changed the default](https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.35.md#deprecation); it does not restore upstream support or apply to the Ubuntu presenter demo.

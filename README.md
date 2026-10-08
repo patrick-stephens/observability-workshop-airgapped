@@ -240,6 +240,12 @@ On the connected online machine, run `scripts/dev/import-content.sh` to clone or
 The script records source SHAs and mirror dates in `versions.lock`; use `--refresh` to replace the captured sources and documentation.
 Run `python3 scripts/dev/parse-labs.py` to extract every Docker and Podman command path, cwd, base image, and runtime download into `content/extracted/`.
 Run `python3 scripts/dev/patch-docs.py` to patch both mirrored documentation and repository lab pages, `python3 scripts/dev/curate.py` to generate the curated service run set, and `python3 scripts/dev/check-docs.py` to verify local page and asset references.
+For disposable EL8 testing, `bash scripts/dev/test-learner-bundle-almalinux-vm.sh curated-test` exercises the non-k3s dispatcher entries in an already staged `/opt/learner-curated-test` tree, including recorded-resource teardown.
+Capture the checksum-pinned Perses workshop support files with `bash scripts/dev/capture-learner-dependencies.sh --profile public --component lab-files --out <bundle-tree>` on the connected host before sealing the bundle.
+This component leaves existing package caches and image payloads untouched; `--component all` also includes these lab files.
+Select a candidate with `BUNDLE=<absolute-archive-path>` for the AlmaLinux helper's `stage`, `import` and `curated-test` commands.
+Generated Python `__pycache__` directories are ignored throughout the repository.
+See [learner-vm/README-FIRST.md](learner-vm/README-FIRST.md) for restricted AlmaLinux coverage; this is not exact RHEL 8.6 or k3s certification.
 `check-docs.py` retries missing `otel-developers` mirror assets once and records any remaining gaps in `content/extracted/docs-gaps.txt`.
 Run `python3 scripts/dev/create-reviewer-packet.py` after regenerating parser and curation outputs to assemble the bounded k3s, build-status, runtime-download, and curation evidence in `content/extracted/reviewer-packet.md`.
 Run `bash scripts/dev/vendor-k3s.sh` online to fetch and verify the small pinned installer, system-image list, and RHEL 8 SELinux RPM.

@@ -22,7 +22,7 @@ VM_MEMORY_MIB="${VM_MEMORY_MIB:-8192}"
 VM_VCPUS="${VM_VCPUS:-4}"
 VM_NAME="learner-almalinux8"
 QEMU_BIN="${QEMU_BIN:-qemu-system-x86_64}"
-BUNDLE="$ROOT_DIR/dist/learner-dependencies-java17-r6.tar.gz"
+BUNDLE="${BUNDLE:-$ROOT_DIR/dist/learner-dependencies-java17-r6.tar.gz}"
 BUNDLE_SHA_FILE="$BUNDLE.sha256"
 GUEST_STAGE="/var/tmp/learner-dependencies-r6"
 GUEST_ROOT="/opt/o11y-lab-dependencies"
@@ -145,7 +145,7 @@ wait_bootstrap() {
 
 stage_bundle() {
     local digest
-    [[ -s "$BUNDLE" && -s "$BUNDLE_SHA_FILE" ]] || fail "packed r6 bundle/checksum is missing; run the connected capture first"
+    [[ -s "$BUNDLE" && -s "$BUNDLE_SHA_FILE" ]] || fail "packed bundle/checksum is missing; run the connected capture first"
     digest="$(awk '{print $1}' "$BUNDLE_SHA_FILE")"
     [[ "$digest" =~ ^[0-9a-f]{64}$ ]] || fail "bundle sidecar contains an invalid SHA-256"
     ssh_guest "sudo install -d -o engineer -g engineer -m 0750 '$GUEST_STAGE'"
@@ -174,6 +174,47 @@ test_bundle() {
     ssh_guest "sudo bash '$GUEST_STAGE/test-almalinux-bundle-offline.sh' '$GUEST_ROOT' '$digest' '$GUEST_STAGE/api.py' '$GUEST_STAGE/verify-podman-bundle-images.py'"
 }
 
+test_curated() {
+    local digest pid
+    pid="$(running_pid)" || fail "disposable guest is not running"
+    [[ "$(tr '\0' ' ' < "/proc/$pid/cmdline")" == *restrict=on* ]] || fail "curated offline tests require QEMU restrict=on"
+    digest="$(awk '{print $1}' "$BUNDLE_SHA_FILE")"
+    [[ "$digest" =~ ^[0-9a-f]{64}$ ]] || fail "bundle sidecar contains an invalid SHA-256"
+    # The Perses datasource run mounts lab support files, not files from the Perses application source.
+    ssh_guest "sudo bash -s -- '$GUEST_ROOT/$digest'" <<'EOF'
+set -euo pipefail
+bundle_root="$1"
+support="$bundle_root/build-contexts/perses-lab/perses-install-demo-v1.10/support"
+[[ -s "$support/workshop-prometheus.yml" ]] || { printf '[curated-test] Missing captured Perses lab support files: %s\n' "$support" >&2; exit 1; }
+cd "$bundle_root"
+sha256sum --check --status SHA256SUMS
+install -d -m 0755 /opt/learner-curated-test/content/repos/perses/support
+cp -a "$support/." /opt/learner-curated-test/content/repos/perses/support/
+EOF
+    ssh_guest 'sudo bash -s' <<'EOF'
+set -euo pipefail
+root=/opt/learner-curated-test
+for required in bin/run-workshop.sh bin/stop-workshop.sh content/extracted/curated.json; do
+    [[ -r "$root/$required" ]] || { printf "Missing staged curated test file: %s\n" "$root/$required" >&2; exit 1; }
+done
+entries="$(jq -r "to_entries[] | .key as \$track | .value.runs[] | select(.requires_k3s != true) | [\$track, .name] | @tsv" "$root/content/extracted/curated.json")"
+failures=0
+while IFS=$'\t' read -r track entry; do
+    printf '\n[curated-test] %s/%s\n' "$track" "$entry"
+    if bash "$root/bin/run-workshop.sh" "$track" "$entry"; then
+        if ! bash "$root/bin/stop-workshop.sh" "$track" "$entry"; then
+            printf '[curated-test] Cleanup failed; stopping before the next entry.\n' >&2
+            exit 1
+        fi
+    else
+        failures=$((failures+1))
+    fi
+done <<< "$entries"
+printf '[curated-test] failures=%s; k3s entries excluded\n' "$failures"
+((failures == 0))
+EOF
+}
+
 stop_vm() {
     local pid
     if pid="$(running_pid)"; then
@@ -190,7 +231,7 @@ status_vm() {
 }
 
 usage() {
-    printf '%s\n' 'Usage: scripts/dev/test-learner-bundle-almalinux-vm.sh prepare|bootstrap|wait-bootstrap|offline-start|ssh [COMMAND...]|stage|import|test|stop|status'
+    printf '%s\n' 'Usage: scripts/dev/test-learner-bundle-almalinux-vm.sh prepare|bootstrap|wait-bootstrap|offline-start|ssh [COMMAND...]|stage|import|test|curated-test|stop|status'
     printf '%s\n' 'bootstrap temporarily permits internet for AlmaLinux guest tooling; offline-start uses QEMU restrict=on for all bundle tests.'
 }
 
@@ -203,6 +244,7 @@ case "${1:-help}" in
     stage) stage_bundle ;;
     import) import_bundle ;;
     test) test_bundle ;;
+    curated-test) test_curated ;;
     stop) stop_vm ;;
     status) status_vm ;;
     help|-h|--help) usage ;;

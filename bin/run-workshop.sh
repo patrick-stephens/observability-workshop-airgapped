@@ -5,15 +5,18 @@ SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
 BIN_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 REPO_ROOT="$(cd "$BIN_DIR/.." && pwd)"
 SCRIPT_NAME="run-workshop"
-SCRIPT_VERSION="1"
+# CHANGE: Publish curated port arrays directly for standalone containers and managed pods; retain the parent flock supervisor.
+SCRIPT_VERSION="3"
 SCRIPT_DIR="$REPO_ROOT/learner-vm/scripts"
 DRY_RUN=false
 INTERNAL_ROOT=false
+LOCK_HELD=false
 UNKNOWN_ARGUMENTS=()
 for argument in "$@"; do
 	case "$argument" in
 		--dry-run) DRY_RUN=true ;;
 		--_root) INTERNAL_ROOT=true ;;
+		--_lock-held) LOCK_HELD=true ;;
 		*) UNKNOWN_ARGUMENTS+=("$argument") ;;
 	esac
 done
@@ -146,15 +149,21 @@ if ! install -d -o root -g root -m 0700 "$STATE_DIR"; then
 	end_report "fix the state directory before starting resources"
 	exit 1
 fi
-if ! command -v flock >/dev/null 2>&1 || ! exec 9>/var/lock/lab-workshop.lock; then
-	step_fail "could not establish the workshop dispatcher lock" "Install util-linux and ensure /var/lock is writable by root before starting curated entries." "command -v flock" "ls -ld /var/lock" "rpm -q util-linux"
-	end_report "fix the dispatcher lock before starting a resource"
-	exit 1
-fi
-if ! flock -n 9; then
-	step_fail "another run-workshop or stop-workshop operation is in progress" "Wait for the active dispatcher to finish; do not start a second curated entry." "flock -n /var/lock/lab-workshop.lock true" "ps -ef | grep -E '[r]un-workshop|[s]top-workshop'"
-	end_report "retry after the active resource operation completes"
-	exit 1
+if [[ "$DRY_RUN" == false && "$LOCK_HELD" == false ]]; then
+	if ! command -v flock >/dev/null 2>&1 || [[ ! -d /var/lock || ! -w /var/lock ]]; then
+		step_fail "could not establish the workshop dispatcher lock" "Install util-linux and ensure /var/lock is writable by root before starting curated entries." "command -v flock" "ls -ld /var/lock" "rpm -q util-linux"
+		end_report "fix the dispatcher lock before starting a resource"
+		exit 1
+	fi
+	if flock --nonblock --close --conflict-exit-code 75 /var/lock/lab-workshop.lock "$SCRIPT_PATH" --_root --_lock-held "${UNKNOWN_ARGUMENTS[@]}"; then exit 0; else
+		lock_status=$?
+		if ((lock_status == 75)); then
+			step_fail "another run-workshop or stop-workshop operation is in progress" "Wait for the active dispatcher to finish; do not start a second curated entry." "flock -n /var/lock/lab-workshop.lock true" "ps -ef | grep -E '[r]un-workshop|[s]top-workshop'"
+			end_report "retry after the active resource operation completes"
+			exit 1
+		fi
+		exit "$lock_status"
+	fi
 fi
 existing_state="$(find "$STATE_DIR" -maxdepth 1 -type f -name '*.json' -print -quit 2>/dev/null || true)"
 if [[ -n "$existing_state" ]]; then
@@ -336,7 +345,7 @@ else
 		fi
 		if [[ "$has_pod" == true ]]; then
 			create_args=(podman pod create --name "$pod_name" --label "o11y-workshop.managed=1" --label "o11y-workshop.track=$TRACK" --label "o11y-workshop.entry=$ENTRY_NAME")
-			while IFS= read -r port; do [[ -n "$port" ]] || continue; create_args+=(--publish "$(local_port "$port")"); done < <(jq -r '.ports[]?' <<< "$ports_json")
+			while IFS= read -r port; do [[ -n "$port" ]] || continue; create_args+=(--publish "$(local_port "$port")"); done < <(jq -r '.[]' <<< "$ports_json")
 			if ! run "$(quote_command "${create_args[@]}")"; then
 				step_fail "could not create managed Podman pod" "Check local port conflicts and the Podman rootful store." "podman pod ps" "podman info --debug 2>&1 | tail -n 15"
 				end_report "podman pod was not started"
@@ -345,7 +354,7 @@ else
 		fi
 		start_args=(podman run --detach --name "$resource_container" --label "o11y-workshop.managed=1" --label "o11y-workshop.track=$TRACK" --label "o11y-workshop.entry=$ENTRY_NAME")
 		if [[ "$has_pod" == true ]]; then start_args+=(--pod "$pod_name"); fi
-		if [[ "$has_pod" == false ]]; then while IFS= read -r port; do [[ -n "$port" ]] || continue; start_args+=(--publish "$(local_port "$port")"); done < <(jq -r '.ports[]?' <<< "$ports_json"); fi
+		if [[ "$has_pod" == false ]]; then while IFS= read -r port; do [[ -n "$port" ]] || continue; start_args+=(--publish "$(local_port "$port")"); done < <(jq -r '.[]' <<< "$ports_json"); fi
 		while IFS= read -r pair; do [[ -n "$pair" ]] || continue; start_args+=(--env "$pair"); done < <(jq -r '.env // {} | to_entries[] | "\(.key)=\(.value)"' <<< "$CURATED_ENTRY")
 		while IFS= read -r volume; do
 			[[ -n "$volume" ]] || continue
