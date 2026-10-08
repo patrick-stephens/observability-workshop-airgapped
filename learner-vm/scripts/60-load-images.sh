@@ -2,8 +2,8 @@
 set -euo pipefail
 
 SCRIPT_NAME="60-load-images"
-# CHANGE: Preload recorded build bases from catalogued archives or mirrors and skip builds with missing bases.
-SCRIPT_VERSION="5"
+# CHANGE: Import checksum-verified aggregate dependency bundle images and profiles before per-image recovery.
+SCRIPT_VERSION="7"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRY_RUN=false
 UNKNOWN_ARGUMENTS=()
@@ -35,11 +35,15 @@ declare -a LOCAL_BUILD_TAGS=()
 IMAGE_REPORT_TMP=''
 BUILT_TAGS_TMP=''
 OUTPUT_LOG=''
+DEPENDENCY_CACHE_STAGE=''
+PROFILE_SELECTOR_TMP=''
 UNEXPECTED_BUILD_FAILURES=0
 cleanup() {
 	[[ -z "$IMAGE_REPORT_TMP" ]] || rm -f -- "$IMAGE_REPORT_TMP"
 	[[ -z "$BUILT_TAGS_TMP" ]] || rm -f -- "$BUILT_TAGS_TMP"
 	[[ -z "$OUTPUT_LOG" ]] || rm -f -- "$OUTPUT_LOG"
+	[[ -z "$DEPENDENCY_CACHE_STAGE" ]] || rm -rf -- "$DEPENDENCY_CACHE_STAGE"
+	[[ -z "$PROFILE_SELECTOR_TMP" ]] || rm -f -- "$PROFILE_SELECTOR_TMP"
 }
 trap cleanup EXIT
 
@@ -81,6 +85,163 @@ if ! command -v python3 >/dev/null 2>&1; then
 	step_fail "python3 is required to read commands.json" "Install python3 with scripts/20-install-tooling.sh before loading images." "command -v python3" "rpm -q python3"
 fi
 mapfile -t LOCAL_BUILD_TAGS < <(python3 -c 'import json,sys; data=json.load(open(sys.argv[1],encoding="utf-8")); print("\n".join(sorted({command["tag"] for track in data.values() for lab in track.get("labs",[]) for command in lab.get("commands",[]) if command.get("type")=="build" and command.get("tag")})))' "$commands_file")
+
+if [[ -n "${DEPENDENCY_BUNDLE_SHA256:-}" ]]; then
+	if [[ ! "$DEPENDENCY_BUNDLE_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+		step_fail "DEPENDENCY_BUNDLE_SHA256 is invalid" "Set it to the trusted 64-character SHA-256 published through the approved release channel." "grep '^DEPENDENCY_BUNDLE_SHA256=' $(printf '%q' "$CONFIG_FILE")"
+		end_report "Correct the trusted bundle checksum before importing dependencies."
+		exit 1
+	fi
+	if [[ ! -s "$DEPENDENCY_BUNDLE_PATH" ]]; then
+		step_fail "configured dependency bundle is missing" "Transfer the release archive to DEPENDENCY_BUNDLE_PATH using the approved process." "ls -l $(printf '%q' "$DEPENDENCY_BUNDLE_PATH")"
+		end_report "Stage the separately transferred bundle before image preparation."
+		exit 1
+	fi
+	bundle_version_root="$DEPENDENCY_BUNDLE_ROOT/$DEPENDENCY_BUNDLE_SHA256"
+	if [[ "$DRY_RUN" == true ]]; then
+		python3 "$REPO_ROOT/learner-vm/dependency_bundle.py" verify --archive "$DEPENDENCY_BUNDLE_PATH" --sha256 "$DEPENDENCY_BUNDLE_SHA256"
+		log "[dry-run] WOULD install the verified bundle at $bundle_version_root, load its aggregate images, and generate offline package profiles"
+		step_skip "aggregate image load and package profile activation were not performed during dry-run" "$bundle_version_root"
+	else
+		if ! python3 "$REPO_ROOT/learner-vm/dependency_bundle.py" verify --archive "$DEPENDENCY_BUNDLE_PATH" --sha256 "$DEPENDENCY_BUNDLE_SHA256" --destination "$bundle_version_root"; then
+			step_fail "dependency bundle checksum, inventory, or safe extraction verification failed" "Correct the staged release asset or trusted checksum; the active bundle and image store were not intentionally replaced." "sha256sum $(printf '%q' "$DEPENDENCY_BUNDLE_PATH")" "ls -ld $(printf '%q' "$bundle_version_root")"
+			end_report "Review the bundle verification failure before retrying image preparation."
+			exit 1
+		fi
+		learner_passwd="$(getent passwd "$WORKSHOP_USER" 2>/dev/null || true)"
+		learner_home="${learner_passwd##*:}"
+		learner_group="$(id -gn "$WORKSHOP_USER" 2>/dev/null || true)"
+		if [[ -z "$learner_passwd" || -z "$learner_group" || ! -d "$learner_home" || -L "$learner_home" ]]; then
+			step_fail "configured WORKSHOP_USER home is unavailable or unsafe for package-cache seeding" "Restore the learner account/home before importing writable package caches." "getent passwd $(printf '%q' "$WORKSHOP_USER")" "ls -ld $(printf '%q' "$learner_home")"
+			end_report "Correct WORKSHOP_USER before activating package caches."
+			exit 1
+		fi
+		working_cache_root="$learner_home/.cache/o11y-lab/$DEPENDENCY_BUNDLE_SHA256"
+		cache_marker="$working_cache_root/.bundle-sha256"
+		if [[ -e "$working_cache_root" || -L "$working_cache_root" ]]; then
+			if [[ -L "$working_cache_root" || ! -d "$working_cache_root" || -L "$cache_marker" || ! -f "$cache_marker" || "$(<"$cache_marker")" != "$DEPENDENCY_BUNDLE_SHA256" ]]; then
+				step_fail "existing writable dependency cache is not marked for this verified bundle" "Preserve existing data and inspect $working_cache_root; do not delete it automatically." "ls -ld $(printf '%q' "$working_cache_root")" "cat $(printf '%q' "$cache_marker")"
+				end_report "Resolve the existing cache directory before installing this bundle's package profiles."
+				exit 1
+			fi
+			step_ok "reusing writable package caches seeded from this verified bundle"
+		else
+			cache_parent="$(dirname "$working_cache_root")"
+			if [[ -L "$learner_home/.cache" || -L "$cache_parent" ]]; then
+				step_fail "learner package-cache path contains a symbolic link" "Preserve existing data and configure a real learner-owned .cache/o11y-lab directory." "ls -ld $(printf '%q' "$learner_home/.cache") $(printf '%q' "$cache_parent")"
+				end_report "Replace the package-cache symlink with an operator-reviewed directory before import."
+				exit 1
+			fi
+			if [[ ! -e "$cache_parent" ]] && ! install -d -o "$WORKSHOP_USER" -g "$learner_group" -m 0700 "$cache_parent"; then
+				step_fail "could not prepare the learner-owned package-cache directory" "Check learner home ownership and free disk space; bundle caches remain untouched." "ls -ld $(printf '%q' "$learner_home/.cache") $(printf '%q' "$cache_parent")" "df -hP $(printf '%q' "$learner_home")"
+				end_report "Restore writable learner cache storage before activating package profiles."
+				exit 1
+			fi
+			if [[ ! -d "$cache_parent" || "$(stat -c '%u' "$cache_parent")" != "$(id -u "$WORKSHOP_USER")" ]]; then
+				step_fail "existing learner package-cache parent is not a learner-owned directory" "Preserve existing contents and ask the operator to repair ownership of $cache_parent." "stat -c '%U:%G %a %n' $(printf '%q' "$cache_parent")"
+				end_report "Correct cache-parent ownership before installing writable dependency caches."
+				exit 1
+			fi
+			DEPENDENCY_CACHE_STAGE="$(mktemp -d "$cache_parent/.bundle-cache.XXXXXX")" || DEPENDENCY_CACHE_STAGE=''
+			if [[ -z "$DEPENDENCY_CACHE_STAGE" ]] || ! mkdir -p "$DEPENDENCY_CACHE_STAGE/maven" "$DEPENDENCY_CACHE_STAGE/npm" "$DEPENDENCY_CACHE_STAGE/go/pkg/mod" ||
+				! cp -a --no-preserve=ownership "$bundle_version_root/cache/maven/repository/." "$DEPENDENCY_CACHE_STAGE/maven/" ||
+				! cp -a --no-preserve=ownership "$bundle_version_root/cache/npm/." "$DEPENDENCY_CACHE_STAGE/npm/" ||
+				! cp -a --no-preserve=ownership "$bundle_version_root/cache/go/pkg/mod/." "$DEPENDENCY_CACHE_STAGE/go/pkg/mod/" ||
+				! chown -R "$WORKSHOP_USER:$learner_group" "$DEPENDENCY_CACHE_STAGE" ||
+				! printf '%s\n' "$DEPENDENCY_BUNDLE_SHA256" > "$DEPENDENCY_CACHE_STAGE/.bundle-sha256" ||
+				! chown "$WORKSHOP_USER:$learner_group" "$DEPENDENCY_CACHE_STAGE/.bundle-sha256" ||
+				! chmod 0600 "$DEPENDENCY_CACHE_STAGE/.bundle-sha256" ||
+				! mv -- "$DEPENDENCY_CACHE_STAGE" "$working_cache_root"; then
+				step_fail "could not seed writable learner Maven/npm/Go caches from the verified bundle" "Check free space and learner-home permissions; the immutable bundle remains unchanged." "df -hP $(printf '%q' "$learner_home")" "ls -ld $(printf '%q' "$cache_parent")"
+				end_report "Repair learner cache storage and rerun the idempotent import."
+				exit 1
+			fi
+			DEPENDENCY_CACHE_STAGE=''
+			step_ok "seeded versioned writable Maven/npm/Go caches for $WORKSHOP_USER"
+		fi
+		if ! docker load -i "$bundle_version_root/images/lab-images.tar"; then
+			step_fail "could not load aggregate lab image archive into rootful Podman" "Check free disk space and the verified bundle image archive; no registry fallback is used for a corrupt aggregate archive." "df -hP /var/lib/containers" "podman info --debug 2>&1 | tail -n 15"
+			end_report "Resolve aggregate image import failure before continuing with per-image recovery."
+			exit 1
+		fi
+		while IFS=$'\t' read -r image image_id; do
+			[[ -n "$image" ]] || continue
+			actual="$(docker image inspect --format '{{.Id}}' "$image" 2>/dev/null || true)"
+			actual="sha256:${actual#sha256:}"
+			if [[ "$actual" != "$image_id" ]]; then
+				loaded_id="$(docker image inspect --format '{{.Id}}' "$image_id" 2>/dev/null || true)"
+				loaded_id="sha256:${loaded_id#sha256:}"
+				if [[ "$loaded_id" == "$image_id" ]] && docker image tag "$image_id" "$image"; then
+					actual="$(docker image inspect --format '{{.Id}}' "$image" 2>/dev/null || true)"
+					actual="sha256:${actual#sha256:}"
+				fi
+				if [[ "$actual" != "$image_id" ]]; then
+					step_fail "aggregate bundle image reference/config ID mismatch for $image: expected $image_id, actual $actual" "Restore the verified release archive and re-import only after its manifest passes validation." "docker image inspect $(printf '%q' "$image")" "docker image inspect $(printf '%q' "$image_id")"
+					end_report "Aggregate images were not accepted because manifest verification failed."
+					exit 1
+				fi
+			fi
+			step_ok "aggregate bundle image verified: $image"
+		done < <(python3 - "$bundle_version_root/manifest.json" <<'PY'
+import json
+import sys
+for image in json.load(open(sys.argv[1], encoding="utf-8"))["images"]:
+	print(image["reference"] + "\t" + image["id"])
+PY
+)
+		DEPENDENCY_PROFILE_DIR="$DEPENDENCY_BUNDLE_ROOT/profiles/$DEPENDENCY_BUNDLE_SHA256"
+		if python3 "$REPO_ROOT/learner-vm/dependency_bundle.py" profiles --mode offline --root "$bundle_version_root" --working-cache-root "$working_cache_root" --output "$DEPENDENCY_PROFILE_DIR"; then
+			step_ok "generated cache-only pip/Maven/npm/Go profiles at $DEPENDENCY_PROFILE_DIR"
+			profile_file="$DEPENDENCY_PROFILE_DIR/profile.sh"
+			managed_profile=/etc/profile.d/o11y-offline-profile.sh
+			PROFILE_SELECTOR_TMP="$(mktemp "${TMPDIR:-/tmp}/o11y-profile.XXXXXX")" || PROFILE_SELECTOR_TMP=''
+			if [[ -z "$PROFILE_SELECTOR_TMP" ]] || ! {
+				printf '%s\n' '# Managed by learner-vm/scripts/60-load-images.sh; bundle profile is checksum-versioned.'
+				printf 'if [ "$(id -un)" = %q ]; then\n  . %q\nfi\n' "$WORKSHOP_USER" "$profile_file"
+			} > "$PROFILE_SELECTOR_TMP"; then
+				step_fail "could not prepare the managed offline package-profile selector" "Check temporary-file space and permissions." "df -hP $(printf '%q' "${TMPDIR:-/tmp}")"
+				end_report "Restore temporary storage before enabling package profiles."
+				exit 1
+			fi
+			if [[ -e "$managed_profile" || -L "$managed_profile" ]]; then
+				if [[ -f "$managed_profile" && ! -L "$managed_profile" ]] && [[ "$(head -n 1 "$managed_profile")" == '# Managed by learner-vm/scripts/60-load-images.sh; bundle profile is checksum-versioned.' ]]; then
+					if cmp -s "$PROFILE_SELECTOR_TMP" "$managed_profile"; then
+						step_ok "system login profile already selects this offline dependency bundle"
+					elif install -o root -g root -m 0644 "$PROFILE_SELECTOR_TMP" "$managed_profile"; then
+						step_ok "updated the managed system login profile selector to this verified bundle"
+					else
+						step_fail "could not update the managed dependency profile selector" "Check /etc/profile.d permissions; package caches remain intact." "ls -l $(printf '%q' "$managed_profile")"
+						end_report "Restore managed profile installation permissions before continuing."
+						exit 1
+					fi
+				else
+					rm -f -- "$PROFILE_SELECTOR_TMP"
+					PROFILE_SELECTOR_TMP=''
+					step_fail "refusing to replace an unmanaged dependency profile" "Inspect $managed_profile and preserve other operators' shell configuration." "ls -l $(printf '%q' "$managed_profile")" "head -n 10 $(printf '%q' "$managed_profile")"
+					end_report "Resolve the profile ownership conflict before enabling package-cache configuration."
+					exit 1
+				fi
+			elif install -o root -g root -m 0644 "$PROFILE_SELECTOR_TMP" "$managed_profile"; then
+				step_ok "installed cache-only profile selector for future login and build sessions"
+			else
+				rm -f -- "$PROFILE_SELECTOR_TMP"
+				PROFILE_SELECTOR_TMP=''
+				step_fail "could not install the managed dependency profile selector" "Check $DEPENDENCY_BUNDLE_ROOT permissions; package caches remain intact." "ls -ld $(printf '%q' "$DEPENDENCY_BUNDLE_ROOT")" "df -hP $(printf '%q' "$DEPENDENCY_BUNDLE_ROOT")"
+				end_report "Restore profile installation permissions before continuing."
+				exit 1
+			fi
+			rm -f -- "$PROFILE_SELECTOR_TMP"
+			PROFILE_SELECTOR_TMP=''
+			step_skip "new package requirements must be added to the bundle; PIP_NO_INDEX, Maven offline, npm offline and GOPROXY=file prevent public fallback" "interactive builds must use supported derived recipes/cache profiles"
+		else
+			step_fail "could not generate offline package-manager profiles" "Restore writable profile storage under $DEPENDENCY_BUNDLE_ROOT and retry." "ls -ld $(printf '%q' "$DEPENDENCY_BUNDLE_ROOT")"
+			end_report "Keep the imported checksum-verified bundle and fix profile generation before building labs."
+			exit 1
+		fi
+	fi
+else
+	step_skip "aggregate release bundle import is disabled because DEPENDENCY_BUNDLE_SHA256 is empty" "existing catalogued per-image workflow remains active"
+fi
 
 if build_bases="$(jq -r '.[] | .labs[]? | .commands[]? | select(.type == "build") | .base_images[]?' "$commands_file")"; then
 	while IFS= read -r base || [[ -n "$base" ]]; do
@@ -127,6 +288,20 @@ while IFS= read -r image; do
 	if is_local_build_tag "$image" || [[ "$image" == localhost/* ]]; then REQUIRED_IMAGES+=("$image"); else REQUIRED_IMAGES+=("$(normalize_image "$image")"); fi
 done <<< "$curated_images"
 mapfile -t REQUIRED_IMAGES < <(printf '%s\n' "${REQUIRED_IMAGES[@]}" | sort -u)
+
+if [[ -n "${DEPENDENCY_BUNDLE_SHA256:-}" && "$DRY_RUN" == false ]]; then
+	missing_bundle_images=0
+	for image in "${REQUIRED_IMAGES[@]}"; do
+		if ! podman image exists "$image" >/dev/null 2>&1; then
+			step_fail "required image is absent from the verified aggregate bundle: $image" "Recapture a bundle containing this exact lab/base reference; aggregate mode never falls back to a registry pull." "podman image inspect $(printf '%q' "$image")" "grep -F $(printf '%q' "$image") $(printf '%q' "$DEPENDENCY_BUNDLE_ROOT/$DEPENDENCY_BUNDLE_SHA256/manifest.json")"
+			missing_bundle_images=1
+		fi
+	done
+	if ((missing_bundle_images)); then
+		end_report "The aggregate bundle is missing required lab images; no registry fallback was attempted."
+		exit 1
+	fi
+fi
 
 if ! load_image_archives podman; then
 	end_report "Correct the local image archive described in MANUAL-FETCH.md Section C before retrying; no image pulls were attempted."
@@ -198,6 +373,10 @@ if [[ "$DRY_RUN" == false ]]; then
 			printf '%s | %s | present | original reference verified\n' "$image" "$source" >> "$IMAGE_REPORT_TMP"
 			printf 'external | - | %s | present | %s\n' "$image" "$source" >> "$BUILT_TAGS_TMP"
 		else
+			if [[ -n "${DEPENDENCY_BUNDLE_SHA256:-}" ]]; then
+				step_fail "aggregate bundle image disappeared before use: $image" "Re-import the verified bundle; registry fallback is disabled in aggregate mode." "podman image inspect $(printf '%q' "$image")"
+				continue
+			fi
 			pull_log=$(mktemp "${TMPDIR:-/tmp}/60-pull.XXXXXX")
 			if podman pull "$image" >"$pull_log" 2>&1; then
 				step_ok "Podman pull command succeeded for $image"

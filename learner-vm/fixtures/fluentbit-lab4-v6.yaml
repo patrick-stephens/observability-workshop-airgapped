@@ -1,0 +1,33 @@
+service:
+  flush: 1
+  log_level: info
+
+pipeline:
+  inputs:
+    - name: dummy
+      tag: event.success
+      dummy: '{"message":"true 200 success"}'
+    - name: dummy
+      tag: event.error
+      dummy: '{"message":"false 500 error"}'
+
+  filters:
+    - name: modify
+      match: '*'
+      condition:
+        - Key_Value_Equals message 'true 200 success'
+      remove: message
+      add:
+        - valid_message true
+        - code 200
+        - type success
+    - name: modify
+      match: '*'
+      condition: Key_Value_Equals message 'false 500 error'
+      remove: message
+      add: workshop_status BROKEN
+
+  outputs:
+    - name: stdout
+      match: '*'
+      format: json_lines

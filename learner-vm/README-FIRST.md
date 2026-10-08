@@ -43,6 +43,20 @@ Script 70 remains responsible for the workshop bookmark and learner desktop shor
 
 ## Runtime Recovery
 
+The aggregate prebuilt-image, package-cache and generic-download workflow is specified in [DEPENDENCY-BUNDLE.md](DEPENDENCY-BUNDLE.md), including configurable pip/Maven/npm/Go Artifactory endpoints and offline profiles.
+Upstream adaptations, Java 17 validation, cache-age policy and rebuild limitations are tracked in [UPSTREAM-DELTA.md](UPSTREAM-DELTA.md).
+Diagnostic v17 checks representative package paths through the dedicated PyPI, Maven, npm and Go HTTPS endpoints; set `CHECK_PACKAGE_REPOSITORIES=no` only for an explicitly offline run, without treating that skip as verified cache completeness.
+The dependency bundle is a separately transferred release asset, not a Git asset; configure its trusted checksum before enabling aggregate import.
+When enabled, script 60 verifies the bundle, loads its lab images, seeds learner-owned Maven/npm/Go caches and installs a managed `/etc/profile.d/o11y-offline-profile.sh` selector for future login shells.
+Build sessions that do not load `/etc/profile.d` must explicitly source the versioned bundle `profile.sh` to apply cache-only package settings.
+The connected capture also builds the documented Fluent Bit version tags, OTel collector and OpenSearch integration images from checksum-pinned helper configs; see [UPSTREAM-DELTA.md](UPSTREAM-DELTA.md) for coverage and remaining offline acceptance limits.
+The r6 bundle has been imported and tested in a disposable AlmaLinux 8.10 QEMU VM: after a temporary tooling bootstrap, the VM was restarted with QEMU egress restricted, then bundle verification, Podman image checks, cache-backed builds and the Java metrics smoke test passed.
+This is EL8 cached-workload evidence, not certification of exact RHEL 8.6 provisioning, SELinux/firewalld policy or the separate k3s/containerd image store.
+No RHEL 8.6 ISO or cloud disk was present on the connected host; use approved RHEL media for that target-specific test rather than treating AlmaLinux as RHEL.
+To exercise rootful Podman on an EL8 guest, use `bash scripts/dev/test-learner-bundle-almalinux-vm.sh prepare`, `bootstrap`, and `wait-bootstrap` while preparing the guest tooling; then run `stop`, `offline-start`, `stage`, `import`, and `test` in that order.
+The bootstrap phase temporarily permits QEMU user-network egress for AlmaLinux package setup; the actual bundle import and lab tests run after restarting with `restrict=on`, retaining only host-forwarded SSH.
+The guest test covers image IDs, all Python rebuild variants, Maven POM/tests, npm and Go cache replay, and a Java metrics smoke test; it does not install k3s or certify the RHEL 8.6 installer workflow.
+
 Script 45 v9 installs or repairs `/var/lib/rancher/k3s/agent/etc/kubelet.conf.d/10-learner-cgroup-v1.conf` with `failCgroupV1: false`, owned by root with mode `0600`, before starting k3s.
 This RHEL 8.6 learner-only exception permits deprecated cgroup v1 operation after [Kubernetes 1.35 changed the default](https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.35.md#deprecation); it does not restore upstream support or apply to the Ubuntu presenter demo.
 The [k3s kubelet drop-in mechanism](https://docs.k3s.io/installation/configuration#kubelet-configuration-files) is available in k3s v1.32 and newer.
@@ -59,8 +73,8 @@ This probe checks manifest access, not a complete image pull; no reboot or conta
 
 Standalone files use local-first resolution; invalid staged checksums fail without a network fallback, and absent files use their configured Artifactory URL where applicable.
 Stage optional per-image archives at `$MANUAL_FETCH_DIR/images/`; script 60 loads them through the rootful Podman Docker wrapper and pulls only missing references, and script 62 imports matching Podman images before CRI pulls.
-Script 60 v5 also includes every recorded external build base from `commands.json` in the preload checks, including bases for interactive labs, before starting any recorded builds.
-Stage Python and Java base archives as `$MANUAL_FETCH_DIR/images/library-python-3.13-bullseye.tar` and `$MANUAL_FETCH_DIR/images/library-eclipse-temurin-21.tar`, preserving the original `python:3.13-bullseye` and `eclipse-temurin:21` image references in Docker-save or OCI archives.
+Script 60 v7 includes every recorded external build base from `commands.json` in the preload checks, including bases for interactive labs, before starting any recorded builds.
+Stage Python and Java base archives as `$MANUAL_FETCH_DIR/images/library-python-3.13-bullseye.tar` and `$MANUAL_FETCH_DIR/images/library-eclipse-temurin-17.tar`, preserving the `python:3.13-bullseye` and effective `eclipse-temurin:17` image references in Docker-save or OCI archives.
 Base archives use the same catalogue, checksum and embedded image validation as runtime images; missing archives use mirror recovery, corrupt archives fail before pulls, and builds with unresolved external bases are recorded as `BASE-IMAGES-MISSING` and skipped.
 See [MANUAL-FETCH.md](../content/vendor/MANUAL-FETCH.md) Section C for connected-machine Docker save commands, staging, and the optional online publisher; prefer the derived `docker-registry.${ART_REPO_DOMAIN}` endpoint or the supported path form, retaining SELinux enforcing while script 20 performs the planned firewalld change.
 

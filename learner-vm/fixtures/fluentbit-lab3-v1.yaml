@@ -1,0 +1,17 @@
+service:
+  flush: 1
+  log_level: info
+
+pipeline:
+  inputs:
+    - name: dummy
+      tag: workshop.info
+      dummy: '{"message":"This is workshop INFO message", "level":"INFO", "color":"yellow"}'
+    - name: dummy
+      tag: workshop.error
+      dummy: '{"message":"This is workshop ERROR message", "level":"ERROR", "color":"red"}'
+
+  outputs:
+    - name: stdout
+      match: '*'
+      format: json_lines

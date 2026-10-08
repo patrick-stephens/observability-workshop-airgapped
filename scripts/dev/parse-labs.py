@@ -29,7 +29,9 @@ KNOWN_IMAGES = {
     "docker.io/persesdev/perses:v0.54.0",
     "docker.io/prom/prometheus:v3.13.1",
     "quay.io/prometheus/node-exporter:v1.12.1",
+    "eclipse-temurin:17",
 }
+BASE_IMAGE_OVERRIDES = {"eclipse-temurin:21": "eclipse-temurin:17"}
 DOWNLOADS_ROOT = CONTENT / "vendor" / "downloads"
 BUILD_FLAGS = {"--load", "--push", "--builder", "--provenance", "--sbom"}
 SYNTAX_PATTERNS = (
@@ -442,6 +444,18 @@ def dockerfile_images(text):
     return images
 
 
+def apply_base_image_overrides(images):
+    effective = []
+    for image in images:
+        replacement = BASE_IMAGE_OVERRIDES.get(image, image)
+        if replacement != image:
+            # Learner RHEL host JDK is pinned to 17; derive Java lab images on JDK 17 rather than bundling JDK 21.
+            print(f"base-image override: upstream {image} -> learner {replacement}", file=sys.stderr)
+        if replacement not in effective:
+            effective.append(replacement)
+    return effective
+
+
 def dockerfile_syntax_flags(text):
     return [name for name, pattern in SYNTAX_PATTERNS if pattern.search(text)]
 
@@ -704,7 +718,8 @@ def command_fields(command, repo, embedded_blocks, creators, warnings, track, la
         "cwd": cwd_value,
         "interactive_context": not resolved_path.is_dir(),
         "runtime_download": False,
-        "base_images": dockerfile_images(dockerfile_text),
+        "upstream_base_images": dockerfile_images(dockerfile_text),
+        "base_images": apply_base_image_overrides(dockerfile_images(dockerfile_text)),
         "context_exists": resolved_path.is_dir(),
     })
     for flag in dockerfile_syntax_flags(dockerfile_text):
@@ -831,7 +846,7 @@ def main():
                 archive_urls = track_archive_urls
             embedded_blocks = [block for block in blocks if DOCKERFILE_FROM.search(block)]
             for block in blocks:
-                all_images.update(dockerfile_images(block))
+                all_images.update(apply_base_image_overrides(dockerfile_images(block)))
             cwd = repo.resolve()
             commands = []
             lab_creators = []

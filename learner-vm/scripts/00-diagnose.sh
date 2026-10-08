@@ -2,9 +2,9 @@
 set -euo pipefail
 
 SCRIPT_NAME="00-diagnose"
-# CHANGE: Pull explicit Artifactory references and verify matching local archives after failed pulls.
+# CHANGE: Probe dedicated package repositories with TLS verification and package-specific failure hints.
 # Default pulls warm the rootful Podman store; only --no-pull-verification is probe-only.
-SCRIPT_VERSION="16"
+SCRIPT_VERSION="17"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SELFTEST=false
 DRY_RUN=false
@@ -167,6 +167,36 @@ check_http_status() {
     fi
 }
 
+check_package_repository() {
+    local label="$1" base="$2" suffix="$3" setting="$4" probe_url status='000' host diagnostic argument
+    local curl_args=(--disable --proto '=https' --connect-timeout 5 --max-time 10 -sS -o /dev/null -w '%{http_code}')
+    if ! command -v python3 >/dev/null 2>&1; then
+        step_skip "Python 3 is needed to validate credential-free package endpoints; script 20 installs it" "$label package probe"
+        return 0
+    fi
+    if ! probe_url="$(python3 "$REPO_ROOT/learner-vm/dependency_bundle.py" endpoint --base "$base" --suffix "$suffix" 2>/dev/null)"; then
+        step_fail "$label package endpoint is unset or invalid" "Set $setting to the exact credential-free HTTPS endpoint supplied by the administrator; no public fallback is used." "command -v python3"
+        return 0
+    fi
+    if [[ -n "${ART_PACKAGE_CA_CERT:-}" ]]; then curl_args+=(--cacert "$ART_PACKAGE_CA_CERT"); fi
+    if status="$(curl "${curl_args[@]}" "$probe_url" 2>/dev/null)"; then :; else status='000'; fi
+    if [[ "$status" == 200 ]]; then
+        step_ok "$label package probe returned HTTP 200 with TLS validation; native client and cache completeness are not verified"
+        return 0
+    fi
+    host="${probe_url#https://}"
+    host="${host%%/*}"
+    diagnostic='curl --disable --proto =https --connect-timeout 5 --max-time 10 -v -o /dev/null'
+    if [[ -n "${ART_PACKAGE_CA_CERT:-}" ]]; then
+        printf -v argument '%q' "$ART_PACKAGE_CA_CERT"
+        diagnostic+=" --cacert $argument"
+    fi
+    printf -v argument '%q' "$probe_url"
+    diagnostic+=" $argument"
+    step_fail "$label package probe failed: HTTP $status" "Check $setting, the repository key, anonymous read policy and CA trust; HTTP 404 can mean absent package metadata, not a missing container image. No public fallback is attempted." \
+        "getent hosts $(printf '%q' "${host%%:*}")" "$diagnostic"
+}
+
 check_manifest() {
     local reference="$1" reference_path first_component last_component repository tag manifest_path url status='000'
     [[ -n "$reference" && "$reference" != \#* ]] || return 0
@@ -254,6 +284,16 @@ check_iso
 
 if require_or_skip curl "Artifactory and registry HTTPS probes"; then
     check_http_status "Artifactory root" "https://${ART_HOST}/" "200 302"
+    case "${CHECK_PACKAGE_REPOSITORIES:-yes}" in
+        yes)
+            check_package_repository PyPI "${ART_PYPI_INDEX_URL:-}" 'flask/' ART_PYPI_INDEX_URL
+            check_package_repository Maven "${ART_MAVEN_URL:-}" 'org/apache/maven/plugins/maven-compiler-plugin/3.11.0/maven-compiler-plugin-3.11.0.pom' ART_MAVEN_URL
+            check_package_repository npm "${ART_NPM_URL:-}" 'react' ART_NPM_URL
+            check_package_repository Go "${ART_GO_PROXY_URL:-}" 'github.com/prometheus/client_golang/@v/v1.12.1.mod' ART_GO_PROXY_URL
+            ;;
+        no) step_skip 'CHECK_PACKAGE_REPOSITORIES=no explicitly selected; local cache validation remains a separate gate' 'package repository HTTP probes' ;;
+        *) step_fail 'CHECK_PACKAGE_REPOSITORIES must be yes or no' 'Correct learner-vm/lab-vm.conf before rerunning diagnostics.' ;;
+    esac
     step_skip "derived registry endpoint=$DOCKER_REGISTRY; REG_HOST=$REG_HOST; form=$REGISTRY_FORM" "registry configuration (informational)"
     REGISTRY_RESPONSES=0
     registry_status='000'

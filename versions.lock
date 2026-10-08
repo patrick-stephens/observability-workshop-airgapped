@@ -48,6 +48,23 @@ chart.opentelemetry-collector 0.174.0 - Provides the OTLP traces fan-out Deploym
 chart.fluent-bit-collector 1.1.2 - Provides the Kubernetes log tailing and Loki forwarding collector DaemonSet.
 chart.perses 0.23.2 - Provides Perses UI and provisioning configuration.
 build-image.hey-builder golang:1.24-alpine@sha256:757779acac4af1b349a20f357c7296097b4a0b89da4ad0e370b339060077282a - Pinned Go builder for the self-contained hey load generator.
+learner-bundle.image.python docker.io/library/python:3.13-bullseye@sha256:f58f33e0563f2ba81c7afe6259cd912f0c33413da93c75cc3a70a941c17afa8c - Java/Python lab capture builder and Python runtime base; verified amd64 manifest.
+learner-bundle.image.maven-builder docker.io/library/maven:3.9.11-eclipse-temurin-17@sha256:e4a7ace3dc0d645ed97f8d9ad0b0d3f0b14fa8d150138f27f116d7105a639b82 - Java 17 Maven builder used for connected capture and offline replay.
+learner-bundle.image.java17 docker.io/library/eclipse-temurin:17@sha256:5d6042fb8cdc14d614e4e421f52e3211fc5aeadddce44cbf9de8ed37c791f824 - Java 17 runtime for learner lab images; avoids requiring Java 21 on the RHEL host.
+learner-bundle.image.go-service-builder docker.io/library/golang:1.17-alpine@sha256:99ddec1bbfd6d6bca3f9804c02363daee8c8524dae50df7942e8e60788fd17c9 - Upstream Go service demo builder stage, captured for offline image builds.
+learner-bundle.image.alpine docker.io/library/alpine:3@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6 - Upstream Go service demo runtime stage.
+learner-bundle.image.go-builder docker.io/library/golang:1.26.5-bookworm@sha256:53eeac89074db483fdf0ab3be1df32bf6e47562263d2d0d6baa7f26acb4957dd - Pinned builder matching the captured Perses go.mod toolchain.
+learner-bundle.image.node docker.io/library/node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0 - Pinned Node/npm toolchain for Perses source UI capture.
+learner-bundle.image.jaeger docker.io/jaegertracing/all-in-one:1.76.0@sha256:ab6f1a1f0fb49ea08bcd19f6b84f6081d0d44b364b6de148e1798eb5816bacac - Prebuilt Jaeger image used by captured OpenTelemetry lab runs.
+learner-bundle.image.busybox docker.io/library/busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662 - Prebuilt BusyBox image used by captured lab examples.
+learner-bundle.image.opensearch-dashboards docker.io/opensearchproject/opensearch-dashboards:3.3.0@sha256:936b7c350c2679f59c6b7fb85856feac2dcd5934e6efc47b7ea26a95978684d3 - Prebuilt OpenSearch Dashboards image for Fluent Bit labs.
+learner-bundle.image.opensearch docker.io/opensearchproject/opensearch:3.3.1@sha256:773b05b026c01e7d520f6b857f486b7312d9290e14f2aebe4630eb80787e9eb3 - Prebuilt OpenSearch image for Fluent Bit labs.
+learner-bundle.image.prometheus-prom docker.io/prom/prometheus:v3.13.1@sha256:3c42b892cf723fa54d2f262c37a0e1f80aa8c8ddb1da7b9b0df9455a35a7f893 - Upstream Prometheus base used by captured workshop recipes.
+learner-bundle.image.prometheus-base docker.io/prom/prometheus:v3.13.1@sha256:3c42b892cf723fa54d2f262c37a0e1f80aa8c8ddb1da7b9b0df9455a35a7f893 - Digest-locked base used for local Prometheus configuration images.
+learner-bundle.image.fluent-bit ghcr.io/fluent/fluent-bit:5.1.1@sha256:a941bdd5ca552b2c6597fc7b3bccf2e61d30873939bab5700963de0e94ac6169 - Upstream Fluent Bit image used by captured interactive configuration builds.
+learner-bundle.image.otel-collector docker.io/otel/opentelemetry-collector-contrib:0.159.0@sha256:1f2c54a30e713fac6b3ae77a1ec84010c2007e29ced8ec666214fc2f6739c1cc - Upstream collector image used by Fluent Bit interoperability labs.
+learner-bundle.image.node-exporter quay.io/prometheus/node-exporter:v1.12.1@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0 - Upstream node exporter image used by captured Prometheus labs.
+learner-bundle.archive.fluentbit-helper sha256:b543c514457bfbafa09ce9be26ddf3f300809863f1a6994415a09360734ea453 - Version 2.9 upstream Fluent Bit config snapshots and container build files referenced by the workshop.
 build-image.buildkit moby/buildkit:v0.33.1@sha256:98cc6a3fc46220d00f8224ae483f3274fc874e9be8d7dd1e2e2c5481209228b5 - Pinned BuildKit image used to export the load generator reproducibly.
 capture.perses-plugin-prometheus v0.54.0 sha256:4ae6745796d3bf83e205828bf969e881f65c62ce29226b84fe923c399b4fb0cc - Prometheus query and datasource plugin for Perses.
 capture.perses-plugin-loki v0.6.0 sha256:b4908eac7188b51f9ebbab4e0b3fc583af4e7c0b496d9e34aeb8c555e45fb339 - Loki query and datasource plugin for Perses.

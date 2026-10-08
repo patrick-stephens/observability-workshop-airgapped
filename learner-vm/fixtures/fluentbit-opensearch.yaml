@@ -1,0 +1,26 @@
+service:
+  flush: 1
+  log_level: info
+
+pipeline:
+  inputs:
+    - name: dummy
+      tag: app.logs
+      dummy: '{"message":"workshop OpenSearch integration"}'
+
+  outputs:
+    - name: stdout
+      match: '*'
+      format: json_stream
+      json_date_format: java_sql_timestamp
+
+    - name: opensearch
+      match: '*'
+      host: host.containers.internal
+      port: 9200
+      http_user: admin
+      http_passwd: 'Opensearch@demo1'
+      index: fb-index
+      type: fbType
+      net.keepalive: off
+      suppress_type_name: true

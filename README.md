@@ -233,6 +233,9 @@ The full replay procedure is in `bundle/README.md`.
 
 ## Learner Workshop Content Capture
 
+The [learner dependency bundle](learner-vm/DEPENDENCY-BUNDLE.md) specifies prebuilt final images, local package caches and generic downloads in one separately transferred GitHub Release tarball, plus optional administrator-supplied Artifactory profiles.
+Public upstream capture is permitted only on the connected build node with explicit approval; learner runtime must use local/offline inputs or the explicitly configured Artifactory repositories, never public fallback.
+
 On the connected online machine, run `scripts/dev/import-content.sh` to clone or reuse the five public workshop repositories and mirror their documentation.
 The script records source SHAs and mirror dates in `versions.lock`; use `--refresh` to replace the captured sources and documentation.
 Run `python3 scripts/dev/parse-labs.py` to extract every Docker and Podman command path, cwd, base image, and runtime download into `content/extracted/`.

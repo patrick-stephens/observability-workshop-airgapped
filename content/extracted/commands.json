@@ -31,6 +31,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "python:3.13-bullseye"
+            ],
             "base_images": [
               "python:3.13-bullseye"
             ],
@@ -84,6 +87,9 @@
             "dockerfile_arg": "automatic/Buildfile-auto",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "python:3.13-bullseye"
+            ],
             "base_images": [
               "python:3.13-bullseye"
             ],
@@ -148,6 +154,9 @@
             "dockerfile_arg": "automatic/Buildfile-auto",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "python:3.13-bullseye"
+            ],
             "base_images": [
               "python:3.13-bullseye"
             ],
@@ -235,6 +244,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "python:3.13-bullseye"
+            ],
             "base_images": [
               "python:3.13-bullseye"
             ],
@@ -298,6 +310,9 @@
             "dockerfile_arg": "automatic/Buildfile-auto",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "python:3.13-bullseye"
+            ],
             "base_images": [
               "python:3.13-bullseye"
             ],
@@ -345,6 +360,9 @@
             "dockerfile_arg": "automatic/Buildfile-auto",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "python:3.13-bullseye"
+            ],
             "base_images": [
               "python:3.13-bullseye"
             ],
@@ -420,6 +438,9 @@
             "dockerfile_arg": "programmatic/Buildfile-prog",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "python:3.13-bullseye"
+            ],
             "base_images": [
               "python:3.13-bullseye"
             ],
@@ -558,6 +579,9 @@
             "dockerfile_arg": "programmatic/Buildfile-prog",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "python:3.13-bullseye"
+            ],
             "base_images": [
               "python:3.13-bullseye"
             ],
@@ -714,6 +738,9 @@
             "dockerfile_arg": "manual/Buildfile-manual",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "python:3.13-bullseye"
+            ],
             "base_images": [
               "python:3.13-bullseye"
             ],
@@ -806,6 +833,9 @@
             "dockerfile_arg": "manual/Buildfile-manual",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "python:3.13-bullseye"
+            ],
             "base_images": [
               "python:3.13-bullseye"
             ],
@@ -893,6 +923,9 @@
             "dockerfile_arg": "./metrics/prometheus/Buildfile-prom",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "prom/prometheus:v3.13.1"
+            ],
             "base_images": [
               "prom/prometheus:v3.13.1"
             ],
@@ -946,6 +979,9 @@
             "dockerfile_arg": "metrics/Buildfile-metrics",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "python:3.13-bullseye"
+            ],
             "base_images": [
               "python:3.13-bullseye"
             ],
@@ -1025,6 +1061,9 @@
             "dockerfile_arg": "metrics/prometheus/Buildfile-prom",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "prom/prometheus:v3.13.1"
+            ],
             "base_images": [
               "prom/prometheus:v3.13.1"
             ],
@@ -1062,6 +1101,9 @@
             "dockerfile_arg": "./metrics/prometheus/Buildfile-prom",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "prom/prometheus:v3.13.1"
+            ],
             "base_images": [
               "prom/prometheus:v3.13.1"
             ],
@@ -1129,6 +1171,9 @@
             "dockerfile_arg": "metrics/Buildfile-metrics",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "python:3.13-bullseye"
+            ],
             "base_images": [
               "python:3.13-bullseye"
             ],
@@ -1188,6 +1233,9 @@
             "dockerfile_arg": "metrics/prometheus/Buildfile-prom",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "prom/prometheus:v3.13.1"
+            ],
             "base_images": [
               "prom/prometheus:v3.13.1"
             ],
@@ -1243,10 +1291,13 @@
             "dockerfile_arg": "Buildfile-AgentContainer",
             "interactive_context": false,
             "runtime_download": true,
-            "base_images": [
+            "upstream_base_images": [
               "eclipse-temurin:21",
               "eclipse-temurin:21",
               "eclipse-temurin:21"
+            ],
+            "base_images": [
+              "eclipse-temurin:17"
             ],
             "context_exists": false,
             "runtime_download_sources": [
@@ -1314,10 +1365,13 @@
             "dockerfile_arg": "Buildfile-AgentJavaTools",
             "interactive_context": false,
             "runtime_download": true,
-            "base_images": [
+            "upstream_base_images": [
               "eclipse-temurin:21",
               "eclipse-temurin:21",
               "eclipse-temurin:21"
+            ],
+            "base_images": [
+              "eclipse-temurin:17"
             ],
             "context_exists": false,
             "runtime_download_sources": [
@@ -1425,10 +1479,13 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": true,
-            "base_images": [
+            "upstream_base_images": [
               "eclipse-temurin:21",
               "eclipse-temurin:21",
               "eclipse-temurin:21"
+            ],
+            "base_images": [
+              "eclipse-temurin:17"
             ],
             "context_exists": false,
             "runtime_download_sources": [
@@ -1505,10 +1562,13 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": true,
-            "base_images": [
+            "upstream_base_images": [
               "eclipse-temurin:21",
               "eclipse-temurin:21",
               "eclipse-temurin:21"
+            ],
+            "base_images": [
+              "eclipse-temurin:17"
             ],
             "context_exists": false,
             "runtime_download_sources": [
@@ -1583,10 +1643,13 @@
             "dockerfile_arg": "Buildfile-AgentContainer",
             "interactive_context": false,
             "runtime_download": true,
-            "base_images": [
+            "upstream_base_images": [
               "eclipse-temurin:21",
               "eclipse-temurin:21",
               "eclipse-temurin:21"
+            ],
+            "base_images": [
+              "eclipse-temurin:17"
             ],
             "context_exists": false,
             "runtime_download_sources": [
@@ -1657,10 +1720,13 @@
             "dockerfile_arg": "Buildfile-AgentJavaTools",
             "interactive_context": false,
             "runtime_download": true,
-            "base_images": [
+            "upstream_base_images": [
               "eclipse-temurin:21",
               "eclipse-temurin:21",
               "eclipse-temurin:21"
+            ],
+            "base_images": [
+              "eclipse-temurin:17"
             ],
             "context_exists": false,
             "runtime_download_sources": [
@@ -1791,6 +1857,7 @@
             "dockerfile_arg": "Buildfile-manual",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [],
             "base_images": [],
             "context_exists": true,
             "preload_status": "INTERACTIVE",
@@ -1858,6 +1925,9 @@
             "dockerfile_arg": "Buildfile-prom",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "prom/prometheus:v3.13.1"
+            ],
             "base_images": [
               "prom/prometheus:v3.13.1"
             ],
@@ -1913,6 +1983,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "prom/prometheus:v3.13.1"
+            ],
             "base_images": [
               "prom/prometheus:v3.13.1"
             ],
@@ -1942,6 +2015,9 @@
             "dockerfile_arg": "Buildfile-prom",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "prom/prometheus:v3.13.1"
+            ],
             "base_images": [
               "prom/prometheus:v3.13.1"
             ],
@@ -2124,6 +2200,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "prom/prometheus:v3.13.1"
+            ],
             "base_images": [
               "prom/prometheus:v3.13.1"
             ],
@@ -2197,6 +2276,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "prom/prometheus:v3.13.1"
+            ],
             "base_images": [
               "prom/prometheus:v3.13.1"
             ],
@@ -2266,6 +2348,9 @@
             "dockerfile_arg": "installs/demo/Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "prom/prometheus:v3.13.1"
+            ],
             "base_images": [
               "prom/prometheus:v3.13.1"
             ],
@@ -2331,6 +2416,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "prom/prometheus:v3.13.1"
+            ],
             "base_images": [
               "prom/prometheus:v3.13.1"
             ],
@@ -2422,6 +2510,7 @@
             "dockerfile_arg": "installs/demo/Buildfile",
             "interactive_context": false,
             "runtime_download": true,
+            "upstream_base_images": [],
             "base_images": [],
             "context_exists": false,
             "runtime_download_sources": [
@@ -2455,6 +2544,7 @@
             "dockerfile_arg": null,
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [],
             "base_images": [],
             "context_exists": true,
             "preload_status": "INTERACTIVE",
@@ -2671,6 +2761,7 @@
             "dockerfile_arg": "installs/demo/Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [],
             "base_images": [],
             "context_exists": true,
             "preload_status": "INTERACTIVE",
@@ -2780,6 +2871,7 @@
             "dockerfile_arg": "installs/demo/Buildfile",
             "interactive_context": false,
             "runtime_download": true,
+            "upstream_base_images": [],
             "base_images": [],
             "context_exists": false,
             "runtime_download_sources": [
@@ -2860,6 +2952,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "prom/prometheus:v3.13.1"
+            ],
             "base_images": [
               "prom/prometheus:v3.13.1"
             ],
@@ -2926,6 +3021,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "prom/prometheus:v3.13.1"
+            ],
             "base_images": [
               "prom/prometheus:v3.13.1"
             ],
@@ -2997,6 +3095,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "prom/prometheus:v3.13.1"
+            ],
             "base_images": [
               "prom/prometheus:v3.13.1"
             ],
@@ -3100,6 +3201,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "prom/prometheus:v3.13.1"
+            ],
             "base_images": [
               "prom/prometheus:v3.13.1"
             ],
@@ -3151,8 +3255,11 @@
             "dockerfile_arg": null,
             "interactive_context": false,
             "runtime_download": true,
-            "base_images": [
+            "upstream_base_images": [
               "eclipse-temurin:21"
+            ],
+            "base_images": [
+              "eclipse-temurin:17"
             ],
             "context_exists": false,
             "runtime_download_sources": [
@@ -3354,6 +3461,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "ghcr.io/fluent/fluent-bit:5.1.1"
+            ],
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
             ],
@@ -3401,6 +3511,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "ghcr.io/fluent/fluent-bit:5.1.1"
+            ],
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
             ],
@@ -3450,6 +3563,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "ghcr.io/fluent/fluent-bit:5.1.1"
+            ],
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
             ],
@@ -3505,6 +3621,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "ghcr.io/fluent/fluent-bit:5.1.1"
+            ],
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
             ],
@@ -3552,6 +3671,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "ghcr.io/fluent/fluent-bit:5.1.1"
+            ],
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
             ],
@@ -3599,6 +3721,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "ghcr.io/fluent/fluent-bit:5.1.1"
+            ],
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
             ],
@@ -3646,6 +3771,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "ghcr.io/fluent/fluent-bit:5.1.1"
+            ],
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
             ],
@@ -3701,6 +3829,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "ghcr.io/fluent/fluent-bit:5.1.1"
+            ],
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
             ],
@@ -3814,6 +3945,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "ghcr.io/fluent/fluent-bit:5.1.1"
+            ],
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
             ],
@@ -3872,6 +4006,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "ghcr.io/fluent/fluent-bit:5.1.1"
+            ],
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
             ],
@@ -3935,6 +4072,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "ghcr.io/fluent/fluent-bit:5.1.1"
+            ],
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
             ],
@@ -3995,6 +4135,9 @@
             "dockerfile_arg": "Buildfile-fb",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "ghcr.io/fluent/fluent-bit:5.1.1"
+            ],
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
             ],
@@ -4042,6 +4185,9 @@
             "dockerfile_arg": "Buildfile-fb",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "ghcr.io/fluent/fluent-bit:5.1.1"
+            ],
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
             ],
@@ -4095,6 +4241,9 @@
             "dockerfile_arg": "Buildfile-otel",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "otel/opentelemetry-collector-contrib:0.159.0"
+            ],
             "base_images": [
               "otel/opentelemetry-collector-contrib:0.159.0"
             ],
@@ -4152,6 +4301,9 @@
             "dockerfile_arg": "Buildfile-fb",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "otel/opentelemetry-collector-contrib:0.159.0"
+            ],
             "base_images": [
               "otel/opentelemetry-collector-contrib:0.159.0"
             ],
@@ -4464,6 +4616,7 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [],
             "base_images": [],
             "context_exists": true,
             "preload_status": "INTERACTIVE",
@@ -4551,6 +4704,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "ghcr.io/fluent/fluent-bit:5.1.1"
+            ],
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
             ],
@@ -4598,6 +4754,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "ghcr.io/fluent/fluent-bit:5.1.1"
+            ],
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
             ],
@@ -4647,6 +4806,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "ghcr.io/fluent/fluent-bit:5.1.1"
+            ],
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
             ],
@@ -4694,6 +4856,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "ghcr.io/fluent/fluent-bit:5.1.1"
+            ],
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
             ],
@@ -4743,6 +4908,9 @@
             "dockerfile_arg": "Buildfile",
             "interactive_context": false,
             "runtime_download": false,
+            "upstream_base_images": [
+              "ghcr.io/fluent/fluent-bit:5.1.1"
+            ],
             "base_images": [
               "ghcr.io/fluent/fluent-bit:5.1.1"
             ],

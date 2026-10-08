@@ -1,0 +1,16 @@
+service:
+  flush: 1
+  log_level: info
+
+pipeline:
+  inputs:
+    - name: dummy
+      dummy: '{"service":"backend","log_entry":"Generating a 200 success code."}'
+      processors:
+        logs:
+          - name: opentelemetry_envelope
+
+  outputs:
+    - name: stdout
+      match: '*'
+      format: json_lines

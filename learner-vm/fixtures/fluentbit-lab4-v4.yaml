@@ -1,0 +1,17 @@
+service:
+  flush: 1
+  log_level: info
+
+pipeline:
+  inputs:
+    - name: dummy
+      tag: event.success
+      dummy: '{"message":"true 200 success"}'
+    - name: dummy
+      tag: event.error
+      dummy: '{"message":"false 500 error"}'
+
+  outputs:
+    - name: stdout
+      match: '*'
+      format: json_lines

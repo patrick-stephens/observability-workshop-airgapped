@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "overrides": [
+    {
+      "upstream": "eclipse-temurin:21",
+      "learner": "eclipse-temurin:17",
+      "scope": "derived Java lab images on RHEL 8 learner VM",
+      "reason": "Learner JDK is pinned to Java 17; no Java 21 host/runtime bundle is used.",
+      "validation": "Derived POMs target Java 17, JAR class versions are checked, Maven tests/replay run in the digest-pinned Java 17 builder."
+    }
+  ]
+}
