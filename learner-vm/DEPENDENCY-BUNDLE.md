@@ -120,6 +120,10 @@ Download all listed assets together, verify `SHA256SUMS`, then follow the genera
 The release remains draft until every remote asset digest and size matches the local artefacts; reruns reuse matching assets and refuse mismatches or changes to an incomplete already-public release.
 The existing image-only mode remains available through `--image-only` or an explicit `--images-file`, but it does not publish package caches or generic lab files.
 GitHub's automatic source archives come from the release tag; the publisher does not create a separate source snapshot.
+The publisher resolves the target repository's latest remote `main` commit by default, or resolves an explicit `--commit <SHA>` there.
+It creates and verifies the required tag before creating a missing release, and both archive and image-only modes pass the resolved full SHA as the release target.
+Existing tags must already point to that commit; they are never moved, and conflicting tags stop publication before release creation or uploads.
+For a rerun after `main` advances, select the original tag commit with `--commit`.
 Verify uploaded asset digests and completeness, and distinguish release upload failures from learner provisioning failures.
 Check GitHub per-asset limits and learner disk requirements; a split release requires an explicit manifest and independently verified parts.
 OS package repositories, the k3s binary and k3s system-image archive remain separate bootstrap prerequisites unless explicitly declared in this bundle's inventory.

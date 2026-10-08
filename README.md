@@ -259,7 +259,11 @@ Capture and offline validation remain separate prerequisites; the publisher neit
 Reruns reuse the generated archive only if the capture inventory and file contents still match; changed sources require a new output directory.
 Bundle mode verifies the archive, splits it into 1,900,000,000-byte parts by default, and publishes checksums, inventories and reassembly instructions alongside them.
 It uploads to a draft release and makes it public only after every remote asset digest and size matches; failed uploads or verification leave the release in draft.
-No custom source snapshot is created; GitHub supplies its normal source archives from the release tag, targeting the current committed HEAD.
+No custom source snapshot is created; GitHub supplies its normal source archives from the release tag.
+The publisher resolves the latest commit on `main` in the target GitHub repository by default, not local HEAD or a cached tracking branch.
+Use `--commit <SHA>` to select a specific commit already present in that repository; abbreviated SHAs of at least seven characters are resolved to their full SHA.
+Both publication modes create a missing tag and release automatically, verify the tag's commit and refuse to move an existing conflicting tag.
+To resume an older release after `main` advances, pass the commit already referenced by its tag.
 Commit and push the intended source changes before publication so that GitHub's automatic source archives contain them.
 Preview the selected target without publishing:
 

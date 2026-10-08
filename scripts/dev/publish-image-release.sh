@@ -5,24 +5,26 @@ set -euo pipefail
 # Bundle releases stay draft until remote asset digests and sizes are verified.
 # Authentication comes from gh's environment, never this file.
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-SCRIPT_NAME=publish-image-release SCRIPT_VERSION=4 SELFTEST_MODE=true
+SCRIPT_NAME=publish-image-release SCRIPT_VERSION=5 SELFTEST_MODE=true
 source "$ROOT_DIR/learner-vm/scripts/lib.sh"
 TAG='' REPOSITORY='' IMAGES_FILE="$ROOT_DIR/content/extracted/external-images.txt"
+COMMIT='' RELEASE_COMMIT=''
 IMAGES_FILE_EXPLICIT=false
 OUT_DIR="$ROOT_DIR/dist/image-release" DRY_RUN=false REPLACE_EXISTING=false RETRIES=3
 BUNDLE='' PART_BYTES=1900000000
 BUNDLE_SOURCE="$ROOT_DIR/dist/learner-dependencies-java17-r7"
 BUNDLE_SOURCE_EXPLICIT=false IMAGE_ONLY=false
 usage() {
-    printf '%s\n' 'Usage: publish-image-release.sh --tag TAG --repo OWNER/NAME [--bundle-source DIR | --bundle ARCHIVE | --image-only | --images-file PATH] [--out DIR] [--dry-run] [--replace-existing] [--retries N] [--part-bytes N]'
+    printf '%s\n' 'Usage: publish-image-release.sh --tag TAG --repo OWNER/NAME [--commit SHA] [--bundle-source DIR | --bundle ARCHIVE | --image-only | --images-file PATH] [--out DIR] [--dry-run] [--replace-existing] [--retries N] [--part-bytes N]'
 }
 die() { printf '[publish-image-release] ERROR: %s\n' "$*" >&2; exit 1; }
 while (($#)); do
     case "$1" in
-        --tag|--repo|--images-file|--out|--retries|--bundle|--part-bytes|--bundle-source)
+        --tag|--repo|--commit|--images-file|--out|--retries|--bundle|--part-bytes|--bundle-source)
             (($# >= 2)) || die "missing value for $1"
             case "$1" in
                 --tag) TAG="$2" ;; --repo) REPOSITORY="$2" ;;
+                --commit) COMMIT="$2" ;;
                 --images-file) IMAGES_FILE="$2"; IMAGES_FILE_EXPLICIT=true ;; --out) OUT_DIR="$2" ;; --retries) RETRIES="$2" ;;
                 --bundle) BUNDLE="$2" ;; --part-bytes) PART_BYTES="$2" ;;
                 --bundle-source) BUNDLE_SOURCE="$2"; BUNDLE_SOURCE_EXPLICIT=true ;;
@@ -38,15 +40,33 @@ done
 [[ "$TAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || die '--tag is required (letters, digits, dot, underscore, dash)'
 [[ "$REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die '--repo OWNER/NAME is required'
 [[ "$RETRIES" =~ ^[1-9][0-9]*$ ]] || die '--retries must be a positive integer'
+[[ -z "$COMMIT" || "$COMMIT" =~ ^[a-fA-F0-9]{7,40}$ ]] || die '--commit must be a 7-to-40-character hexadecimal commit SHA'
+COMMIT="${COMMIT,,}"
 command -v gh >/dev/null 2>&1 || die 'Install GitHub CLI (gh) and configure gh authentication; no curl fallback is provided.'
 [[ "$BUNDLE_SOURCE_EXPLICIT" == false || ( -z "$BUNDLE" && "$IMAGE_ONLY" == false && "$IMAGES_FILE_EXPLICIT" == false ) ]] || die '--bundle-source cannot be combined with an archive or image-only mode'
 [[ -z "$BUNDLE" || "$IMAGE_ONLY" == false ]] || die '--bundle cannot be combined with --image-only'
+preview_release_target() {
+    printf 'WOULD: resolve %s in %s, create missing tag %s, refuse conflicting existing tags, and create the required release\n' "${COMMIT:-latest remote main}" "$REPOSITORY" "$TAG"
+}
+ensure_release_tag() {
+    local tagged_commit
+    RELEASE_COMMIT="$(gh api "repos/$REPOSITORY/commits/${COMMIT:-main}" --jq '.sha')" || die 'could not resolve release commit in the target repository'
+    [[ "$RELEASE_COMMIT" =~ ^[a-f0-9]{40}$ ]] || die 'GitHub returned an invalid release commit SHA'
+    [[ -z "$COMMIT" || "$RELEASE_COMMIT" == "$COMMIT"* ]] || die 'resolved commit does not match --commit'
+    if ! gh api "repos/$REPOSITORY/git/refs" --method POST -f "ref=refs/tags/$TAG" -f "sha=$RELEASE_COMMIT" >/dev/null 2>&1; then
+        printf '[publish-image-release] Tag creation did not succeed; checking whether the required tag already exists.\n'
+    fi
+    tagged_commit="$(gh api "repos/$REPOSITORY/commits/refs%2Ftags%2F$TAG" --jq '.sha')" || die 'could not create or resolve the required release tag'
+    [[ "$tagged_commit" == "$RELEASE_COMMIT" ]] || die "existing tag $TAG targets $tagged_commit instead of $RELEASE_COMMIT; choose another tag or matching --commit"
+    printf '[publish-image-release] Release tag %s verified at %s\n' "$TAG" "$RELEASE_COMMIT"
+}
 create_bundle() {
     local source_files checksum_files expected
     [[ "$REPLACE_EXISTING" == false ]] || die 'automatic bundle mode cannot use --replace-existing'
     [[ "$PART_BYTES" =~ ^[1-9][0-9]{0,9}$ ]] && ((PART_BYTES <= 2000000000)) || die '--part-bytes must be between 1 and 2000000000'
     BUNDLE="$OUT_DIR/learner-dependencies-$TAG.tar.gz"
     if [[ "$DRY_RUN" == true ]]; then
+        preview_release_target
         printf 'WOULD: pack offline-verified capture directory %s into %s and generate its trusted checksum\n' "$BUNDLE_SOURCE" "$BUNDLE"
         printf 'WOULD: verify, split and publish through a draft release after remote digest verification\n'
         printf 'Dry-run: no capture, client calls, directories, archives, uploads, or release changes.\n'
@@ -80,13 +100,14 @@ publish_bundle() {
     expected="$(awk 'NR == 1 {print $1}' "$BUNDLE.sha256")"
     [[ "$expected" =~ ^[a-f0-9]{64}$ ]] || die 'bundle sidecar requires a trusted SHA-256'
     if [[ "$DRY_RUN" == true ]]; then
+        preview_release_target
         printf 'WOULD: verify bundle %s against %s; split into parts of at most %s bytes\n' "$BUNDLE" "$expected" "$PART_BYTES"
         printf 'WOULD: generate part checksums, inventories and reassembly instructions in %s\n' "$OUT_DIR"
         printf 'WOULD: upload to a draft %s release in %s; verify every remote digest before publishing with latest=false\n' "$TAG" "$REPOSITORY"
         printf 'Dry-run: no client calls, directories, splits, uploads, or release changes.\n'
         return 0
     fi
-    for tool in python3 jq tar split sha256sum git; do command -v "$tool" >/dev/null 2>&1 || die "required bundle publication tool is missing: $tool"; done
+    for tool in python3 jq tar split sha256sum; do command -v "$tool" >/dev/null 2>&1 || die "required bundle publication tool is missing: $tool"; done
     python3 "$ROOT_DIR/learner-vm/dependency_bundle.py" verify --archive "$BUNDLE" --sha256 "$expected"
     mkdir -p "$OUT_DIR"
     stage="$(mktemp -d "$OUT_DIR/.bundle-release.XXXXXX")"
@@ -116,10 +137,11 @@ publish_bundle() {
     assets+=("$stage/SHA256SUMS")
     for asset in "${assets[@]}"; do cp "$asset" "$OUT_DIR/${asset##*/}"; done
     printf 'Verified lab image, package-cache and generic-download bundle.\n\nDownload every split part and metadata asset, then follow REASSEMBLE.md.\n\nOS packages/media and k3s bootstrap prerequisites are separate.\nExact RHEL 8.6 provisioning and k3s acceptance are not certified by this release.\n' > "$stage/RELEASE-NOTES.md"
+    ensure_release_tag
     if draft="$(gh release view "$TAG" --repo "$REPOSITORY" --json isDraft --jq '.isDraft' 2>/dev/null)"; then
         [[ "$draft" == true || "$draft" == false ]] || die 'could not determine existing release visibility'
     else
-        gh release create "$TAG" --repo "$REPOSITORY" --target "$(git -C "$ROOT_DIR" rev-parse HEAD)" --title "$TAG Lab Dependencies" --notes-file "$stage/RELEASE-NOTES.md" --draft --latest=false || die 'could not create draft release'
+        gh release create "$TAG" --repo "$REPOSITORY" --target "$RELEASE_COMMIT" --title "$TAG Lab Dependencies" --notes-file "$stage/RELEASE-NOTES.md" --draft --latest=false || die 'could not create draft release'
         draft=true
     fi
     gh api "repos/$REPOSITORY/releases/tags/$TAG" > "$stage/remote.json" || die 'could not inspect release assets'
@@ -186,11 +208,12 @@ if [[ "$IMAGES_FILE_EXPLICIT" == false ]]; then
 fi
 ((${#ASSETS[@]} > 0)) || die 'image list has no references after comments/blank lines'
 if [[ "$DRY_RUN" == true ]]; then
+    preview_release_target
     for index in "${!ASSETS[@]}"; do
         printf 'WOULD: docker pull %q\n' "${REFERENCES[$index]}"
         printf 'WOULD: docker save -o %q %q\n' "$OUT_DIR/${ASSETS[$index]}" "${REFERENCES[$index]}"
     done
-    printf 'WOULD: gh release view %q --repo %q || gh release create %q --repo %q --notes "" --latest=false\n' "$TAG" "$REPOSITORY" "$TAG" "$REPOSITORY"
+    printf 'WOULD: gh release view %q --repo %q || gh release create %q --repo %q --target <resolved-commit> --notes "" --latest=false\n' "$TAG" "$REPOSITORY" "$TAG" "$REPOSITORY"
     for asset in "${ASSETS[@]}"; do
         printf 'WOULD: %s; gh release upload %q %q --repo %q --clobber (up to %s attempts, backoff 1s/2s/4s)\n' "$(if [[ "$REPLACE_EXISTING" == true ]]; then printf 'replace existing'; else printf 'skip existing'; fi)" "$TAG" "$OUT_DIR/$asset" "$REPOSITORY" "$RETRIES"
     done
@@ -215,8 +238,9 @@ for index in "${!ASSETS[@]}"; do
     RESULTS["$asset"]='created'
 done
 for asset in "${ASSETS[@]}"; do [[ -s "$OUT_DIR/$asset" ]] || die "asset missing before upload: $asset"; done
+ensure_release_tag
 if ! gh release view "$TAG" --repo "$REPOSITORY" >/dev/null 2>&1; then
-    gh release create "$TAG" --repo "$REPOSITORY" --notes "" --latest=false || die 'could not create release'
+    gh release create "$TAG" --repo "$REPOSITORY" --target "$RELEASE_COMMIT" --notes "" --latest=false || die 'could not create release'
 fi
 list_assets() { gh api "repos/$REPOSITORY/releases/tags/$TAG" --jq '.assets[].name'; }
 remote_assets="$(list_assets)" || die 'could not enumerate existing release assets'

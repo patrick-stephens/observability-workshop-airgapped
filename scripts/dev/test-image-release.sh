@@ -8,6 +8,24 @@ trap 'rm -rf -- "$TEMP_ROOT"' EXIT
 export MOCK_EVENTS="$TEMP_ROOT/events" MOCK_UPLOADS="$TEMP_ROOT/uploads"
 export MOCK_REMOTE_ASSETS="$TEMP_ROOT/remote-assets"
 export MOCK_ALWAYS_FAIL=false MOCK_CREATE_RELEASE=false MOCK_EMPTY_ASSET=false
+export MOCK_TAG_FILE="$TEMP_ROOT/tag.sha" MOCK_MAIN_SHA=1111111111111111111111111111111111111111 MOCK_EXPLICIT_SHA=2222222222222222222222222222222222222222
+export MOCK_COMMIT_FAIL=false MOCK_TAG_CREATE_FAIL=false
+mock_tag_api() {
+    case "$1" in
+        */commits/main)
+            [[ "$MOCK_COMMIT_FAIL" == false ]] || return 1
+            printf '%s\n' "$MOCK_MAIN_SHA" ;;
+        */commits/refs%2Ftags%2F*) cat "$MOCK_TAG_FILE" ;;
+        */commits/*) printf '%s\n' "$MOCK_EXPLICIT_SHA" ;;
+        */git/refs)
+            [[ "$MOCK_TAG_CREATE_FAIL" == false ]] || return 1
+            [[ ! -e "$MOCK_TAG_FILE" ]] || return 1
+            [[ "$5" == ref=refs/tags/* && "$7" == sha=* ]]
+            printf '%s\n' "${7#sha=}" > "$MOCK_TAG_FILE" ;;
+        *) return 1 ;;
+    esac
+}
+export -f mock_tag_api
 FAIL_ASSET='persesdev-perses-v0.54.0.tar'
 export FAIL_ASSET
 printf 'docker.io/library/busybox:1.36\ndocker.io/persesdev/perses:v0.54.0\n' > "$TEMP_ROOT/images.txt"
@@ -27,7 +45,8 @@ gh() {
     printf 'gh %s\n' "$*" >> "$MOCK_EVENTS"
     case "$1:$2" in
         release:view) [[ "$MOCK_CREATE_RELEASE" == false ]] ;;
-        release:create) [[ "$*" == *'--notes  --latest=false'* ]] ;;
+        release:create)
+            [[ "$*" == *'--notes  --latest=false'* && "$*" == *"--target $(cat "$MOCK_TAG_FILE") "* ]] ;;
         release:upload)
             local asset attempts
             asset="${4##*/}"
@@ -38,6 +57,7 @@ gh() {
             fi
             printf '%s\n' "$asset" >> "$MOCK_REMOTE_ASSETS" ;;
         api:*)
+            case "$2" in */commits/*|*/git/refs) mock_tag_api "${@:2}"; return $? ;; esac
             if [[ "$4" == '.assets[].name' ]]; then cat "$MOCK_REMOTE_ASSETS";
             else printf 'library-busybox-1.36.tar\tsha256:%064d\n' 0; fi ;;
         *) return 1 ;;
@@ -48,6 +68,7 @@ export -f docker gh sleep
 
 bash "$PUBLISHER" --tag fixture --repo fixture/repository --image-only --out "$TEMP_ROOT/dry" --dry-run > "$TEMP_ROOT/dry.log"
 [[ ! -e "$MOCK_EVENTS" && ! -e "$TEMP_ROOT/dry" ]]
+grep -Fq 'latest remote main' "$TEMP_ROOT/dry.log"
 [[ "$(grep -c '^WOULD: docker save ' "$TEMP_ROOT/dry.log")" -eq 11 ]]
 grep -F 'mapping: prom/prometheus:v3.13.1 -> prom-prometheus-v3.13.1.tar' "$TEMP_ROOT/dry.log"
 grep -F 'WOULD: docker save' "$TEMP_ROOT/dry.log" | grep -Fq 'library-python-3.13-bullseye.tar'
@@ -76,7 +97,7 @@ bash "$PUBLISHER" --tag fixture --repo fixture/repository --images-file "$TEMP_R
 grep -F 'skipped (existing)' "$TEMP_ROOT/published.log"
 grep -F 'uploaded after retry' "$TEMP_ROOT/published.log"
 [[ "$(grep -Fc "$FAIL_ASSET" "$MOCK_UPLOADS")" -eq 4 ]]
-[[ "$(grep -c '^gh api ' "$MOCK_EVENTS")" -eq 4 ]]
+[[ "$(grep -c '^gh api ' "$MOCK_EVENTS")" -eq 7 ]]
 grep -Fq '(existing release asset digest)' "$TEMP_ROOT/published.log"
 if grep -Fq library-busybox-1.36.tar "$MOCK_UPLOADS"; then exit 1; fi
 grep -Fq 'mock backoff 1' "$MOCK_EVENTS"
@@ -131,7 +152,7 @@ gh() {
             [[ -f "$MOCK_BUNDLE_REMOTE" ]] || return 1
             jq -r '.isDraft' "$MOCK_BUNDLE_REMOTE" ;;
         release:create)
-            [[ "$*" == *'--draft --latest=false'* ]]
+            [[ "$*" == *'--draft --latest=false'* && "$*" == *"--target $(cat "$MOCK_TAG_FILE") "* ]]
             jq -n '{isDraft:true,assets:[]}' > "$MOCK_BUNDLE_REMOTE" ;;
         release:upload)
             [[ "$MOCK_BUNDLE_FAIL_UPLOAD" == false ]] || return 1
@@ -146,7 +167,9 @@ gh() {
             [[ "$*" == *'--draft=false --latest=false'* ]]
             jq '.isDraft=false' "$MOCK_BUNDLE_REMOTE" > "$MOCK_BUNDLE_REMOTE.tmp"
             mv "$MOCK_BUNDLE_REMOTE.tmp" "$MOCK_BUNDLE_REMOTE" ;;
-        api:*) cat "$MOCK_BUNDLE_REMOTE" ;;
+        api:*)
+            case "$2" in */commits/*|*/git/refs) mock_tag_api "${@:2}"; return $? ;; esac
+            cat "$MOCK_BUNDLE_REMOTE" ;;
         *) return 1 ;;
     esac
 }
@@ -280,3 +303,52 @@ bash "$FAKE_ROOT/scripts/dev/publish-image-release.sh" --tag default --repo fixt
 [[ -s "$TEMP_ROOT/default-assets/learner-dependencies-default.tar.gz" ]]
 jq -e '.isDraft == false' "$MOCK_BUNDLE_REMOTE" >/dev/null
 printf 'automatic default source PASS: no archive or capture-directory argument required\n'
+
+rm -f "$MOCK_TAG_FILE" "$MOCK_BUNDLE_REMOTE"
+: > "$MOCK_EVENTS"
+bash "$PUBLISHER" --tag remote-main --repo fixture/repository --bundle "$bundle" --out "$TEMP_ROOT/main-assets" > "$TEMP_ROOT/main-release.log"
+[[ "$(cat "$MOCK_TAG_FILE")" == "$MOCK_MAIN_SHA" ]]
+grep -Fq 'gh api repos/fixture/repository/commits/main --jq .sha' "$MOCK_EVENTS"
+grep -Fq -- "--target $MOCK_MAIN_SHA" "$MOCK_EVENTS"
+tag_line="$(grep -n 'gh api .*git/refs --method POST' "$MOCK_EVENTS" | cut -d: -f1)"
+release_line="$(grep -n 'gh release create' "$MOCK_EVENTS" | cut -d: -f1)"
+((tag_line < release_line))
+printf 'release remote main PASS: tag created before release at resolved remote SHA, not local HEAD\n'
+
+rm -f "$MOCK_TAG_FILE" "$MOCK_BUNDLE_REMOTE"
+: > "$MOCK_EVENTS"
+bash "$PUBLISHER" --tag explicit --repo fixture/repository --commit "$MOCK_EXPLICIT_SHA" --bundle "$bundle" --out "$TEMP_ROOT/explicit-assets" > "$TEMP_ROOT/explicit-release.log"
+[[ "$(cat "$MOCK_TAG_FILE")" == "$MOCK_EXPLICIT_SHA" ]]
+grep -Fq -- "--target $MOCK_EXPLICIT_SHA" "$MOCK_EVENTS"
+if grep -Fq 'commits/main' "$MOCK_EVENTS"; then exit 1; fi
+printf 'release explicit commit PASS: supplied SHA creates the tag/release without consulting main\n'
+
+: > "$MOCK_EVENTS"
+if bash "$PUBLISHER" --tag conflict --repo fixture/repository --bundle "$bundle" --out "$TEMP_ROOT/tag-conflict-assets" > "$TEMP_ROOT/tag-conflict.log" 2>&1; then exit 1; fi
+grep -Fq 'existing tag conflict targets' "$TEMP_ROOT/tag-conflict.log"
+[[ "$(cat "$MOCK_TAG_FILE")" == "$MOCK_EXPLICIT_SHA" ]]
+if grep -Eq 'gh release (create|upload|edit)' "$MOCK_EVENTS"; then exit 1; fi
+printf 'release conflicting tag PASS: existing tags are never moved and release mutations are refused\n'
+
+MOCK_COMMIT_FAIL=true
+export MOCK_COMMIT_FAIL
+: > "$MOCK_EVENTS"
+if bash "$PUBLISHER" --tag unresolved --repo fixture/repository --bundle "$bundle" --out "$TEMP_ROOT/unresolved-assets" > "$TEMP_ROOT/unresolved.log" 2>&1; then exit 1; fi
+grep -Fq 'could not resolve release commit' "$TEMP_ROOT/unresolved.log"
+if grep -Eq 'git/refs --method POST|gh release (create|upload|edit)' "$MOCK_EVENTS"; then exit 1; fi
+MOCK_COMMIT_FAIL=false MOCK_TAG_CREATE_FAIL=true
+export MOCK_COMMIT_FAIL MOCK_TAG_CREATE_FAIL
+rm -f "$MOCK_TAG_FILE" "$MOCK_BUNDLE_REMOTE"
+: > "$MOCK_EVENTS"
+if bash "$PUBLISHER" --tag tag-failed --repo fixture/repository --bundle "$bundle" --out "$TEMP_ROOT/tag-failed-assets" > "$TEMP_ROOT/tag-failed.log" 2>&1; then exit 1; fi
+grep -Fq 'could not create or resolve the required release tag' "$TEMP_ROOT/tag-failed.log"
+if grep -Eq 'gh release (create|upload|edit)' "$MOCK_EVENTS"; then exit 1; fi
+printf 'release target failure PASS: commit lookup or tag creation failures never create/upload releases\n'
+
+: > "$MOCK_EVENTS"
+if bash "$PUBLISHER" --tag invalid --repo fixture/repository --commit main --dry-run > "$TEMP_ROOT/invalid-commit.log" 2>&1; then exit 1; fi
+[[ ! -s "$MOCK_EVENTS" ]]
+bash "$PUBLISHER" --tag preview --repo fixture/repository --commit "$MOCK_EXPLICIT_SHA" --dry-run > "$TEMP_ROOT/commit-dry.log"
+[[ ! -s "$MOCK_EVENTS" ]]
+grep -Fq "$MOCK_EXPLICIT_SHA" "$TEMP_ROOT/commit-dry.log"
+printf 'release commit validation PASS: SHA-only override and dry-run target preview without client calls\n'
