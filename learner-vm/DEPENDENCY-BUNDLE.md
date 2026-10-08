@@ -107,7 +107,19 @@ This validates the bundle's core cached-build goal on EL8, but does not certify 
 
 ## Publication
 
-Upload the completed archive, trusted SHA-256 and inventory to an explicitly selected GitHub Release using the connected machine's `gh` authentication.
+Create and upload the archive, trusted SHA-256 and inventory to an explicitly selected GitHub Release using the connected machine's `gh` authentication.
+Use the documented `scripts/dev/publish-image-release.sh --repo <owner/name> --tag <tag> --out <asset-directory>` workflow rather than manual release commands.
+The publisher automatically packs the offline-verified capture tree `dist/learner-dependencies-java17-r7` into `<asset-directory>/learner-dependencies-<tag>.tar.gz` and generates its trusted checksum.
+Use `--bundle-source <directory>` for a different verified capture tree; fresh captures must pass offline validation first, and incomplete or unverified manifests are refused before GitHub is called.
+Existing generated archives are reused only when the capture inventory, file set and checksums still match; changed capture trees require a new output directory.
+The optional `--bundle <archive.tar.gz>` mode retains support for an existing archive with a trusted adjacent `.sha256` sidecar.
+The publisher verifies the bundle before generating release assets or calling GitHub.
+Its bundle mode splits the archive into parts below GitHub's per-asset limit and publishes `bundle-publication.json`, `SHA256SUMS`, the archive checksum, bundle/lab-file inventories, generic-download checksums and `REASSEMBLE.md`.
+The manifest records each part's name, size and SHA-256 plus the reassembled archive checksum.
+Download all listed assets together, verify `SHA256SUMS`, then follow the generated `REASSEMBLE.md` before running the normal bundle verifier/import workflow.
+The release remains draft until every remote asset digest and size matches the local artefacts; reruns reuse matching assets and refuse mismatches or changes to an incomplete already-public release.
+The existing image-only mode remains available through `--image-only` or an explicit `--images-file`, but it does not publish package caches or generic lab files.
+GitHub's automatic source archives come from the release tag; the publisher does not create a separate source snapshot.
 Verify uploaded asset digests and completeness, and distinguish release upload failures from learner provisioning failures.
 Check GitHub per-asset limits and learner disk requirements; a split release requires an explicit manifest and independently verified parts.
 OS package repositories, the k3s binary and k3s system-image archive remain separate bootstrap prerequisites unless explicitly declared in this bundle's inventory.

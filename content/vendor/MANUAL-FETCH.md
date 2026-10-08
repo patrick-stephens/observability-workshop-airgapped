@@ -100,7 +100,7 @@ The loader validates embedded manifest/blob hashes and checks the loaded image r
 | archive ID | local staging path | optional checksum lock key | store target |
 |---|---|---|---|
 | image-busybox | $MANUAL_FETCH_DIR/images/library-busybox-1.36.tar | - | podman |
-| image-eclipse-temurin | $MANUAL_FETCH_DIR/images/library-eclipse-temurin-21.tar | - | podman |
+| image-eclipse-temurin | $MANUAL_FETCH_DIR/images/library-eclipse-temurin-17.tar | - | podman |
 | image-fluent-bit | $MANUAL_FETCH_DIR/images/fluent-fluent-bit-5.1.1.tar | - | podman |
 | image-jaegertracing-all-in-one | $MANUAL_FETCH_DIR/images/jaegertracing-all-in-one-1.76.0.tar | - | podman |
 | image-node-exporter | $MANUAL_FETCH_DIR/images/prometheus-node-exporter-v1.12.1.tar | - | podman |
@@ -118,14 +118,15 @@ A checksum mismatch is fatal, leaves the file untouched, and performs no network
 
 ### Optional Online Release Publisher
 
-On a connected machine only, `scripts/dev/publish-image-release.sh` uses Docker pull/save and the environment's `gh` authentication to publish one asset per pinned image.
+On a connected machine only, `scripts/dev/publish-image-release.sh --image-only` uses Docker pull/save and the environment's `gh` authentication to publish one asset per pinned image.
+Without an image-only option, the publisher automatically packs an offline-verified learner capture tree and publishes split bundle assets; see `learner-vm/DEPENDENCY-BUNDLE.md` for prerequisites and `--bundle-source` selection.
 Asset filenames strip the registry host, preserve namespaces, and replace slash/colon separators with dashes; they match the catalogued staging filenames.
 Uploads are individual with exponential-backoff retries and a missing-asset retry pass because batch uploads can partially fail.
 Existing assets are skipped unless `--replace-existing` is set; `--retries N` sets attempts per pass (default 3), and `--images-file` and `--out` override input and output paths.
 The final report includes each archive SHA-256 and a connected-machine download pattern; nothing is downloaded by the learner VM.
 
 ```bash
-bash scripts/dev/publish-image-release.sh --tag <tag> --repo <owner/name> --dry-run
+bash scripts/dev/publish-image-release.sh --image-only --tag <tag> --repo <owner/name> --dry-run
 # Remove --dry-run only when intentionally publishing from the connected machine.
 ```
 
@@ -149,7 +150,7 @@ Script 60 records per-image sources (local archive, existing store, or Artifacto
 |---|---|---|---|---|
 | docker.io/jaegertracing/all-in-one:1.76.0 | DOCKER_REGISTRY (Artifactory mirror) | FETCH AT PROVISIONING | script 60 (Podman) and script 62 (k3s containerd) | Record the original image reference, DOCKER_REGISTRY endpoint, k3s version if applicable, pull output, CA/DNS results, and relevant journal; escalate to the Artifactory administrator. Do not use a public-internet fallback. |
 | docker.io/library/busybox:1.36 | DOCKER_REGISTRY (Artifactory mirror) | FETCH AT PROVISIONING | script 60 (Podman) | Record the original image reference, DOCKER_REGISTRY endpoint, k3s version if applicable, pull output, CA/DNS results, and relevant journal; escalate to the Artifactory administrator. Do not use a public-internet fallback. |
-| docker.io/library/eclipse-temurin:21 | DOCKER_REGISTRY (Artifactory mirror) | FETCH AT PROVISIONING | script 60 (Podman) | Record the original image reference, DOCKER_REGISTRY endpoint, k3s version if applicable, pull output, CA/DNS results, and relevant journal; escalate to the Artifactory administrator. Do not use a public-internet fallback. |
+| docker.io/library/eclipse-temurin:17 | DOCKER_REGISTRY (Artifactory mirror) | FETCH AT PROVISIONING | script 60 (Podman) | Record the original image reference, DOCKER_REGISTRY endpoint, k3s version if applicable, pull output, CA/DNS results, and relevant journal; escalate to the Artifactory administrator. Do not use a public-internet fallback. |
 | docker.io/library/python:3.13-bullseye | DOCKER_REGISTRY (Artifactory mirror) | FETCH AT PROVISIONING | script 60 (Podman) | Record the original image reference, DOCKER_REGISTRY endpoint, k3s version if applicable, pull output, CA/DNS results, and relevant journal; escalate to the Artifactory administrator. Do not use a public-internet fallback. |
 | docker.io/opensearchproject/opensearch-dashboards:3.3.0 | DOCKER_REGISTRY (Artifactory mirror) | FETCH AT PROVISIONING | script 60 (Podman) | Record the original image reference, DOCKER_REGISTRY endpoint, k3s version if applicable, pull output, CA/DNS results, and relevant journal; escalate to the Artifactory administrator. Do not use a public-internet fallback. |
 | docker.io/opensearchproject/opensearch:3.3.1 | DOCKER_REGISTRY (Artifactory mirror) | FETCH AT PROVISIONING | script 60 (Podman) | Record the original image reference, DOCKER_REGISTRY endpoint, k3s version if applicable, pull output, CA/DNS results, and relevant journal; escalate to the Artifactory administrator. Do not use a public-internet fallback. |

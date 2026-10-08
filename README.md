@@ -252,7 +252,26 @@ Run `bash scripts/dev/vendor-k3s.sh` online to fetch and verify the small pinned
 Bring the Git repository onto the approved network path; no custom transfer package is required.
 Optional per-image archives may be provided at the catalogued local paths; they are operator-provided files, never repository assets.
 See [content/vendor/MANUAL-FETCH.md](content/vendor/MANUAL-FETCH.md) Section C for Docker save/load, checksum recording, and the optional connected-machine [scripts/dev/publish-image-release.sh](scripts/dev/publish-image-release.sh) publisher.
-By default, the publisher combines `content/extracted/external-images.txt` with external build bases recorded in `commands.json`, deduplicates aliases, and excludes locally built bases and `scratch`, so Python and Temurin base tarballs are included even if the external-image inventory omits them.
+By default, the publisher creates the learner bundle and its checksum from the offline-verified capture directory `dist/learner-dependencies-java17-r7`; no archive argument is required.
+Use `--bundle-source <directory>` to select another verified capture tree, or `--bundle <archive.tar.gz>` to publish an existing archive with its trusted adjacent `.sha256` sidecar.
+Automatic creation writes `learner-dependencies-<tag>.tar.gz` under `--out`, using the existing bundle packer and its complete-coverage/offline-validation gates.
+Capture and offline validation remain separate prerequisites; the publisher neither downloads new dependencies nor marks unverified captures as verified.
+Reruns reuse the generated archive only if the capture inventory and file contents still match; changed sources require a new output directory.
+Bundle mode verifies the archive, splits it into 1,900,000,000-byte parts by default, and publishes checksums, inventories and reassembly instructions alongside them.
+It uploads to a draft release and makes it public only after every remote asset digest and size matches; failed uploads or verification leave the release in draft.
+No custom source snapshot is created; GitHub supplies its normal source archives from the release tag, targeting the current committed HEAD.
+Commit and push the intended source changes before publication so that GitHub's automatic source archives contain them.
+Preview the selected target without publishing:
+
+```bash
+bash scripts/dev/publish-image-release.sh \
+	--repo patrick-stephens/observability-workshop-airgapped --tag v1.1.0 \
+	--out "$PWD/dist/dependency-release-v1.1.0" --dry-run
+```
+
+Remove `--dry-run` only when publication is authorised.
+Run `bash scripts/dev/test-image-release.sh` for mocked image and bundle publication regression tests; these tests do not publish real releases.
+In `--image-only` mode, the publisher combines `content/extracted/external-images.txt` with external build bases recorded in `commands.json`, deduplicates aliases, and excludes locally built bases and `scratch`, so Python and Temurin base tarballs are included even if the external-image inventory omits them.
 An explicit `--images-file` remains a standalone custom image list; use `--dry-run` to inspect mappings without Docker pulls, saved files or release changes.
 The diagnostic pulls by default and may warm the Podman store; `--no-pull-verification` restores probe-only checks without container-store changes.
 Prefer the dedicated `docker-registry.${ART_REPO_DOMAIN}` registry endpoint; explicit path-form endpoints remain supported.

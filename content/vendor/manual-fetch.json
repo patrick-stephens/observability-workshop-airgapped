@@ -36,9 +36,9 @@
     "expected_size": null
   },
   {
-    "name": "docker.io/library/eclipse-temurin:21",
+    "name": "docker.io/library/eclipse-temurin:17",
     "category": "image",
-    "source": "docker://docker.io/library/eclipse-temurin:21",
+    "source": "docker://docker.io/library/eclipse-temurin:17",
     "runtime_source": "DOCKER_REGISTRY (Artifactory mirror)",
     "sha256": null,
     "path": "runtime pull into the Podman or k3s containerd store",
@@ -237,14 +237,14 @@
     "lock_key": "-",
     "expected_sha256": null,
     "sha256": null,
-    "staging_relative_path": "images/library-eclipse-temurin-21.tar",
-    "path": "$MANUAL_FETCH_DIR/images/library-eclipse-temurin-21.tar",
+    "staging_relative_path": "images/library-eclipse-temurin-17.tar",
+    "path": "$MANUAL_FETCH_DIR/images/library-eclipse-temurin-17.tar",
     "consumer_script": "scripts/60-load-images.sh",
     "install_target": "podman",
     "required": false,
     "used_by": "scripts/60-load-images.sh",
     "purpose": "Load an operator-provided image archive before mirror pulls; verify an optional operator-recorded archive SHA and embedded manifest hashes when present.",
-    "recovery": "Optionally provide $MANUAL_FETCH_DIR/images/library-eclipse-temurin-21.tar; see MANUAL-FETCH.md Section C. No URL is probed or fetched; if absent, the image proceeds to the mirror pull stage."
+    "recovery": "Optionally provide $MANUAL_FETCH_DIR/images/library-eclipse-temurin-17.tar; see MANUAL-FETCH.md Section C. No URL is probed or fetched; if absent, the image proceeds to the mirror pull stage."
   },
   {
     "name": "image-fluent-bit",
